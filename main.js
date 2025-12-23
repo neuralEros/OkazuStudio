@@ -30,7 +30,8 @@
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
-            workingA: null, workingB: null,
+            workingA: null, workingB: null, sourceA: null, sourceB: null,
+            adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null
         };
 
@@ -90,7 +91,7 @@
             resetAllAdjustments,
             log,
             updateUI,
-            rebuildWorkingCopies
+            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments
         });
 
         const {
@@ -113,7 +114,7 @@
         });
 
         setSaveSnapshotHandler(saveSnapshot);
-        setUpdateWorkingCopiesHandler(rebuildWorkingCopies);
+        setUpdateWorkingCopiesHandler(updateWorkingCopiesAfterAdjustments);
 
         function hasActiveAdjustments() {
             const a = state.adjustments;
@@ -123,18 +124,50 @@
                              a.shadows !== 0 || a.highlights !== 0;
         }
 
+        function markAdjustmentsDirty() {
+            state.adjustmentsVersion += 1;
+        }
+
+        function cloneToCanvas(img) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const c = canvas.getContext('2d');
+            c.drawImage(img, 0, 0);
+            return canvas;
+        }
+
+        function setLayerSource(slot, img) {
+            const base = cloneToCanvas(img);
+            if (slot === 'A') {
+                state.imgA = base;
+                state.sourceA = base;
+                state.workingVersionA = 0;
+            } else {
+                state.imgB = base;
+                state.sourceB = base;
+                state.workingVersionB = 0;
+            }
+        }
+
         function getLayerSource(slot, useBakedLayers = true) {
             const source = slot === 'A' ? state.imgA : state.imgB;
             if (!source) return null;
             if (!useBakedLayers) return source;
             const working = slot === 'A' ? state.workingA : state.workingB;
-            return working || source;
+            const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
+            if (!working || workingVersion !== state.adjustmentsVersion) {
+                rebuildWorkingCopyForSlot(slot);
+                return slot === 'A' ? state.workingA || source : state.workingB || source;
+            }
+            return working;
         }
 
         function rebuildWorkingCopyForSlot(slot) {
-            const source = slot === 'A' ? state.imgA : state.imgB;
+            const source = slot === 'A' ? state.sourceA : state.sourceB;
             if (!source) {
-                if (slot === 'A') state.workingA = null; else state.workingB = null;
+                if (slot === 'A') { state.workingA = null; state.workingVersionA = 0; }
+                else { state.workingB = null; state.workingVersionB = 0; }
                 return;
             }
             const canvas = document.createElement('canvas');
@@ -150,12 +183,19 @@
                 layerCtx.putImageData(imgData, 0, 0);
             }
 
-            if (slot === 'A') state.workingA = canvas; else state.workingB = canvas;
+            if (slot === 'A') { state.workingA = canvas; state.workingVersionA = state.adjustmentsVersion; }
+            else { state.workingB = canvas; state.workingVersionB = state.adjustmentsVersion; }
         }
 
-        function rebuildWorkingCopies() {
+        function rebuildWorkingCopies(forceVersionBump = false) {
+            if (forceVersionBump) markAdjustmentsDirty();
             rebuildWorkingCopyForSlot('A');
             rebuildWorkingCopyForSlot('B');
+        }
+
+        function updateWorkingCopiesAfterAdjustments() {
+            markAdjustmentsDirty();
+            rebuildWorkingCopies();
         }
 
         function setupDragAndDrop() {
@@ -182,7 +222,7 @@
             window.addEventListener('pointerup', () => {
                 if(state.isAdjusting) {
                     state.isAdjusting = false;
-                    rebuildWorkingCopies();
+                    updateWorkingCopiesAfterAdjustments();
                     render();
                 }
             });
@@ -192,7 +232,9 @@
 
             els.swapBtn.addEventListener('click', () => {
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
                 [state.workingA, state.workingB] = [state.workingB, state.workingA];
+                [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");
@@ -200,7 +242,9 @@
                 else els.btnA.classList.remove('border-accent-strong', 'text-accent');
                 if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
                 else els.btnB.classList.remove('border-accent-strong', 'text-accent');
-                updateCanvasDimensions(true); 
+                markAdjustmentsDirty();
+                rebuildWorkingCopies();
+                updateCanvasDimensions(true);
                 updateUI();
                 render();
             });
@@ -468,12 +512,14 @@
                  els.brushSize.disabled = false;
             }
 
-            if(state.isAFront) {
-                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
-            } else {
+            const swapEnabled = state.imgA && state.imgB;
+            els.swapBtn.disabled = !swapEnabled;
+            if (swapEnabled) {
                 els.swapBtn.classList.add('bg-accent-dark', 'border-accent-strong');
                 els.swapBtn.classList.remove('bg-gray-800', 'border-gray-600');
+            } else {
+                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
+                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
             }
             
             if (enable) {
@@ -510,17 +556,18 @@
                 const img = new Image();
                 img.onload = () => {
                     if (slot === 'A') {
-                        state.imgA = img;
+                        setLayerSource('A', img);
                         state.nameA = file.name;
                         els.btnA.textContent = truncate(file.name);
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
-                        state.imgB = img;
+                        setLayerSource('B', img);
                         state.nameB = file.name;
                         els.btnB.textContent = truncate(file.name);
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
-                    rebuildWorkingCopyForSlot(slot);
+                    markAdjustmentsDirty();
+                    rebuildWorkingCopies();
                     updateCanvasDimensions(); // Re-inits cropRect
                     render();
                     updateUI();
@@ -576,9 +623,9 @@
                     const baseData = els.mainCanvas.toDataURL('image/png');
                     const imgBase = new Image();
                     imgBase.onload = () => {
-                        state.imgA = imgBase; state.nameA = "Base Layer";
+                        setLayerSource('A', imgBase); state.nameA = "Base Layer";
                         const w = imgBase.width; const h = imgBase.height;
-                        const blurRadius = Math.max(1, h * 0.01); 
+                        const blurRadius = Math.max(1, h * 0.01);
                         const pad = Math.ceil(blurRadius * 3);
                         const paddedCanvas = document.createElement('canvas');
                         paddedCanvas.width = w + pad * 2; paddedCanvas.height = h + pad * 2;
@@ -607,8 +654,8 @@
                         tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
                         const imgCensored = new Image();
                         imgCensored.onload = () => {
-                            state.imgB = imgCensored; state.nameB = "Censored Layer";
-                            
+                            setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
+
                             // Re-init full dims
                             const newW = imgCensored.width;
                             const newH = imgCensored.height;
@@ -635,7 +682,7 @@
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');
                             els.btnB.textContent = "Censored"; els.btnB.classList.add('border-accent-strong', 'text-accent');
 
-                            rebuildWorkingCopies();
+                            rebuildWorkingCopies(true);
 
                             render(); updateUI();
                             log("Censor setup complete", "info");
@@ -661,7 +708,7 @@
                     const dataURL = els.mainCanvas.toDataURL('image/png');
                     const newImg = new Image();
                     newImg.onload = () => {
-                        state.imgA = newImg; state.imgB = null;
+                        setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
                         state.nameA = "Merged Layer"; state.nameB = "";
                         
                         // Update dims
@@ -685,7 +732,7 @@
                         frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
                         maskCtx.clearRect(0, 0, newW, newH);
 
-                        rebuildWorkingCopies();
+                        rebuildWorkingCopies(true);
 
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";

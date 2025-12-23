@@ -738,12 +738,14 @@
 
         function updateVisibilityToggles() {
             const maskHidden = !state.maskVisible;
-            els.toggleMaskBtn.classList.toggle('toggle-active', maskHidden);
+            els.toggleMaskBtn.classList.toggle('bg-accent-dark', maskHidden);
+            els.toggleMaskBtn.classList.toggle('border-accent-strong', maskHidden);
             els.maskEyeOpen.classList.toggle('hidden', maskHidden);
             els.maskEyeClosed.classList.toggle('hidden', !maskHidden);
 
             const backHidden = !state.backVisible;
-            els.toggleBackBtn.classList.toggle('toggle-active', backHidden);
+            els.toggleBackBtn.classList.toggle('bg-accent-dark', backHidden);
+            els.toggleBackBtn.classList.toggle('border-accent-strong', backHidden);
             els.rearEyeOpen.classList.toggle('hidden', backHidden);
             els.rearEyeClosed.classList.toggle('hidden', !backHidden);
         }

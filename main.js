@@ -43,7 +43,8 @@
         const els = {
             fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
-            mainCanvas: document.getElementById('mainCanvas'), viewport: document.getElementById('viewport'),
+            mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
+            viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
             opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
@@ -63,7 +64,7 @@
             workspaceResolution: document.getElementById('workspace-resolution')
         };
 
-        const ctx = els.mainCanvas.getContext('2d', { willReadFrequently: true });
+        const ctx = els.mainCanvas.getContext('2d');
         const maskCanvas = document.createElement('canvas');
         const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
         const frontLayerCanvas = document.createElement('canvas');
@@ -447,8 +448,6 @@
             const preferPreview = state.useFastPreview && !finalOutput;
             const allowRebuild = !isUserInteracting();
 
-            ctx.clearRect(0, 0, cw, ch);
-            
             // If cropping, draw full source image, then overlay
             // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
             const sX = state.isCropping ? 0 : state.cropRect.x;
@@ -463,17 +462,21 @@
             const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
 
             const shouldUseDownscaledComposite = preferPreview && (frontImg || backImg);
+
             if (shouldUseDownscaledComposite) {
+                els.mainCanvas.style.visibility = 'hidden';
+                els.previewCanvas.classList.remove('hidden');
+
                 let fastScale = Math.min(1, 1080 / Math.max(sW, sH));
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));
-                if (!state.previewComposite) state.previewComposite = document.createElement('canvas');
-                if (state.previewComposite.width !== pw || state.previewComposite.height !== ph) {
-                    state.previewComposite.width = pw;
-                    state.previewComposite.height = ph;
+
+                const pCtx = els.previewCanvas.getContext('2d');
+                if (els.previewCanvas.width !== pw || els.previewCanvas.height !== ph) {
+                    els.previewCanvas.width = pw;
+                    els.previewCanvas.height = ph;
                 }
-                const pCtx = state.previewComposite.getContext('2d');
                 pCtx.clearRect(0, 0, pw, ph);
 
                 const shouldRenderBack = backImg && (state.backVisible || finalOutput);
@@ -519,12 +522,12 @@
                     pCtx.globalAlpha = effectiveOpacity;
                     pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
+            } else {
+                els.mainCanvas.style.visibility = 'visible';
+                els.previewCanvas.classList.add('hidden');
 
                 ctx.clearRect(0, 0, cw, ch);
-                ctx.imageSmoothingEnabled = true;
-                ctx.globalAlpha = 1.0;
-                ctx.drawImage(state.previewComposite, 0, 0, cw, ch);
-            } else {
+
                 // 1. Draw Back
                 const shouldRenderBack = backImg && (state.backVisible || finalOutput);
 

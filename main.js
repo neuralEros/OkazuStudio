@@ -52,7 +52,8 @@
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
-            cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box')
+            cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
+            workspaceResolution: document.getElementById('workspace-resolution')
         };
 
         const ctx = els.mainCanvas.getContext('2d', { willReadFrequently: true });
@@ -206,6 +207,18 @@
 
             log("Ready. Load images to begin.", "info");
             showHints();
+            updateWorkspaceLabel();
+        }
+
+        function updateWorkspaceLabel() {
+            if (!els.workspaceResolution) return;
+            if (!canDraw()) {
+                els.workspaceResolution.style.display = 'none';
+                return;
+            }
+
+            els.workspaceResolution.textContent = `${els.mainCanvas.width}×${els.mainCanvas.height}`;
+            els.workspaceResolution.style.display = '';
         }
 
         // --- Core Rendering & Helper ---
@@ -390,6 +403,7 @@
             els.mainCanvas.height = h;
             frontLayerCanvas.width = w;
             frontLayerCanvas.height = h;
+            updateWorkspaceLabel();
         }
 
         // --- Standard App Functions ---
@@ -428,6 +442,8 @@
                 els.viewport.classList.add('disabled');
                 els.cursor.style.display = 'none';
             }
+
+            updateWorkspaceLabel();
         }
 
         function truncate(str) {

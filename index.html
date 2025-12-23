@@ -204,7 +204,10 @@
             </div>
             <input type="range" id="opacitySlider" min="0" max="100" value="80" class="w-full">
         </div>
-        <div class="ml-auto">
+        <div class="ml-auto flex items-center gap-2">
+            <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
+                 <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
+            </button>
             <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export PNG">
                 <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
                 <span>Export</span>

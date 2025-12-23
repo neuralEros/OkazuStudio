@@ -242,12 +242,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             });
 
             el.addEventListener('change', (e) => {
-                scheduleHeavyTask(() => {
-                    state.isAdjusting = false;
-                    updateWorkingCopies();
-                    saveSnapshot(actionKey);
-                    render();
-                });
+                state.isAdjusting = false;
+                state.pendingAdjustmentCommit = true;
+                saveSnapshot(actionKey);
             });
         }
 
@@ -271,12 +268,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 a.colorBal.r === 0 && a.colorBal.g === 0 && a.colorBal.b === 0 &&
                 a.shadows === 0 && a.highlights === 0) return;
 
-            scheduleHeavyTask(() => {
-                resetAllAdjustments();
-                updateWorkingCopies();
-                saveSnapshot('adjustments_reset');
-                render();
-            });
+            resetAllAdjustments();
+            state.pendingAdjustmentCommit = true;
+            updateAdjustmentPreview();
+            saveSnapshot('adjustments_reset');
         });
 
         els.resetLevelsBtn.addEventListener('click', () => {
@@ -286,11 +281,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             updateSlider('adj-l-black', 0);
             updateSlider('adj-l-mid', 1.0);
             updateSlider('adj-l-white', 255);
-            scheduleHeavyTask(() => {
-                updateWorkingCopies();
-                saveSnapshot('levels_reset');
-                render();
-            });
+            state.pendingAdjustmentCommit = true;
+            updateAdjustmentPreview();
+            saveSnapshot('levels_reset');
         });
 
         document.getElementById('resetSatBtn').addEventListener('click', () => {
@@ -299,11 +292,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              state.adjustments.vibrance = 0;
              updateSlider('adj-sat', 0);
              updateSlider('adj-vib', 0);
-             scheduleHeavyTask(() => {
-                 updateWorkingCopies();
-                 saveSnapshot('sat_reset');
-                 render();
-             });
+             state.pendingAdjustmentCommit = true;
+             updateAdjustmentPreview();
+             saveSnapshot('sat_reset');
         });
 
         els.resetColorBtn.addEventListener('click', () => {
@@ -315,11 +306,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-cb-r', 0);
              updateSlider('adj-cb-g', 0);
              updateSlider('adj-cb-b', 0);
-             scheduleHeavyTask(() => {
-                 updateWorkingCopies();
-                 saveSnapshot('color_reset');
-                 render();
-             });
+             state.pendingAdjustmentCommit = true;
+             updateAdjustmentPreview();
+             saveSnapshot('color_reset');
         });
     }
 

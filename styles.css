@@ -240,6 +240,36 @@
             cursor: move;
         }
 
+        .crop-grid {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .crop-grid-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.45);
+            box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+        }
+
+        .crop-grid-line.vertical {
+            top: 0;
+            bottom: 0;
+            width: 1px;
+        }
+
+        .crop-grid-line.horizontal {
+            left: 0;
+            right: 0;
+            height: 1px;
+        }
+
+        .crop-grid-line.v1 { left: calc(100% / 3); }
+        .crop-grid-line.v2 { left: calc(100% * 2 / 3); }
+        .crop-grid-line.h1 { top: calc(100% / 3); }
+        .crop-grid-line.h2 { top: calc(100% * 2 / 3); }
+
         .crop-handle {
             position: absolute;
             width: 14px;

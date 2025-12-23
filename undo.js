@@ -1,4 +1,4 @@
-function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMainCanvas, render, resetAllAdjustments, log, updateUI }) {
+function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMainCanvas, render, resetAllAdjustments, log, updateUI, rebuildWorkingCopies }) {
     function saveSnapshot(actionType = 'generic') {
         const snap = {
             mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
@@ -68,6 +68,8 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
         } else {
             resizeMainCanvas(state.fullDims.w, state.fullDims.h);
         }
+
+        if (typeof rebuildWorkingCopies === 'function') rebuildWorkingCopies();
 
         render();
     }

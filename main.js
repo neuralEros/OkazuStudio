@@ -22,7 +22,7 @@
         }
 
         const state = {
-            imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true, 
+            imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: 10, feather: 1, isErasing: true, isDrawing: false,
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
@@ -30,6 +30,7 @@
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
+            workingA: null, workingB: null,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null
         };
 
@@ -69,7 +70,8 @@
             initAdjustments,
             resetAllAdjustments,
             updateSlider,
-            setSaveSnapshotHandler
+            setSaveSnapshotHandler,
+            setUpdateWorkingCopiesHandler
         } = createAdjustmentSystem({
             state,
             els,
@@ -87,7 +89,8 @@
             render,
             resetAllAdjustments,
             log,
-            updateUI
+            updateUI,
+            rebuildWorkingCopies
         });
 
         const {
@@ -110,6 +113,50 @@
         });
 
         setSaveSnapshotHandler(saveSnapshot);
+        setUpdateWorkingCopiesHandler(rebuildWorkingCopies);
+
+        function hasActiveAdjustments() {
+            const a = state.adjustments;
+            return a.gamma !== 1.0 || a.levels.black !== 0 || a.levels.mid !== 1.0 || a.levels.white !== 255 ||
+                             a.saturation !== 0 || a.vibrance !== 0 || a.wb !== 0 ||
+                             a.colorBal.r !== 0 || a.colorBal.g !== 0 || a.colorBal.b !== 0 ||
+                             a.shadows !== 0 || a.highlights !== 0;
+        }
+
+        function getLayerSource(slot, useBakedLayers = true) {
+            const source = slot === 'A' ? state.imgA : state.imgB;
+            if (!source) return null;
+            if (!useBakedLayers) return source;
+            const working = slot === 'A' ? state.workingA : state.workingB;
+            return working || source;
+        }
+
+        function rebuildWorkingCopyForSlot(slot) {
+            const source = slot === 'A' ? state.imgA : state.imgB;
+            if (!source) {
+                if (slot === 'A') state.workingA = null; else state.workingB = null;
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = source.width;
+            canvas.height = source.height;
+            const layerCtx = canvas.getContext('2d');
+            layerCtx.drawImage(source, 0, 0);
+
+            if (hasActiveAdjustments()) {
+                const imgData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
+                applyMasterLUT(imgData);
+                applyColorOps(imgData);
+                layerCtx.putImageData(imgData, 0, 0);
+            }
+
+            if (slot === 'A') state.workingA = canvas; else state.workingB = canvas;
+        }
+
+        function rebuildWorkingCopies() {
+            rebuildWorkingCopyForSlot('A');
+            rebuildWorkingCopyForSlot('B');
+        }
 
         function setupDragAndDrop() {
             const body = document.body;
@@ -135,6 +182,7 @@
             window.addEventListener('pointerup', () => {
                 if(state.isAdjusting) {
                     state.isAdjusting = false;
+                    rebuildWorkingCopies();
                     render();
                 }
             });
@@ -144,6 +192,7 @@
 
             els.swapBtn.addEventListener('click', () => {
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                [state.workingA, state.workingB] = [state.workingB, state.workingA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");
@@ -224,11 +273,11 @@
         }
 
         // --- Core Rendering & Helper ---
-        function renderToContext(targetCtx, w, h, forceOpacity = false) {
+        function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true) {
             targetCtx.clearRect(0, 0, w, h);
 
-            const frontImg = state.isAFront ? state.imgA : state.imgB;
-            const backImg = state.isAFront ? state.imgB : state.imgA;
+            const frontImg = state.isAFront ? getLayerSource('A', useBakedLayers) : getLayerSource('B', useBakedLayers);
+            const backImg = state.isAFront ? getLayerSource('B', useBakedLayers) : getLayerSource('A', useBakedLayers);
             
             // Adjust draw args for crop logic
             const sX = state.isCropping ? 0 : state.cropRect.x;
@@ -283,7 +332,9 @@
 
             const cw = els.mainCanvas.width;
             const ch = els.mainCanvas.height;
-            
+
+            const useBakedLayers = !skipAdjustments;
+
             ctx.clearRect(0, 0, cw, ch);
             
             // If cropping, draw full source image, then overlay
@@ -293,8 +344,8 @@
             const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
             const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
 
-            const frontImg = state.isAFront ? state.imgA : state.imgB;
-            const backImg = state.isAFront ? state.imgB : state.imgA;
+            const frontImg = state.isAFront ? getLayerSource('A', useBakedLayers) : getLayerSource('B', useBakedLayers);
+            const backImg = state.isAFront ? getLayerSource('B', useBakedLayers) : getLayerSource('A', useBakedLayers);
 
             // 1. Draw Back
             const shouldRenderBack = backImg && (state.backVisible || finalOutput);
@@ -364,19 +415,6 @@
                 els.cropOverlayDom.style.display = 'none';
             }
             
-            // 5. Apply Global Adjustments (Non-Destructive) - Only if NOT cropping (cropping shows raw)
-            const a = state.adjustments;
-            const needsAdj = a.gamma !== 1.0 || a.levels.black !== 0 || a.levels.mid !== 1.0 || a.levels.white !== 255 || 
-                             a.saturation !== 0 || a.vibrance !== 0 || a.wb !== 0 ||
-                             a.colorBal.r !== 0 || a.colorBal.g !== 0 || a.colorBal.b !== 0 ||
-                             a.shadows !== 0 || a.highlights !== 0;
-
-            if (needsAdj && !skipAdjustments && !state.isCropping) {
-                const imgData = ctx.getImageData(0, 0, cw, ch);
-                applyMasterLUT(imgData); 
-                applyColorOps(imgData); 
-                ctx.putImageData(imgData, 0, 0);
-            }
         }
 
         // --- Crop Logic ---
@@ -482,6 +520,7 @@
                         els.btnB.textContent = truncate(file.name);
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
+                    rebuildWorkingCopyForSlot(slot);
                     updateCanvasDimensions(); // Re-inits cropRect
                     render();
                     updateUI();
@@ -595,7 +634,9 @@
                             state.isAFront = true;
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');
                             els.btnB.textContent = "Censored"; els.btnB.classList.add('border-accent-strong', 'text-accent');
-                            
+
+                            rebuildWorkingCopies();
+
                             render(); updateUI();
                             log("Censor setup complete", "info");
                         };
@@ -643,7 +684,9 @@
                         maskCanvas.width = newW; maskCanvas.height = newH;
                         frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
                         maskCtx.clearRect(0, 0, newW, newH);
-                        
+
+                        rebuildWorkingCopies();
+
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                         els.btnA.textContent = "Merged"; els.btnA.classList.add('border-accent-strong', 'text-accent');

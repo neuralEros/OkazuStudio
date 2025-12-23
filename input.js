@@ -377,6 +377,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const coords = getCanvasCoordinates(e);
         state.currentPointerX = coords.x;
         state.currentPointerY = coords.y;
+        state.pointerDownTime = Date.now();
+        state.pointerDownCoords = { x: coords.x, y: coords.y };
 
         if (state.isSpacePressed || e.button === 1) {
             state.isPanning = true;
@@ -396,44 +398,30 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     state.isPolylineStart = false;
                     state.polylinePoints = [{ x: coords.x, y: coords.y }];
                 } else {
+                    // Deferred Drawing Mode: Store points, do not draw to maskCtx yet
+                    // Check close loop
                     const threshold = getBrushPixelSize();
                     const startPt = state.polylinePoints[0];
                     const dist = Math.hypot(coords.x - startPt.x, coords.y - startPt.y);
 
                     if (state.polylinePoints.length > 2 && dist < threshold) {
-                        drawStrokeDistance(coords.x, coords.y);
-                        state.polylinePoints.push({ x: coords.x, y: coords.y });
+                         // Loop closed - commit now? Or just add the closing point and wait for release?
+                         // User said "full res only updates upon ctrl being released".
+                         // So we just add the closing point (which is the start point) to the list.
+                         state.polylinePoints.push({ x: startPt.x, y: startPt.y });
+                         state.lastDrawX = startPt.x;
+                         state.lastDrawY = startPt.y;
+
+                         // We might want to visually indicate closure, but for now just continue
+                    } else {
                         state.lastDrawX = coords.x;
                         state.lastDrawY = coords.y;
-                        drawStrokeDistance(startPt.x, startPt.y);
-                        maskCtx.beginPath();
-                        maskCtx.moveTo(state.polylinePoints[0].x, state.polylinePoints[0].y);
-                        for (let i = 1; i < state.polylinePoints.length; i++) maskCtx.lineTo(state.polylinePoints[i].x, state.polylinePoints[i].y);
-                        maskCtx.closePath();
-                        if (state.isErasing) {
-                            maskCtx.globalCompositeOperation = 'source-over';
-                            maskCtx.fillStyle = 'white';
-                        } else {
-                            maskCtx.globalCompositeOperation = 'destination-out';
-                            maskCtx.fillStyle = 'black';
-                        }
-                        maskCtx.fill();
-                        state.isPolylineStart = true;
-                        state.polylinePoints = [];
-                        state.lastDrawX = null;
-                        const actionType = state.currentPolylineAction || 'draw';
-                        saveSnapshot(actionType);
-                        state.polylineDirty = false;
-                        render();
-                        return;
+                        state.polylinePoints.push({ x: coords.x, y: coords.y });
                     }
-                    if (state.polylinePoints.length === 1) drawBrushStamp(state.lastDrawX, state.lastDrawY);
-                    drawStrokeDistance(coords.x, coords.y);
-                    state.lastDrawX = coords.x;
-                    state.lastDrawY = coords.y;
-                    state.polylinePoints.push({ x: coords.x, y: coords.y });
                     state.polylineDirty = true;
                 }
+                // Trigger preview update immediately
+                updateLinePreview();
                 render();
                 return;
             }
@@ -538,9 +526,39 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
-    function handlePointerUp() {
+    function handlePointerUp(e) {
         if (state.isDrawing) {
             replayStrokeToFullMask();
+
+            // Fixed Hardness Single Click Double-Hit Check
+            if (state.featherMode && state.pointerDownTime && state.pointerDownCoords) {
+                const duration = Date.now() - state.pointerDownTime;
+                // If event is missing (pointerup sometimes doesn't have coords same way), use last known
+                // But we used pointerDownCoords.
+                // We need current coords to check distance.
+                // handlePointerUp might be triggered by window, so e.clientX might be available
+                let dist = 999;
+                if (e && e.clientX !== undefined) {
+                     const rect = els.viewport.getBoundingClientRect();
+                     const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
+                     const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
+                     dist = Math.hypot(mx - state.pointerDownCoords.x, my - state.pointerDownCoords.y);
+                } else {
+                     // Fallback if we can't get coords, assume 0 moved if lastDrawX is close?
+                     // Use state.currentPointerX
+                     if (state.currentPointerX !== null) {
+                        dist = Math.hypot(state.currentPointerX - state.pointerDownCoords.x, state.currentPointerY - state.pointerDownCoords.y);
+                     }
+                }
+
+                if (duration < 500 && dist <= 2) {
+                    // Double hit!
+                    // The first hit was done by replayStrokeToFullMask (it replays all points, for a single click it replays 1 point)
+                    // We just draw it again.
+                    drawBrushStamp(state.pointerDownCoords.x, state.pointerDownCoords.y, maskCtx);
+                }
+            }
+
             state.previewMaskCanvas = null;
             state.previewMaskScale = 1;
             state.isPreviewing = false;
@@ -581,7 +599,9 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function updateLinePreview() {
-        if (state.lastDrawX === null || state.currentPointerX === null) return;
+        // Must accept update even if lastDrawX is null if we have points
+        if (state.polylinePoints.length === 0 && (state.lastDrawX === null || state.currentPointerX === null)) return;
+
         const maxDim = 1920;
         const w = maskCanvas.width; const h = maskCanvas.height;
         const scale = Math.min(1, maxDim / Math.max(w, h));
@@ -592,12 +612,36 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
         const pCtx = state.previewMaskCanvas.getContext('2d');
         pCtx.clearRect(0, 0, pw, ph);
+        // Draw base mask
         pCtx.drawImage(maskCanvas, 0, 0, pw, ph);
-        pCtx.save(); pCtx.scale(scale, scale);
-        if (state.isPolylineStart && state.lastDrawX !== null) {
-            drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
+
+        pCtx.save();
+        pCtx.scale(scale, scale);
+
+        // Draw already committed points in this sequence? No, they are in polylinePoints but NOT in maskCanvas
+        if (state.polylinePoints.length > 0) {
+            // Draw the confirmed segments
+            if (state.polylinePoints.length === 1) {
+                 drawBrushStamp(state.polylinePoints[0].x, state.polylinePoints[0].y, pCtx);
+            } else {
+                 let last = state.polylinePoints[0];
+                 drawBrushStamp(last.x, last.y, pCtx);
+                 for (let i = 1; i < state.polylinePoints.length; i++) {
+                     const pt = state.polylinePoints[i];
+                     paintStrokeSegment(pCtx, last, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                     last = pt;
+                 }
+            }
         }
-        drawStrokeDistance(state.currentPointerX, state.currentPointerY, pCtx, true);
+
+        // Draw rubber band line from last point to current cursor
+        if (state.lastDrawX !== null && state.currentPointerX !== null) {
+             paintStrokeSegment(pCtx, {x: state.lastDrawX, y: state.lastDrawY}, {x: state.currentPointerX, y: state.currentPointerY},
+                 getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+        } else if (state.isPolylineStart && state.lastDrawX !== null) {
+             drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
+        }
+
         pCtx.restore();
         state.previewMaskScale = scale;
         state.isPreviewing = true;
@@ -703,7 +747,23 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 updateCursorStyle();
             }
             if (e.key === 'Control' || e.key === 'Meta') {
-                if (state.polylineDirty) {
+                if (state.polylineDirty || state.polylinePoints.length > 0) {
+                    // Commit Deferred Polyline
+                    if (state.polylinePoints.length > 0) {
+                         // Draw full sequence to maskCtx
+                         const pts = state.polylinePoints;
+                         if (pts.length === 1) {
+                             drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
+                         } else {
+                             let last = pts[0];
+                             drawBrushStamp(last.x, last.y, maskCtx);
+                             for (let i = 1; i < pts.length; i++) {
+                                 paintStrokeSegment(maskCtx, last, pts[i], getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                                 last = pts[i];
+                             }
+                         }
+                    }
+
                     const actionType = state.currentPolylineAction || 'mask';
                     saveSnapshot(actionType);
                     state.polylineDirty = false;

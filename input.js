@@ -1,4 +1,4 @@
-function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask }) {
+function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop }) {
     const BRUSH_MIN = 0.2;
     const BRUSH_MAX = 30;
     const BRUSH_SLIDER_STEPS = 1000;
@@ -774,6 +774,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             if ((e.ctrlKey || e.metaKey)) {
                 if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
                 else if (e.key === 'y') { e.preventDefault(); redo(); }
+            }
+            if (state.isCropping) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    acceptCrop();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelCrop();
+                }
             }
         });
 

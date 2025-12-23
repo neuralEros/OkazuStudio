@@ -45,7 +45,7 @@
             previewWorkingVersionA: 0, previewWorkingVersionB: 0,
             previewComposite: null,
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
-            isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
+            isCropping: false, cropRect: null, cropRectSnapshot: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null
@@ -157,7 +157,9 @@
             undo,
             redo,
             showHints,
-            scheduleHeavyTask
+            scheduleHeavyTask,
+            acceptCrop,
+            cancelCrop
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -653,6 +655,7 @@
                 els.cropBox.style.height = r.h + 'px';
                 
                 const invScale = 1 / state.view.scale;
+                els.cropBox.style.setProperty('--inv-scale', invScale);
                 document.querySelectorAll('.crop-handle').forEach(el => {
                     el.style.setProperty('--inv-scale', invScale);
                 });
@@ -663,16 +666,34 @@
         }
 
         // --- Crop Logic ---
+        function acceptCrop() {
+            if (!state.isCropping) return;
+            state.cropRectSnapshot = null;
+            toggleCropMode();
+        }
+
+        function cancelCrop() {
+            if (!state.isCropping) return;
+            if (state.cropRectSnapshot) {
+                state.cropRect = { ...state.cropRectSnapshot };
+            }
+            state.cropRectSnapshot = null;
+            state.cropDrag = null;
+            toggleCropMode();
+        }
+
         function toggleCropMode() {
             if (!canDraw()) return;
             state.isCropping = !state.isCropping;
             
             if (state.isCropping) {
+                state.cropRectSnapshot = state.cropRect ? { ...state.cropRect } : null;
                 els.cropBtn.classList.add('active', 'text-yellow-400');
                 // Resize main canvas to full dims
                 resizeMainCanvas(state.fullDims.w, state.fullDims.h);
                 els.viewport.classList.add('cropping');
             } else {
+                state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
                 // Resize main canvas to crop rect
                 resizeMainCanvas(state.cropRect.w, state.cropRect.h);

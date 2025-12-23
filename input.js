@@ -386,6 +386,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         for (const pt of stroke.points) {
             lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
         }
+        // Ensure End Cap is drawn
+        if (stroke.points.length > 0) {
+            const lastPt = stroke.points[stroke.points.length - 1];
+            drawBrushStamp(lastPt.x, lastPt.y, maskCtx);
+        }
     }
 
     function handlePointerDown(e) {
@@ -634,22 +639,27 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         pCtx.save();
         pCtx.scale(scale, scale);
 
-        let lastStamp = null;
-
         // Draw already committed points in this sequence? No, they are in polylinePoints but NOT in maskCanvas
         if (state.polylinePoints.length > 0) {
-             for (let i = 0; i < state.polylinePoints.length; i++) {
-                 const pt = state.polylinePoints[i];
-                 lastStamp = paintStrokeSegment(pCtx, lastStamp, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             // Draw Start
+             drawBrushStamp(state.polylinePoints[0].x, state.polylinePoints[0].y, pCtx);
+
+             // Draw Segments
+             for (let i = 0; i < state.polylinePoints.length - 1; i++) {
+                 const p1 = state.polylinePoints[i];
+                 const p2 = state.polylinePoints[i+1];
+                 paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                 drawBrushStamp(p2.x, p2.y, pCtx);
              }
         }
 
         // Draw rubber band line from last point to current cursor
-        // For rubber band, we continue from the 'lastStamp' of the committed line
-        // But we must NOT update 'state' variables, only use local lastStamp
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
-             paintStrokeSegment(pCtx, lastStamp, {x: state.currentPointerX, y: state.currentPointerY},
-                 getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             const start = {x: state.lastDrawX, y: state.lastDrawY};
+             const end = {x: state.currentPointerX, y: state.currentPointerY};
+             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             // Draw cursor node
+             drawBrushStamp(end.x, end.y, pCtx);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {
              // Just start dot
              drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
@@ -765,9 +775,18 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     if (state.polylinePoints.length > 0) {
                          // Draw full sequence to maskCtx
                          const pts = state.polylinePoints;
-                         let lastStamp = null;
-                         for (const pt of pts) {
-                             lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                         // Node-based spacing logic:
+                         // 1. Draw Start
+                         drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
+
+                         // 2. Draw Segments
+                         for (let i = 0; i < pts.length - 1; i++) {
+                             const p1 = pts[i];
+                             const p2 = pts[i+1];
+                             // Walk from p1 to p2, resetting spacing at p1
+                             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                             // Draw Node p2
+                             drawBrushStamp(p2.x, p2.y, maskCtx);
                          }
                     }
 

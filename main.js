@@ -144,6 +144,7 @@
             setBrushPercent,
             setBrushPercentFromSlider,
             setFeather,
+            setFeatherFromSlider,
             setFeatherMode,
             syncBrushUIToActive
         } = createInputSystem({
@@ -377,7 +378,7 @@
                 setBrushPercentFromSlider(e.target.value);
             });
             els.feather.addEventListener('input', (e) => {
-                setFeather(parseInt(e.target.value));
+                setFeatherFromSlider(e.target.value);
             });
             els.featherModeBtn.addEventListener('click', () => {
                 setFeatherMode(!state.featherMode);

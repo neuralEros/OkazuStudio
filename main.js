@@ -145,10 +145,10 @@
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");
-                if(state.imgA) els.btnA.classList.add('border-blue-500', 'text-blue-400');
-                else els.btnA.classList.remove('border-blue-500', 'text-blue-400');
-                if(state.imgB) els.btnB.classList.add('border-blue-500', 'text-blue-400');
-                else els.btnB.classList.remove('border-blue-500', 'text-blue-400');
+                if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
+                else els.btnA.classList.remove('border-accent-strong', 'text-accent');
+                if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
+                else els.btnB.classList.remove('border-accent-strong', 'text-accent');
                 updateCanvasDimensions(true); 
                 updateUI();
                 render();
@@ -429,10 +429,10 @@
             }
 
             if(state.isAFront) {
-                els.swapBtn.classList.remove('bg-blue-900', 'border-blue-500');
+                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
                 els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
             } else {
-                els.swapBtn.classList.add('bg-blue-900', 'border-blue-500');
+                els.swapBtn.classList.add('bg-accent-dark', 'border-accent-strong');
                 els.swapBtn.classList.remove('bg-gray-800', 'border-gray-600');
             }
             
@@ -473,12 +473,12 @@
                         state.imgA = img;
                         state.nameA = file.name;
                         els.btnA.textContent = truncate(file.name);
-                        els.btnA.classList.add('border-blue-500', 'text-blue-400');
+                        els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
                         state.imgB = img;
                         state.nameB = file.name;
                         els.btnB.textContent = truncate(file.name);
-                        els.btnB.classList.add('border-blue-500', 'text-blue-400');
+                        els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
                     updateCanvasDimensions(); // Re-inits cropRect
                     render();
@@ -591,8 +591,8 @@
                             state.feather = 2; els.feather.value = 2; els.featherVal.textContent = "90%";
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
-                            els.btnA.textContent = "Base"; els.btnA.classList.add('border-blue-500', 'text-blue-400');
-                            els.btnB.textContent = "Censored"; els.btnB.classList.add('border-blue-500', 'text-blue-400');
+                            els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');
+                            els.btnB.textContent = "Censored"; els.btnB.classList.add('border-accent-strong', 'text-accent');
                             
                             render(); updateUI();
                             log("Censor setup complete", "info");
@@ -644,8 +644,8 @@
                         
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
-                        els.btnA.textContent = "Merged"; els.btnA.classList.add('border-blue-500', 'text-blue-400');
-                        els.btnB.textContent = "Load Img B"; els.btnB.classList.remove('border-blue-500', 'text-blue-400');
+                        els.btnA.textContent = "Merged"; els.btnA.classList.add('border-accent-strong', 'text-accent');
+                        els.btnB.textContent = "Load Img B"; els.btnB.classList.remove('border-accent-strong', 'text-accent');
                         
                         render(); updateUI();
                         log("Merge successful", "info");

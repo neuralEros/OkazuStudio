@@ -42,7 +42,7 @@
         <div class="w-72 bg-gray-900 border border-gray-700 p-4 shadow-2xl rounded-bl-lg max-h-[80vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4 border-b border-gray-800 pb-2">
                 <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
-                <button id="resetAdjBtn" class="text-[10px] text-blue-400 hover:text-white uppercase tracking-wider font-bold">Reset All</button>
+                <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
             </div>
             <!-- Sliders -->
             <div class="drawer-slider-group">
@@ -117,43 +117,43 @@
         <!-- Undo / Redo -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
             <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)" disabled>
-                <img src="icons/undo.svg" alt="Undo" class="w-5 h-5">
+                <img src="icons/undo.svg" alt="Undo" class="w-5 h-5" draggable="false">
             </button>
             <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Y)" disabled>
-                <img src="icons/redo.svg" alt="Redo" class="w-5 h-5">
+                <img src="icons/redo.svg" alt="Redo" class="w-5 h-5" draggable="false">
             </button>
         </div>
         <!-- View Toggles -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
             <button id="toggleBackBtn" class="icon-btn" title="Toggle Rear Image Visibility">
-                <img id="rearEyeOpen" src="icons/back_show.svg" alt="Show Back" class="w-5 h-5">
-                <img id="rearEyeClosed" src="icons/back_hide.svg" alt="Hide Back" class="w-5 h-5 hidden">
+                <img id="rearEyeOpen" src="icons/back_show.svg" alt="Show Back" class="w-5 h-5" draggable="false">
+                <img id="rearEyeClosed" src="icons/back_hide.svg" alt="Hide Back" class="w-5 h-5 hidden" draggable="false">
             </button>
             <button id="toggleMaskBtn" class="icon-btn" title="Toggle Holes Visibility">
-                <img id="maskEyeOpen" src="icons/edits_show.svg" alt="Show Edits" class="w-5 h-5">
-                <img id="maskEyeClosed" src="icons/edits_hide.svg" alt="Hide Edits" class="w-5 h-5 hidden">
+                <img id="maskEyeOpen" src="icons/edits_show.svg" alt="Show Edits" class="w-5 h-5" draggable="false">
+                <img id="maskEyeClosed" src="icons/edits_hide.svg" alt="Hide Edits" class="w-5 h-5 hidden" draggable="false">
             </button>
         </div>
         
         <!-- Crop Tool -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
-             <button id="cropBtn" class="icon-btn hover:text-yellow-400" title="Crop Canvas">
-                <img src="icons/crop.svg" alt="Crop" class="w-5 h-5">
+            <button id="cropBtn" class="icon-btn hover:text-yellow-400" title="Crop Canvas">
+                <img src="icons/crop.svg" alt="Crop" class="w-5 h-5" draggable="false">
             </button>
         </div>
 
         <!-- Actions -->
-        <button id="swapBtn" class="icon-btn text-blue-400" title="Swap Front/Back">
-            <img src="icons/swap.svg" alt="Swap" class="w-5 h-5">
+        <button id="swapBtn" class="icon-btn text-accent" title="Swap Front/Back">
+            <img src="icons/swap.svg" alt="Swap" class="w-5 h-5" draggable="false">
         </button>
         <button id="censorBtn" class="icon-btn text-purple-400" title="Censor (Mosaic+Blur Back)">
-            <img src="icons/censor.svg" alt="Censor" class="w-5 h-5">
+            <img src="icons/censor.svg" alt="Censor" class="w-5 h-5" draggable="false">
         </button>
         <button id="mergeBtn" class="icon-btn hover:text-green-400" title="Merge Visible to Slot A">
-            <img src="icons/merge.svg" alt="Merge" class="w-5 h-5">
+            <img src="icons/merge.svg" alt="Merge" class="w-5 h-5" draggable="false">
         </button>
         <button id="clearMask" class="icon-btn hover:text-red-400" title="Reset">
-            <img src="icons/reset.svg" alt="Reset" class="w-5 h-5">
+            <img src="icons/reset.svg" alt="Reset" class="w-5 h-5" draggable="false">
         </button>
     </div>
 
@@ -199,8 +199,8 @@
             <input type="range" id="opacitySlider" min="0" max="100" value="80" class="w-full">
         </div>
         <div class="ml-auto">
-            <button id="saveBtn" class="tool-btn flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-3 py-1.5 rounded shadow text-xs font-medium border border-blue-800" title="Export PNG">
-                <img src="icons/export.svg" alt="Export" class="w-4 h-4">
+            <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export PNG">
+                <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
                 <span>Export</span>
             </button>
         </div>

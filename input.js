@@ -1,4 +1,8 @@
 function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints }) {
+    const BRUSH_MIN = 0.2;
+    const BRUSH_MAX = 30;
+    const BRUSH_SLIDER_STEPS = 1000;
+
     function canDraw() { return (state.imgA || state.imgB) && state.cropRect; }
 
     function getBrushPixelSize() {
@@ -36,6 +40,38 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function updateViewTransform() {
         els.canvasWrapper.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
         updateCursorSize();
+    }
+
+    function clampBrushPercent(val) {
+        return Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, val));
+    }
+
+    function sliderValueToBrushPercent(sliderVal) {
+        const normalized = sliderVal / BRUSH_SLIDER_STEPS;
+        return BRUSH_MIN + normalized * (BRUSH_MAX - BRUSH_MIN);
+    }
+
+    function brushPercentToSliderValue(percent) {
+        const normalized = (clampBrushPercent(percent) - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN);
+        return Math.round(normalized * BRUSH_SLIDER_STEPS);
+    }
+
+    function formatBrushPercent(val) {
+        return parseFloat(val.toFixed(1));
+    }
+
+    function setBrushPercent(newPercent) {
+        const clamped = clampBrushPercent(newPercent);
+        state.brushPercent = clamped;
+        els.brushSize.value = brushPercentToSliderValue(clamped);
+        els.brushSizeVal.textContent = formatBrushPercent(clamped);
+        updateCursorSize();
+    }
+
+    function setBrushPercentFromSlider(sliderVal) {
+        const numericVal = parseInt(sliderVal, 10) || 0;
+        const percent = sliderValueToBrushPercent(numericVal);
+        setBrushPercent(percent);
     }
 
     function updateCursorSize() {
@@ -357,13 +393,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (!canDraw()) return;
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
-            const delta = -Math.sign(e.deltaY);
-            let newSize = state.brushPercent + delta;
-            newSize = Math.max(1, Math.min(30, newSize));
-            state.brushPercent = newSize;
-            els.brushSize.value = newSize;
-            els.brushSizeVal.textContent = newSize;
-            updateCursorSize();
+            const delta = -Math.sign(e.deltaY) * 0.2;
+            setBrushPercent(state.brushPercent + delta);
             return;
         }
         const zoomSpeed = 0.1;
@@ -439,13 +470,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 startPreviewLoop();
             }
             if (e.key === '[' || e.key === ']') {
-                const delta = e.key === '[' ? -1 : 1;
-                let newSize = state.brushPercent + delta;
-                newSize = Math.max(1, Math.min(30, newSize));
-                state.brushPercent = newSize;
-                els.brushSize.value = newSize;
-                els.brushSizeVal.textContent = newSize;
-                updateCursorSize();
+                const delta = e.key === '[' ? -0.2 : 0.2;
+                setBrushPercent(state.brushPercent + delta);
             }
             if ((e.ctrlKey || e.metaKey)) {
                 if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -480,5 +506,5 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         attachCropHandlers();
     }
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers };
+    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, brushPercentToSliderValue };
 }

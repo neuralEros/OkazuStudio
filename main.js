@@ -94,7 +94,9 @@
             canDraw,
             resetView,
             updateCursorSize,
-            attachInputHandlers
+            attachInputHandlers,
+            setBrushPercent,
+            setBrushPercentFromSlider
         } = createInputSystem({
             state,
             els,
@@ -160,13 +162,11 @@
                 render();
             });
             els.brushSize.addEventListener('input', (e) => {
-                state.brushPercent = parseInt(e.target.value);
-                els.brushSizeVal.textContent = state.brushPercent;
-                updateCursorSize();
+                setBrushPercentFromSlider(e.target.value);
             });
             els.feather.addEventListener('input', (e) => {
                 const val = parseInt(e.target.value);
-                state.feather = val; 
+                state.feather = val;
                 const hardness = Math.round(100 - (val / 20 * 100));
                 els.featherVal.textContent = hardness + '%';
             });
@@ -204,6 +204,8 @@
             });
 
             attachInputHandlers();
+
+            setBrushPercent(state.brushPercent);
 
             log("Ready. Load images to begin.", "info");
             showHints();

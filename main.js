@@ -37,13 +37,15 @@
             previewComposite: null,
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
-            fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false
+            fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
+            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 720 }
         };
 
         const els = {
             fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
             mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
+            loadingOverlay: document.getElementById('loading-overlay'),
             viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
@@ -70,6 +72,25 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
 
+        function scheduleHeavyTask(taskFn) {
+            if (!els.loadingOverlay) return taskFn();
+            els.loadingOverlay.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        try {
+                            taskFn();
+                        } catch(e) {
+                            console.error(e);
+                            log("Task failed: " + e.message);
+                        } finally {
+                            els.loadingOverlay.classList.add('hidden');
+                        }
+                    }, 0);
+                });
+            });
+        }
+
         const {
             applyMasterLUT,
             applyColorOps,
@@ -84,7 +105,8 @@
             els,
             ctx,
             renderToContext,
-            render
+            render,
+            scheduleHeavyTask
         });
 
         const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
@@ -116,7 +138,8 @@
             saveSnapshot,
             undo,
             redo,
-            showHints
+            showHints,
+            scheduleHeavyTask
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -167,7 +190,7 @@
                 return;
             }
 
-            const maxDim = 1080;
+            const maxDim = state.settings.brushPreviewResolution || 100000;
             const scale = Math.min(1, maxDim / Math.max(working.width, working.height));
             const pw = Math.max(1, Math.round(working.width * scale));
             const ph = Math.max(1, Math.round(working.height * scale));
@@ -467,7 +490,8 @@
                 els.mainCanvas.style.visibility = 'hidden';
                 els.previewCanvas.classList.remove('hidden');
 
-                let fastScale = Math.min(1, 1080 / Math.max(sW, sH));
+                const maxRes = state.settings.brushPreviewResolution || 100000;
+                let fastScale = Math.min(1, maxRes / Math.max(sW, sH));
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));

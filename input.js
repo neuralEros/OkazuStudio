@@ -1,4 +1,4 @@
-function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints }) {
+function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask }) {
     const BRUSH_MIN = 0.2;
     const BRUSH_MAX = 30;
     const BRUSH_SLIDER_STEPS = 1000;
@@ -227,7 +227,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.fastMaskCanvas = document.createElement('canvas');
             state.fastMaskCtx = state.fastMaskCanvas.getContext('2d', { willReadFrequently: true });
         }
-        const maxDim = 1080;
+        const maxDim = state.settings.brushPreviewResolution || 100000;
         const scale = Math.min(1, maxDim / Math.max(state.fullDims.w || 1, state.fullDims.h || 1));
         const w = Math.max(1, Math.round(state.fullDims.w * scale));
         const h = Math.max(1, Math.round(state.fullDims.h * scale));
@@ -443,15 +443,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function handlePointerUp() {
         if (state.isDrawing) {
-            replayStrokeToFullMask();
-            state.previewMaskCanvas = null;
-            state.previewMaskScale = 1;
-            state.isPreviewing = false;
-            state.useFastPreview = false;
-            state.fastPreviewLastPoint = null;
-            state.activeStroke = null;
-            render();
-            saveSnapshot('draw');
+            state.isDrawing = false;
+            scheduleHeavyTask(() => {
+                replayStrokeToFullMask();
+                state.previewMaskCanvas = null;
+                state.previewMaskScale = 1;
+                state.isPreviewing = false;
+                state.useFastPreview = false;
+                state.fastPreviewLastPoint = null;
+                state.activeStroke = null;
+                render();
+                saveSnapshot('draw');
+                updateCursorStyle();
+            });
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;

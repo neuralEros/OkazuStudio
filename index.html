@@ -391,21 +391,21 @@
         <!-- Undo / Redo -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
             <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)" disabled>
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                <img src="icons/undo.svg" alt="Undo" class="w-5 h-5">
             </button>
             <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Y)" disabled>
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"></path></svg>
+                <img src="icons/redo.svg" alt="Redo" class="w-5 h-5">
             </button>
         </div>
         <!-- View Toggles -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
             <button id="toggleBackBtn" class="icon-btn" title="Toggle Rear Image Visibility">
-                <svg id="rearEyeOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                <svg id="rearEyeClosed" class="w-5 h-5 hidden text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path></svg>
+                <img id="rearEyeOpen" src="icons/back_show.svg" alt="Show Back" class="w-5 h-5">
+                <img id="rearEyeClosed" src="icons/back_hide.svg" alt="Hide Back" class="w-5 h-5 hidden">
             </button>
             <button id="toggleMaskBtn" class="icon-btn" title="Toggle Holes Visibility">
-                <svg id="maskEyeOpen" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                <svg id="maskEyeClosed" class="w-5 h-5 hidden text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <img id="maskEyeOpen" src="icons/edits_show.svg" alt="Show Edits" class="w-5 h-5">
+                <img id="maskEyeClosed" src="icons/edits_hide.svg" alt="Hide Edits" class="w-5 h-5 hidden">
             </button>
         </div>
         
@@ -418,16 +418,16 @@
 
         <!-- Actions -->
         <button id="swapBtn" class="icon-btn text-blue-400" title="Swap Front/Back">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+            <img src="icons/swap.svg" alt="Swap" class="w-5 h-5">
         </button>
         <button id="censorBtn" class="icon-btn text-purple-400" title="Censor (Mosaic+Blur Back)">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16M6 4v16M10 4v16M14 4v16M18 4v16"></path></svg>
+            <img src="icons/censor.svg" alt="Censor" class="w-5 h-5">
         </button>
         <button id="mergeBtn" class="icon-btn hover:text-green-400" title="Merge Visible to Slot A">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+            <img src="icons/merge.svg" alt="Merge" class="w-5 h-5">
         </button>
         <button id="clearMask" class="icon-btn hover:text-red-400" title="Reset">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+            <img src="icons/reset.svg" alt="Reset" class="w-5 h-5">
         </button>
     </div>
 
@@ -474,7 +474,7 @@
         </div>
         <div class="ml-auto">
             <button id="saveBtn" class="tool-btn flex items-center gap-2 bg-blue-900 hover:bg-blue-800 text-white px-3 py-1.5 rounded shadow text-xs font-medium border border-blue-800" title="Export PNG">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                <img src="icons/export.svg" alt="Export" class="w-4 h-4">
                 <span>Export</span>
             </button>
         </div>

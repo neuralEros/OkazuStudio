@@ -101,6 +101,8 @@
             });
         }
 
+        const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
+
         const {
             applyMasterLUT,
             applyColorOps,
@@ -202,8 +204,8 @@
                 return;
             }
 
-            const maxDim = state.settings.brushPreviewResolution || 100000;
-            const scale = Math.min(1, maxDim / Math.max(working.width, working.height));
+            const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
+            const scale = Math.min(1, targetH / working.height);
             const pw = Math.max(1, Math.round(working.width * scale));
             const ph = Math.max(1, Math.round(working.height * scale));
             const canvas = document.createElement('canvas');
@@ -515,8 +517,8 @@
                 els.mainCanvas.style.visibility = 'hidden';
                 els.previewCanvas.classList.remove('hidden');
 
-                const maxRes = state.settings.brushPreviewResolution || 100000;
-                let fastScale = Math.min(1, maxRes / Math.max(sW, sH));
+                const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
+                let fastScale = Math.min(1, targetH / sH);
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));

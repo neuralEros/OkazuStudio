@@ -159,8 +159,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
         const w = els.mainCanvas.width;
         const h = els.mainCanvas.height;
-        const maxRes = state.settings.adjustmentPreviewResolution || 100000;
-        const scale = Math.min(1, maxRes / Math.max(w, h));
+        const targetH = state.settings.adjustmentPreviewResolution === 'Full' ? 100000 : (state.settings.adjustmentPreviewResolution || 1080);
+        const scale = Math.min(1, targetH / h);
         const pw = Math.floor(w * scale);
         const ph = Math.floor(h * scale);
 

@@ -310,25 +310,36 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         context.fill();
     }
 
-    function paintStrokeSegment(context, lastPoint, point, size, feather, featherMode, isErasing) {
-        const spacing = Math.max(1, size * 0.15);
-        if (!lastPoint) {
+    function paintStrokeSegment(context, lastStamp, point, size, feather, featherMode, isErasing) {
+        // Returns the new lastStamp position
+        if (!lastStamp) {
             paintStampAt(context, point.x, point.y, size, feather, featherMode, isErasing);
-            return;
+            return { x: point.x, y: point.y };
         }
-        const dx = point.x - lastPoint.x;
-        const dy = point.y - lastPoint.y;
+
+        const spacing = Math.max(1, size * 0.15);
+        const dx = point.x - lastStamp.x;
+        const dy = point.y - lastStamp.y;
         const dist = Math.hypot(dx, dy);
-        paintStampAt(context, lastPoint.x, lastPoint.y, size, feather, featherMode, isErasing);
-        if (dist >= spacing) {
-            const steps = dist / spacing;
-            const stepX = dx / steps;
-            const stepY = dy / steps;
-            for (let i = 1; i <= steps; i++) {
-                paintStampAt(context, lastPoint.x + stepX * i, lastPoint.y + stepY * i, size, feather, featherMode, isErasing);
-            }
+
+        if (dist < spacing) {
+            return lastStamp;
         }
-        paintStampAt(context, point.x, point.y, size, feather, featherMode, isErasing);
+
+        const steps = Math.floor(dist / spacing);
+        const stepX = (dx / dist) * spacing;
+        const stepY = (dy / dist) * spacing;
+
+        let currentX = lastStamp.x;
+        let currentY = lastStamp.y;
+
+        for (let i = 1; i <= steps; i++) {
+            currentX += stepX;
+            currentY += stepY;
+            paintStampAt(context, currentX, currentY, size, feather, featherMode, isErasing);
+        }
+
+        return { x: currentX, y: currentY };
     }
 
     function ensureFastMaskCanvas() {
@@ -364,7 +375,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             featherMode: state.featherMode,
             isErasing: state.isErasing
         };
-        state.fastPreviewLastPoint = null;
+        state.fastPreviewLastStamp = null;
     }
 
     function addFastStrokePoint(coords) {
@@ -372,17 +383,27 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const stroke = state.activeStroke;
         stroke.points.push({ x: coords.x, y: coords.y });
         const scaledPoint = { x: coords.x * state.fastMaskScale, y: coords.y * state.fastMaskScale };
-        paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastPoint, scaledPoint, stroke.brushSize * state.fastMaskScale, stroke.feather, stroke.featherMode, stroke.isErasing);
-        state.fastPreviewLastPoint = scaledPoint;
+
+        let effectiveFeather = stroke.feather;
+        if (stroke.featherMode) {
+             effectiveFeather = stroke.feather * state.fastMaskScale;
+        }
+
+        const newStamp = paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, stroke.brushSize * state.fastMaskScale, effectiveFeather, stroke.featherMode, stroke.isErasing);
+        state.fastPreviewLastStamp = newStamp;
     }
 
     function replayStrokeToFullMask() {
         const stroke = state.activeStroke;
         if (!stroke || stroke.points.length === 0) return;
-        let last = null;
+        let lastStamp = null;
         for (const pt of stroke.points) {
-            paintStrokeSegment(maskCtx, last, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
-            last = pt;
+            lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
+        }
+        // Ensure End Cap is drawn
+        if (stroke.points.length > 0) {
+            const lastPt = stroke.points[stroke.points.length - 1];
+            drawBrushStamp(lastPt.x, lastPt.y, maskCtx);
         }
     }
 
@@ -391,6 +412,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const coords = getCanvasCoordinates(e);
         state.currentPointerX = coords.x;
         state.currentPointerY = coords.y;
+        state.pointerDownTime = Date.now();
+        state.pointerDownCoords = { x: coords.x, y: coords.y };
 
         if (state.isSpacePressed || e.button === 1) {
             state.isPanning = true;
@@ -410,44 +433,30 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     state.isPolylineStart = false;
                     state.polylinePoints = [{ x: coords.x, y: coords.y }];
                 } else {
+                    // Deferred Drawing Mode: Store points, do not draw to maskCtx yet
+                    // Check close loop
                     const threshold = getBrushPixelSize();
                     const startPt = state.polylinePoints[0];
                     const dist = Math.hypot(coords.x - startPt.x, coords.y - startPt.y);
 
                     if (state.polylinePoints.length > 2 && dist < threshold) {
-                        drawStrokeDistance(coords.x, coords.y);
-                        state.polylinePoints.push({ x: coords.x, y: coords.y });
+                         // Loop closed - commit now? Or just add the closing point and wait for release?
+                         // User said "full res only updates upon ctrl being released".
+                         // So we just add the closing point (which is the start point) to the list.
+                         state.polylinePoints.push({ x: startPt.x, y: startPt.y });
+                         state.lastDrawX = startPt.x;
+                         state.lastDrawY = startPt.y;
+
+                         // We might want to visually indicate closure, but for now just continue
+                    } else {
                         state.lastDrawX = coords.x;
                         state.lastDrawY = coords.y;
-                        drawStrokeDistance(startPt.x, startPt.y);
-                        maskCtx.beginPath();
-                        maskCtx.moveTo(state.polylinePoints[0].x, state.polylinePoints[0].y);
-                        for (let i = 1; i < state.polylinePoints.length; i++) maskCtx.lineTo(state.polylinePoints[i].x, state.polylinePoints[i].y);
-                        maskCtx.closePath();
-                        if (state.isErasing) {
-                            maskCtx.globalCompositeOperation = 'source-over';
-                            maskCtx.fillStyle = 'white';
-                        } else {
-                            maskCtx.globalCompositeOperation = 'destination-out';
-                            maskCtx.fillStyle = 'black';
-                        }
-                        maskCtx.fill();
-                        state.isPolylineStart = true;
-                        state.polylinePoints = [];
-                        state.lastDrawX = null;
-                        const actionType = state.currentPolylineAction || 'draw';
-                        saveSnapshot(actionType);
-                        state.polylineDirty = false;
-                        render();
-                        return;
+                        state.polylinePoints.push({ x: coords.x, y: coords.y });
                     }
-                    if (state.polylinePoints.length === 1) drawBrushStamp(state.lastDrawX, state.lastDrawY);
-                    drawStrokeDistance(coords.x, coords.y);
-                    state.lastDrawX = coords.x;
-                    state.lastDrawY = coords.y;
-                    state.polylinePoints.push({ x: coords.x, y: coords.y });
                     state.polylineDirty = true;
                 }
+                // Trigger preview update immediately
+                updateLinePreview();
                 render();
                 return;
             }
@@ -552,9 +561,39 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
-    function handlePointerUp() {
+    function handlePointerUp(e) {
         if (state.isDrawing) {
             replayStrokeToFullMask();
+
+            // Fixed Hardness Single Click Double-Hit Check
+            if (state.featherMode && state.pointerDownTime && state.pointerDownCoords) {
+                const duration = Date.now() - state.pointerDownTime;
+                // If event is missing (pointerup sometimes doesn't have coords same way), use last known
+                // But we used pointerDownCoords.
+                // We need current coords to check distance.
+                // handlePointerUp might be triggered by window, so e.clientX might be available
+                let dist = 999;
+                if (e && e.clientX !== undefined) {
+                     const rect = els.viewport.getBoundingClientRect();
+                     const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
+                     const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
+                     dist = Math.hypot(mx - state.pointerDownCoords.x, my - state.pointerDownCoords.y);
+                } else {
+                     // Fallback if we can't get coords, assume 0 moved if lastDrawX is close?
+                     // Use state.currentPointerX
+                     if (state.currentPointerX !== null) {
+                        dist = Math.hypot(state.currentPointerX - state.pointerDownCoords.x, state.currentPointerY - state.pointerDownCoords.y);
+                     }
+                }
+
+                if (duration < 500 && dist <= 2) {
+                    // Double hit!
+                    // The first hit was done by replayStrokeToFullMask (it replays all points, for a single click it replays 1 point)
+                    // We just draw it again.
+                    drawBrushStamp(state.pointerDownCoords.x, state.pointerDownCoords.y, maskCtx);
+                }
+            }
+
             state.previewMaskCanvas = null;
             state.previewMaskScale = 1;
             state.isPreviewing = false;
@@ -595,7 +634,9 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function updateLinePreview() {
-        if (state.lastDrawX === null || state.currentPointerX === null) return;
+        // Must accept update even if lastDrawX is null if we have points
+        if (state.polylinePoints.length === 0 && (state.lastDrawX === null || state.currentPointerX === null)) return;
+
         const maxDim = 1920;
         const w = maskCanvas.width; const h = maskCanvas.height;
         const scale = Math.min(1, maxDim / Math.max(w, h));
@@ -606,15 +647,42 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
         const pCtx = state.previewMaskCanvas.getContext('2d');
         pCtx.clearRect(0, 0, pw, ph);
+        // Draw base mask
         pCtx.drawImage(maskCanvas, 0, 0, pw, ph);
-        pCtx.save(); pCtx.scale(scale, scale);
-        if (state.isPolylineStart && state.lastDrawX !== null) {
-            drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
+
+        pCtx.save();
+        pCtx.scale(scale, scale);
+
+        // Draw already committed points in this sequence? No, they are in polylinePoints but NOT in maskCanvas
+        if (state.polylinePoints.length > 0) {
+             // Draw Start
+             drawBrushStamp(state.polylinePoints[0].x, state.polylinePoints[0].y, pCtx);
+
+             // Draw Segments
+             for (let i = 0; i < state.polylinePoints.length - 1; i++) {
+                 const p1 = state.polylinePoints[i];
+                 const p2 = state.polylinePoints[i+1];
+                 paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                 drawBrushStamp(p2.x, p2.y, pCtx);
+             }
         }
-        drawStrokeDistance(state.currentPointerX, state.currentPointerY, pCtx, true);
+
+        // Draw rubber band line from last point to current cursor
+        if (state.lastDrawX !== null && state.currentPointerX !== null) {
+             const start = {x: state.lastDrawX, y: state.lastDrawY};
+             const end = {x: state.currentPointerX, y: state.currentPointerY};
+             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             // Draw cursor node
+             drawBrushStamp(end.x, end.y, pCtx);
+        } else if (state.isPolylineStart && state.lastDrawX !== null) {
+             // Just start dot
+             drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
+        }
+
         pCtx.restore();
         state.previewMaskScale = scale;
         state.isPreviewing = true;
+        state.useFastPreview = true;
         render();
     }
 
@@ -717,7 +785,26 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 updateCursorStyle();
             }
             if (e.key === 'Control' || e.key === 'Meta') {
-                if (state.polylineDirty) {
+                if (state.polylineDirty || state.polylinePoints.length > 0) {
+                    // Commit Deferred Polyline
+                    if (state.polylinePoints.length > 0) {
+                         // Draw full sequence to maskCtx
+                         const pts = state.polylinePoints;
+                         // Node-based spacing logic:
+                         // 1. Draw Start
+                         drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
+
+                         // 2. Draw Segments
+                         for (let i = 0; i < pts.length - 1; i++) {
+                             const p1 = pts[i];
+                             const p2 = pts[i+1];
+                             // Walk from p1 to p2, resetting spacing at p1
+                             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                             // Draw Node p2
+                             drawBrushStamp(p2.x, p2.y, maskCtx);
+                         }
+                    }
+
                     const actionType = state.currentPolylineAction || 'mask';
                     saveSnapshot(actionType);
                     state.polylineDirty = false;
@@ -727,6 +814,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.previewMaskCanvas = null;
                 state.previewMaskScale = 1;
                 state.isPreviewing = false;
+                state.useFastPreview = false;
                 state.isPolylineStart = false;
                 state.lastDrawX = null;
                 state.polylinePoints = [];

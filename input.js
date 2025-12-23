@@ -443,19 +443,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function handlePointerUp() {
         if (state.isDrawing) {
-            state.isDrawing = false;
-            scheduleHeavyTask(() => {
-                replayStrokeToFullMask();
-                state.previewMaskCanvas = null;
-                state.previewMaskScale = 1;
-                state.isPreviewing = false;
-                state.useFastPreview = false;
-                state.fastPreviewLastPoint = null;
-                state.activeStroke = null;
-                render();
-                saveSnapshot('draw');
-                updateCursorStyle();
-            });
+            replayStrokeToFullMask();
+            state.previewMaskCanvas = null;
+            state.previewMaskScale = 1;
+            state.isPreviewing = false;
+            state.useFastPreview = false;
+            state.fastPreviewLastPoint = null;
+            state.activeStroke = null;
+            render();
+            saveSnapshot('draw');
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;

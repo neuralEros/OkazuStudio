@@ -38,7 +38,8 @@
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
-            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 720 }
+            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
+            pendingAdjustmentCommit: false, drawerCloseTimer: null
         };
 
         const els = {
@@ -46,6 +47,7 @@
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
             mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
             loadingOverlay: document.getElementById('loading-overlay'),
+            adjDrawer: document.getElementById('adj-drawer'),
             viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
@@ -299,15 +301,30 @@
             });
         }
 
+        function commitAdjustments() {
+             if (!state.pendingAdjustmentCommit) return;
+             scheduleHeavyTask(() => {
+                 updateWorkingCopiesAfterAdjustments();
+                 render();
+                 state.pendingAdjustmentCommit = false;
+             });
+        }
+
         function init() {
             initAdjustments();
-            window.addEventListener('pointerup', () => {
-                if(state.isAdjusting) {
-                    state.isAdjusting = false;
-                    updateWorkingCopiesAfterAdjustments();
-                    render();
+
+            setInterval(() => {
+                if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
+                    if (!state.drawerCloseTimer) {
+                         state.drawerCloseTimer = setTimeout(() => {
+                             if (state.pendingAdjustmentCommit && !els.adjDrawer.matches(':hover')) {
+                                 commitAdjustments();
+                             }
+                             state.drawerCloseTimer = null;
+                         }, 350);
+                    }
                 }
-            });
+            }, 200);
             els.fileA.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'A'));
             els.fileB.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'B'));
             setupDragAndDrop();

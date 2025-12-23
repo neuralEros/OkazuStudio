@@ -588,7 +588,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 startPreviewLoop();
             }
             if (e.key === '[' || e.key === ']') {
-                const delta = e.key === '[' ? -0.2 : 0.2;
+                const step = e.repeat ? 0.4 : 0.2;
+                const delta = e.key === '[' ? -step : step;
                 setBrushPercent(state.brushPercent + delta);
             }
             if ((e.ctrlKey || e.metaKey)) {

@@ -86,6 +86,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         setBrushPercent(percent);
     }
 
+    function setFeatherFromSlider(sliderVal) {
+        const numericVal = parseInt(sliderVal, 10) || 0;
+        if (state.featherMode) {
+            setFeather(numericVal);
+        } else {
+            // Invert the slider value for Hardness mode so Right is Hard (0) and Left is Soft (20)
+            // Slider 0 (Left) -> 20 (Softest)
+            // Slider 20 (Right) -> 0 (Hardest)
+            const inverted = HARDNESS_MAX - numericVal;
+            setFeather(inverted);
+        }
+    }
+
     function setFeather(val) {
         if (state.featherMode) {
             const clamped = Math.max(FEATHER_PX_MIN, Math.min(FEATHER_PX_MAX, val));
@@ -116,7 +129,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         } else {
             els.feather.min = HARDNESS_MIN;
             els.feather.max = HARDNESS_MAX;
-            els.feather.value = state.feather;
+            // Invert value for UI: 0 (Hard) -> 20 (Right), 20 (Soft) -> 0 (Left)
+            els.feather.value = HARDNESS_MAX - state.feather;
             if (els.featherLabel) els.featherLabel.textContent = 'Hardness';
             const hardness = Math.round(100 - (state.feather / HARDNESS_MAX * 100));
             els.featherVal.textContent = `${hardness}%`;
@@ -745,5 +759,5 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return Math.max(0, Math.min(1, featherValue / HARDNESS_MAX));
     }
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue };
+    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue };
 }

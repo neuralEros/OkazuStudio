@@ -24,6 +24,7 @@
 
         /* Workspace Labels */
         #canvas-container {
+            position: relative;
             --workspace-label-padding: 18px;
             --workspace-label-color: rgba(255, 255, 255, 0.25);
             --workspace-label-font-size: 32px;
@@ -34,6 +35,10 @@
         #workspace-labels {
             position: absolute;
             inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: var(--workspace-label-padding);
             pointer-events: none;
             z-index: 2;
         }
@@ -49,16 +54,12 @@
         }
 
         .workspace-label-top {
-            position: absolute;
-            top: var(--workspace-label-padding);
-            right: var(--workspace-label-padding);
+            align-self: flex-end;
             text-align: right;
         }
 
         .workspace-label-bottom {
-            position: absolute;
-            bottom: var(--workspace-label-padding);
-            left: var(--workspace-label-padding);
+            align-self: flex-start;
             text-align: left;
         }
 

@@ -430,10 +430,10 @@
 
             if(state.isAFront) {
                 els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.add('bg-panel-strong');
+                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
             } else {
                 els.swapBtn.classList.add('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.remove('bg-panel-strong');
+                els.swapBtn.classList.remove('bg-gray-800', 'border-gray-600');
             }
             
             if (enable) {

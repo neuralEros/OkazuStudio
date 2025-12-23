@@ -154,7 +154,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         const now = Date.now();
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
-        if (!state.previewCanvas) state.previewCanvas = document.createElement('canvas');
+        
         if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
 
         const w = els.mainCanvas.width;
@@ -163,23 +163,23 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         const pw = Math.floor(w * scale);
         const ph = Math.floor(h * scale);
 
-        if (state.previewCanvas.width !== pw || state.previewCanvas.height !== ph) {
-            state.previewCanvas.width = pw;
-            state.previewCanvas.height = ph;
+        const pCanvas = els.previewCanvas;
+        if (pCanvas.width !== pw || pCanvas.height !== ph) {
+            pCanvas.width = pw;
+            pCanvas.height = ph;
             state.previewFrontLayer.width = pw;
             state.previewFrontLayer.height = ph;
         }
-        const pCtx = state.previewCanvas.getContext('2d');
+        
+        els.mainCanvas.style.visibility = 'hidden';
+        pCanvas.classList.remove('hidden');
+
+        const pCtx = pCanvas.getContext('2d');
         renderToContext(pCtx, pw, ph, true, false);
         const imgData = pCtx.getImageData(0, 0, pw, ph);
         applyMasterLUT(imgData);
         applyColorOps(imgData);
         pCtx.putImageData(imgData, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        ctx.imageSmoothingEnabled = false;
-        ctx.globalAlpha = 1.0;
-        ctx.drawImage(state.previewCanvas, 0, 0, w, h);
-        ctx.imageSmoothingEnabled = true;
     }
 
     function resetAllAdjustments() {

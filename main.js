@@ -471,7 +471,7 @@
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));
-
+                
                 const pCtx = els.previewCanvas.getContext('2d');
                 if (els.previewCanvas.width !== pw || els.previewCanvas.height !== ph) {
                     els.previewCanvas.width = pw;
@@ -525,7 +525,7 @@
             } else {
                 els.mainCanvas.style.visibility = 'visible';
                 els.previewCanvas.classList.add('hidden');
-
+                
                 ctx.clearRect(0, 0, cw, ch);
 
                 // 1. Draw Back

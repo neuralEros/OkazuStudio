@@ -21,14 +21,22 @@
             }, 6000);
         }
 
+        const DEFAULT_ERASE_BRUSH = 10;
+        const DEFAULT_FEATHER = 1;
+        const DEFAULT_REPAIR_BRUSH = DEFAULT_ERASE_BRUSH / 2;
+
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
-            opacity: 0.8, brushPercent: 10, feather: 1, isErasing: true, isDrawing: false,
+            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, isErasing: true, isDrawing: false,
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             activeStroke: null, fastPreviewLastPoint: null,
+            brushSettings: {
+                erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER },
+                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER }
+            },
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             workingA: null, workingB: null, sourceA: null, sourceB: null,
@@ -130,7 +138,9 @@
             updateCursorSize,
             attachInputHandlers,
             setBrushPercent,
-            setBrushPercentFromSlider
+            setBrushPercentFromSlider,
+            setFeather,
+            syncBrushUIToActive
         } = createInputSystem({
             state,
             els,
@@ -360,10 +370,7 @@
                 setBrushPercentFromSlider(e.target.value);
             });
             els.feather.addEventListener('input', (e) => {
-                const val = parseInt(e.target.value);
-                state.feather = val;
-                const hardness = Math.round(100 - (val / 20 * 100));
-                els.featherVal.textContent = hardness + '%';
+                setFeather(parseInt(e.target.value));
             });
             els.eraseMode.addEventListener('click', () => setMode(true));
             els.repairMode.addEventListener('click', () => setMode(false));
@@ -401,6 +408,7 @@
             attachInputHandlers();
 
             setBrushPercent(state.brushPercent);
+            setFeather(state.feather);
 
             log("Ready. Load images to begin.", "info");
             showHints();
@@ -724,6 +732,7 @@
                 els.eraseMode.classList.remove('active');
                 els.repairMode.classList.add('active');
             }
+            syncBrushUIToActive();
         }
 
         function handleFileLoad(file, slot) {
@@ -871,7 +880,12 @@
                             els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
                             state.backVisible = true;
                             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
-                            state.feather = 1; els.feather.value = 1; els.featherVal.textContent = "95%";
+                            state.brushSettings = {
+                                erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER },
+                                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER }
+                            };
+                            setMode(true);
+                            syncBrushUIToActive();
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');

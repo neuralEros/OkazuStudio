@@ -820,7 +820,7 @@
                             els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
                             state.backVisible = true;
                             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
-                            state.feather = 2; els.feather.value = 2; els.featherVal.textContent = "90%";
+                            state.feather = 1; els.feather.value = 1; els.featherVal.textContent = "95%";
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');

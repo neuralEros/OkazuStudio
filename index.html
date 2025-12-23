@@ -1084,7 +1084,9 @@
             const backImg = state.isAFront ? state.imgB : state.imgA;
 
             // 1. Draw Back
-            if (backImg && state.backVisible) {
+            const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+
+            if (shouldRenderBack) {
                 ctx.globalAlpha = 1.0;
                 ctx.globalCompositeOperation = 'source-over';
                 
@@ -1128,7 +1130,7 @@
                 // 3. Composite Front to Main
                 frontLayerCtx.globalCompositeOperation = 'source-over';
                 const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
-                ctx.globalAlpha = effectiveOpacity; 
+                ctx.globalAlpha = effectiveOpacity;
                 ctx.drawImage(frontLayerCanvas, 0, 0);
             }
             

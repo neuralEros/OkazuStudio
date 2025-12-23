@@ -296,25 +296,36 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         context.fill();
     }
 
-    function paintStrokeSegment(context, lastPoint, point, size, feather, featherMode, isErasing) {
-        const spacing = Math.max(1, size * 0.15);
-        if (!lastPoint) {
+    function paintStrokeSegment(context, lastStamp, point, size, feather, featherMode, isErasing) {
+        // Returns the new lastStamp position
+        if (!lastStamp) {
             paintStampAt(context, point.x, point.y, size, feather, featherMode, isErasing);
-            return;
+            return { x: point.x, y: point.y };
         }
-        const dx = point.x - lastPoint.x;
-        const dy = point.y - lastPoint.y;
+
+        const spacing = Math.max(1, size * 0.15);
+        const dx = point.x - lastStamp.x;
+        const dy = point.y - lastStamp.y;
         const dist = Math.hypot(dx, dy);
-        paintStampAt(context, lastPoint.x, lastPoint.y, size, feather, featherMode, isErasing);
-        if (dist >= spacing) {
-            const steps = dist / spacing;
-            const stepX = dx / steps;
-            const stepY = dy / steps;
-            for (let i = 1; i <= steps; i++) {
-                paintStampAt(context, lastPoint.x + stepX * i, lastPoint.y + stepY * i, size, feather, featherMode, isErasing);
-            }
+
+        if (dist < spacing) {
+            return lastStamp;
         }
-        paintStampAt(context, point.x, point.y, size, feather, featherMode, isErasing);
+
+        const steps = Math.floor(dist / spacing);
+        const stepX = (dx / dist) * spacing;
+        const stepY = (dy / dist) * spacing;
+
+        let currentX = lastStamp.x;
+        let currentY = lastStamp.y;
+
+        for (let i = 1; i <= steps; i++) {
+            currentX += stepX;
+            currentY += stepY;
+            paintStampAt(context, currentX, currentY, size, feather, featherMode, isErasing);
+        }
+
+        return { x: currentX, y: currentY };
     }
 
     function ensureFastMaskCanvas() {
@@ -350,7 +361,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             featherMode: state.featherMode,
             isErasing: state.isErasing
         };
-        state.fastPreviewLastPoint = null;
+        state.fastPreviewLastStamp = null;
     }
 
     function addFastStrokePoint(coords) {
@@ -358,17 +369,22 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const stroke = state.activeStroke;
         stroke.points.push({ x: coords.x, y: coords.y });
         const scaledPoint = { x: coords.x * state.fastMaskScale, y: coords.y * state.fastMaskScale };
-        paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastPoint, scaledPoint, stroke.brushSize * state.fastMaskScale, stroke.feather, stroke.featherMode, stroke.isErasing);
-        state.fastPreviewLastPoint = scaledPoint;
+
+        let effectiveFeather = stroke.feather;
+        if (stroke.featherMode) {
+             effectiveFeather = stroke.feather * state.fastMaskScale;
+        }
+
+        const newStamp = paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, stroke.brushSize * state.fastMaskScale, effectiveFeather, stroke.featherMode, stroke.isErasing);
+        state.fastPreviewLastStamp = newStamp;
     }
 
     function replayStrokeToFullMask() {
         const stroke = state.activeStroke;
         if (!stroke || stroke.points.length === 0) return;
-        let last = null;
+        let lastStamp = null;
         for (const pt of stroke.points) {
-            paintStrokeSegment(maskCtx, last, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
-            last = pt;
+            lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
         }
     }
 
@@ -618,27 +634,24 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         pCtx.save();
         pCtx.scale(scale, scale);
 
+        let lastStamp = null;
+
         // Draw already committed points in this sequence? No, they are in polylinePoints but NOT in maskCanvas
         if (state.polylinePoints.length > 0) {
-            // Draw the confirmed segments
-            if (state.polylinePoints.length === 1) {
-                 drawBrushStamp(state.polylinePoints[0].x, state.polylinePoints[0].y, pCtx);
-            } else {
-                 let last = state.polylinePoints[0];
-                 drawBrushStamp(last.x, last.y, pCtx);
-                 for (let i = 1; i < state.polylinePoints.length; i++) {
-                     const pt = state.polylinePoints[i];
-                     paintStrokeSegment(pCtx, last, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
-                     last = pt;
-                 }
-            }
+             for (let i = 0; i < state.polylinePoints.length; i++) {
+                 const pt = state.polylinePoints[i];
+                 lastStamp = paintStrokeSegment(pCtx, lastStamp, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             }
         }
 
         // Draw rubber band line from last point to current cursor
+        // For rubber band, we continue from the 'lastStamp' of the committed line
+        // But we must NOT update 'state' variables, only use local lastStamp
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
-             paintStrokeSegment(pCtx, {x: state.lastDrawX, y: state.lastDrawY}, {x: state.currentPointerX, y: state.currentPointerY},
+             paintStrokeSegment(pCtx, lastStamp, {x: state.currentPointerX, y: state.currentPointerY},
                  getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {
+             // Just start dot
              drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
         }
 
@@ -752,15 +765,9 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     if (state.polylinePoints.length > 0) {
                          // Draw full sequence to maskCtx
                          const pts = state.polylinePoints;
-                         if (pts.length === 1) {
-                             drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
-                         } else {
-                             let last = pts[0];
-                             drawBrushStamp(last.x, last.y, maskCtx);
-                             for (let i = 1; i < pts.length; i++) {
-                                 paintStrokeSegment(maskCtx, last, pts[i], getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
-                                 last = pts[i];
-                             }
+                         let lastStamp = null;
+                         for (const pt of pts) {
+                             lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
                          }
                     }
 

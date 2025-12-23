@@ -429,6 +429,14 @@
         .icon-btn:active { transform: scale(0.95); }
         .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #555555; background-color: #242424; }
         .icon-btn.active { background-color: var(--accent-strong); color: white; border: 1px solid var(--accent-soft); }
+        .icon-btn.toggle-active {
+            border: 1px solid var(--accent-border);
+            color: var(--accent-soft);
+            box-shadow: 0 0 0 1px var(--accent-dark);
+        }
+        .icon-btn.toggle-active img {
+            filter: brightness(0) saturate(100%) invert(62%) sepia(74%) saturate(985%) hue-rotate(342deg) brightness(98%) contrast(101%);
+        }
 
         .feather-toggle {
             width: 28px;

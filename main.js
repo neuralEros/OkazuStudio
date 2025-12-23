@@ -34,7 +34,6 @@
             workingA: null, workingB: null, sourceA: null, sourceB: null,
             previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
             previewWorkingVersionA: 0, previewWorkingVersionB: 0,
-            previewComposite: null,
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false
@@ -43,7 +42,7 @@
         const els = {
             fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
-            mainCanvas: document.getElementById('mainCanvas'), viewport: document.getElementById('viewport'),
+            mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'), viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
             opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
@@ -377,6 +376,20 @@
             els.workspaceResolution.style.display = '';
         }
 
+        function showPreviewCanvas(displayW, displayH) {
+            if (!els.previewCanvas) return;
+            els.previewCanvas.style.width = `${displayW}px`;
+            els.previewCanvas.style.height = `${displayH}px`;
+            els.previewCanvas.classList.remove('hidden');
+            els.mainCanvas.classList.add('hidden');
+        }
+
+        function hidePreviewCanvas() {
+            if (!els.previewCanvas) return;
+            els.previewCanvas.classList.add('hidden');
+            els.mainCanvas.classList.remove('hidden');
+        }
+
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
@@ -447,8 +460,6 @@
             const preferPreview = state.useFastPreview && !finalOutput;
             const allowRebuild = !isUserInteracting();
 
-            ctx.clearRect(0, 0, cw, ch);
-            
             // If cropping, draw full source image, then overlay
             // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
             const sX = state.isCropping ? 0 : state.cropRect.x;
@@ -468,63 +479,64 @@
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));
-                if (!state.previewComposite) state.previewComposite = document.createElement('canvas');
-                if (state.previewComposite.width !== pw || state.previewComposite.height !== ph) {
-                    state.previewComposite.width = pw;
-                    state.previewComposite.height = ph;
-                }
-                const pCtx = state.previewComposite.getContext('2d');
-                pCtx.clearRect(0, 0, pw, ph);
-
-                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
-                if (shouldRenderBack) {
-                    pCtx.globalAlpha = 1.0;
-                    pCtx.globalCompositeOperation = 'source-over';
-
-                    const scale = state.fullDims.h / backImg.height;
-                    const backW = backImg.width * scale;
-                    const backH = state.fullDims.h;
-                    const backX = (state.fullDims.w - backW) / 2;
-
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
-
-                    pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pw, ph);
-                }
-
-                if (frontImg) {
-                    if (frontLayerCanvas.width !== pw || frontLayerCanvas.height !== ph) {
-                        frontLayerCanvas.width = pw;
-                        frontLayerCanvas.height = ph;
+                const previewTarget = els.previewCanvas;
+                if (previewTarget) {
+                    if (previewTarget.width !== pw || previewTarget.height !== ph) {
+                        previewTarget.width = pw;
+                        previewTarget.height = ph;
                     }
-                    frontLayerCtx.clearRect(0, 0, pw, ph);
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pw, ph);
+                    const pCtx = previewTarget.getContext('2d');
+                    pCtx.clearRect(0, 0, pw, ph);
 
-                    let maskSource = maskCanvas;
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                        maskSource = state.previewMaskCanvas;
+                    const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+                    if (shouldRenderBack) {
+                        pCtx.globalAlpha = 1.0;
+                        pCtx.globalCompositeOperation = 'source-over';
+
+                        const scale = state.fullDims.h / backImg.height;
+                        const backW = backImg.width * scale;
+                        const backH = state.fullDims.h;
+                        const backX = (state.fullDims.w - backW) / 2;
+
+                        const bSrcX = (sX - backX) / scale;
+                        const bSrcY = sY / scale;
+                        const bSrcW = sW / scale;
+                        const bSrcH = sH / scale;
+
+                        pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pw, ph);
                     }
 
-                    if (state.maskVisible) {
-                        frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
+                    if (frontImg) {
+                        if (frontLayerCanvas.width !== pw || frontLayerCanvas.height !== ph) {
+                            frontLayerCanvas.width = pw;
+                            frontLayerCanvas.height = ph;
+                        }
+                        frontLayerCtx.clearRect(0, 0, pw, ph);
+                        frontLayerCtx.globalCompositeOperation = 'source-over';
+                        const frontScale = frontLayer.scale || 1;
+                        frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pw, ph);
+
+                        let maskSource = maskCanvas;
+                        if (state.isPreviewing && state.previewMaskCanvas) {
+                            maskSource = state.previewMaskCanvas;
+                        }
+
+                        if (state.maskVisible) {
+                            frontLayerCtx.globalCompositeOperation = 'destination-out';
+                            frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
+                        }
+
+                        frontLayerCtx.globalCompositeOperation = 'source-over';
+                        const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                        pCtx.globalAlpha = effectiveOpacity;
+                        pCtx.drawImage(frontLayerCanvas, 0, 0);
                     }
 
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
-                    pCtx.globalAlpha = effectiveOpacity;
-                    pCtx.drawImage(frontLayerCanvas, 0, 0);
+                    showPreviewCanvas(cw, ch);
                 }
-
-                ctx.clearRect(0, 0, cw, ch);
-                ctx.imageSmoothingEnabled = true;
-                ctx.globalAlpha = 1.0;
-                ctx.drawImage(state.previewComposite, 0, 0, cw, ch);
             } else {
+                hidePreviewCanvas();
+                ctx.clearRect(0, 0, cw, ch);
                 // 1. Draw Back
                 const shouldRenderBack = backImg && (state.backVisible || finalOutput);
 

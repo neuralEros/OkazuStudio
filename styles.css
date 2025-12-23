@@ -240,6 +240,26 @@
             cursor: move;
         }
 
+        .crop-thirds-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.55);
+            pointer-events: none;
+        }
+        .crop-thirds-vertical {
+            top: 0;
+            bottom: 0;
+            width: 1px;
+        }
+        .crop-thirds-horizontal {
+            left: 0;
+            right: 0;
+            height: 1px;
+        }
+        .crop-thirds-left { left: 33.3333%; }
+        .crop-thirds-right { left: 66.6666%; }
+        .crop-thirds-top { top: 33.3333%; }
+        .crop-thirds-bottom { top: 66.6666%; }
+
         .crop-handle {
             position: absolute;
             width: 14px;

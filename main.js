@@ -26,7 +26,7 @@
             opacity: 0.8, brushPercent: 10, feather: 1, isErasing: true, isDrawing: false,
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
-            isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewLoopId: null,
+            isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             activeStroke: null, fastPreviewLastPoint: null,
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
@@ -421,7 +421,7 @@
 
                 if (state.maskVisible) {
                     fCtx.globalCompositeOperation = 'destination-out';
-                    const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
+                    const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
                     const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
                     fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, w, h);
                 }
@@ -460,10 +460,12 @@
             const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
             const frontImg = frontLayer.img;
             const backImg = backLayer.img;
+            const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
 
             const shouldUseDownscaledComposite = preferPreview && (frontImg || backImg);
             if (shouldUseDownscaledComposite) {
-                const fastScale = Math.min(1, 1080 / Math.max(sW, sH));
+                let fastScale = Math.min(1, 1080 / Math.max(sW, sH));
+                if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));
                 if (!state.previewComposite) state.previewComposite = document.createElement('canvas');
@@ -509,7 +511,6 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
                         frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
                     }
 
@@ -564,7 +565,6 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
                         frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
                     }
 
@@ -748,13 +748,23 @@
              log("Generating Censor layer...", "info");
              setTimeout(() => {
                 try {
-                    // Temporarily reset crop to full size for processing
+                    // Temporarily render full, uncropped frame for processing
                     const wasCropping = state.isCropping;
-                    state.isCropping = false;
-                    resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-                    
+                    const prevCropRect = state.cropRect ? { ...state.cropRect } : null;
+                    const fullFrame = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
+
+                    state.isCropping = true;
+                    state.cropRect = fullFrame;
+                    resizeMainCanvas(fullFrame.w, fullFrame.h);
+
                     render(true, true); // Final, Skip Adjustments
                     const baseData = els.mainCanvas.toDataURL('image/png');
+
+                    // Restore crop state before building layers
+                    state.isCropping = wasCropping;
+                    state.cropRect = prevCropRect;
+                    if (wasCropping) resizeMainCanvas(state.fullDims.w, state.fullDims.h);
+                    else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
                     const imgBase = new Image();
                     imgBase.onload = () => {
                         setLayerSource('A', imgBase); state.nameA = "Base Layer";
@@ -810,7 +820,7 @@
                             els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
                             state.backVisible = true;
                             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
-                            state.feather = 2; els.feather.value = 2; els.featherVal.textContent = "90%";
+                            state.feather = 1; els.feather.value = 1; els.featherVal.textContent = "95%";
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');

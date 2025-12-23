@@ -244,6 +244,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function beginFastStrokeSession() {
         ensureFastMaskCanvas();
         state.previewMaskCanvas = state.fastMaskCanvas;
+        state.previewMaskScale = state.fastMaskScale;
         state.isPreviewing = true;
         state.useFastPreview = true;
         state.activeStroke = {
@@ -417,6 +418,20 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     r.x = Math.max(0, r.x);
                     r.w = oldR - r.x;
                     r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                } else if (h === 'n') {
+                    const oldB = r.y + r.h;
+                    r.y = Math.min(my, oldB - 10);
+                    r.y = Math.max(0, r.y);
+                    r.h = oldB - r.y;
+                } else if (h === 's') {
+                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                } else if (h === 'e') {
+                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
+                } else if (h === 'w') {
+                    const oldR = r.x + r.w;
+                    r.x = Math.min(mx, oldR - 10);
+                    r.x = Math.max(0, r.x);
+                    r.w = oldR - r.x;
                 }
             }
             render();
@@ -430,6 +445,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.isDrawing) {
             replayStrokeToFullMask();
             state.previewMaskCanvas = null;
+            state.previewMaskScale = 1;
             state.isPreviewing = false;
             state.useFastPreview = false;
             state.fastPreviewLastPoint = null;
@@ -486,6 +502,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
         drawStrokeDistance(state.currentPointerX, state.currentPointerY, pCtx, true);
         pCtx.restore();
+        state.previewMaskScale = scale;
         state.isPreviewing = true;
         render();
     }
@@ -595,6 +612,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 }
                 state.isCtrlPressed = false;
                 state.currentPolylineAction = null;
+                state.previewMaskCanvas = null;
+                state.previewMaskScale = 1;
                 state.isPreviewing = false;
                 state.isPolylineStart = false;
                 state.lastDrawX = null;

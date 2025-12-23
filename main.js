@@ -34,7 +34,6 @@
             workingA: null, workingB: null, sourceA: null, sourceB: null,
             previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
             previewWorkingVersionA: 0, previewWorkingVersionB: 0,
-            previewComposite: null,
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false
@@ -56,6 +55,7 @@
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
+            fastPreviewCanvas: document.getElementById('fastPreviewCanvas'),
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
@@ -377,6 +377,24 @@
             els.workspaceResolution.style.display = '';
         }
 
+        function hideFastPreviewCanvas() {
+            if (!els.fastPreviewCanvas) return;
+            els.fastPreviewCanvas.style.display = 'none';
+            els.mainCanvas.style.visibility = 'visible';
+        }
+
+        function prepareFastPreviewCanvas(w, h) {
+            if (!els.fastPreviewCanvas) return null;
+            const canvas = els.fastPreviewCanvas;
+            if (canvas.width !== w || canvas.height !== h) {
+                canvas.width = w;
+                canvas.height = h;
+            }
+            canvas.style.display = 'block';
+            els.mainCanvas.style.visibility = 'hidden';
+            return canvas.getContext('2d');
+        }
+
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
@@ -447,8 +465,6 @@
             const preferPreview = state.useFastPreview && !finalOutput;
             const allowRebuild = !isUserInteracting();
 
-            ctx.clearRect(0, 0, cw, ch);
-            
             // If cropping, draw full source image, then overlay
             // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
             const sX = state.isCropping ? 0 : state.cropRect.x;
@@ -468,12 +484,8 @@
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
                 const pw = Math.max(1, Math.round(sW * fastScale));
                 const ph = Math.max(1, Math.round(sH * fastScale));
-                if (!state.previewComposite) state.previewComposite = document.createElement('canvas');
-                if (state.previewComposite.width !== pw || state.previewComposite.height !== ph) {
-                    state.previewComposite.width = pw;
-                    state.previewComposite.height = ph;
-                }
-                const pCtx = state.previewComposite.getContext('2d');
+                const pCtx = prepareFastPreviewCanvas(pw, ph);
+                if (!pCtx) return;
                 pCtx.clearRect(0, 0, pw, ph);
 
                 const shouldRenderBack = backImg && (state.backVisible || finalOutput);
@@ -519,12 +531,9 @@
                     pCtx.globalAlpha = effectiveOpacity;
                     pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
-
-                ctx.clearRect(0, 0, cw, ch);
-                ctx.imageSmoothingEnabled = true;
-                ctx.globalAlpha = 1.0;
-                ctx.drawImage(state.previewComposite, 0, 0, cw, ch);
             } else {
+                hideFastPreviewCanvas();
+                ctx.clearRect(0, 0, cw, ch);
                 // 1. Draw Back
                 const shouldRenderBack = backImg && (state.backVisible || finalOutput);
 

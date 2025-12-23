@@ -249,16 +249,19 @@
         .crop-thirds-line {
             position: absolute;
             background: rgba(255, 255, 255, 0.55);
+            transform-origin: 0 0;
         }
         .crop-thirds-vertical {
             top: 0;
             bottom: 0;
             width: 1px;
+            transform: scaleX(var(--inv-scale, 1));
         }
         .crop-thirds-horizontal {
             left: 0;
             right: 0;
             height: 1px;
+            transform: scaleY(var(--inv-scale, 1));
         }
         .crop-thirds-left { left: 33.3333%; }
         .crop-thirds-right { left: 66.6666%; }

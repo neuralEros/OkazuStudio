@@ -654,6 +654,7 @@
                 els.cropBox.style.height = r.h + 'px';
                 
                 const invScale = 1 / state.view.scale;
+                els.cropBox.style.setProperty('--inv-scale', invScale);
                 document.querySelectorAll('.crop-handle').forEach(el => {
                     el.style.setProperty('--inv-scale', invScale);
                 });

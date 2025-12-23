@@ -154,7 +154,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         const now = Date.now();
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
-        
+
         if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
 
         const w = els.mainCanvas.width;
@@ -170,7 +170,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
             state.previewFrontLayer.width = pw;
             state.previewFrontLayer.height = ph;
         }
-        
+
         els.mainCanvas.style.visibility = 'hidden';
         pCanvas.classList.remove('hidden');
 

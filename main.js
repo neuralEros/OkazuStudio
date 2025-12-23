@@ -407,12 +407,14 @@
                 state.maskVisible = !state.maskVisible;
                 els.maskEyeOpen.classList.toggle('hidden');
                 els.maskEyeClosed.classList.toggle('hidden');
+                updateHideToggleStyles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
                 els.rearEyeOpen.classList.toggle('hidden');
                 els.rearEyeClosed.classList.toggle('hidden');
+                updateHideToggleStyles();
                 render();
             });
 
@@ -421,6 +423,7 @@
             setBrushPercent(state.brushPercent);
             setFeatherMode(state.featherMode);
             setFeather(state.feather);
+            updateHideToggleStyles();
 
             log("Ready. Load images to begin.", "info");
             showHints();
@@ -436,6 +439,11 @@
 
             els.workspaceResolution.textContent = `${els.mainCanvas.width}×${els.mainCanvas.height}`;
             els.workspaceResolution.style.display = '';
+        }
+
+        function updateHideToggleStyles() {
+            els.toggleMaskBtn.classList.toggle('toggle-active', !state.maskVisible);
+            els.toggleBackBtn.classList.toggle('toggle-active', !state.backVisible);
         }
 
         // --- Core Rendering & Helper ---

@@ -114,7 +114,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel-border w-[500px] max-w-[90vw] rounded-xl shadow-2xl p-6 transition-all duration-300 ease-in-out">
+                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[500px] max-w-[90vw] rounded-lg shadow-2xl p-6 transition-all duration-300 ease-in-out">
                     <h2 class="text-xl font-bold text-gray-200 mb-6 border-b border-panel-divider pb-2">Settings</h2>
 
                     <!-- UI Hue -->
@@ -150,7 +150,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <!-- API Key -->
                     <div class="mb-2">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Replicate AI API Key</label>
-                        <input id="setting-api-key" type="password" class="w-full bg-panel-strong border border-panel-border rounded px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="r8_...">
+                        <input id="setting-api-key" type="password" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="r8_...">
                         <p class="text-[10px] text-gray-500 mt-1">Stored locally in your browser.</p>
                     </div>
 

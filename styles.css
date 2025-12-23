@@ -1,3 +1,11 @@
+        @font-face {
+            font-family: 'BBH Bogle';
+            src: url('fonts/BBHBogle-Regular.ttf') format('truetype');
+            font-weight: 400;
+            font-style: normal;
+            font-display: swap;
+        }
+
         body {
             background-color: #1a1a1a;
             color: #e5e5e5;
@@ -27,9 +35,15 @@
             position: relative;
             --workspace-label-padding: 18px;
             --workspace-label-color: rgba(255, 255, 255, 0.025);
-            --workspace-label-font-size: 200px;
+            --workspace-label-font-family: 'BBH Bogle', 'Inter', system-ui, -apple-system, sans-serif;
             --workspace-label-font-weight: 800;
             --workspace-label-letter-spacing: -0.02em;
+            --workspace-label-okazu-size: 200px;
+            --workspace-label-okazu-line-height: 0.8;
+            --workspace-label-studio-size: 140px;
+            --workspace-label-studio-line-height: 0.8;
+            --workspace-label-resolution-size: 120px;
+            --workspace-label-resolution-line-height: 0.8;
         }
 
         #workspace-labels {
@@ -45,20 +59,38 @@
 
         .workspace-label {
             color: var(--workspace-label-color);
-            font-size: var(--workspace-label-font-size);
+            font-family: var(--workspace-label-font-family);
             font-weight: var(--workspace-label-font-weight);
             letter-spacing: var(--workspace-label-letter-spacing);
-            line-height: 0.75;
         }
 
         .workspace-label-top {
             align-self: flex-end;
             text-align: right;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 2px;
         }
 
         .workspace-label-bottom {
             align-self: flex-start;
             text-align: left;
+        }
+
+        .workspace-label-okazu {
+            font-size: var(--workspace-label-okazu-size);
+            line-height: var(--workspace-label-okazu-line-height);
+        }
+
+        .workspace-label-studio {
+            font-size: var(--workspace-label-studio-size);
+            line-height: var(--workspace-label-studio-line-height);
+        }
+
+        .workspace-label-resolution {
+            font-size: var(--workspace-label-resolution-size);
+            line-height: var(--workspace-label-resolution-line-height);
         }
 
         /* Drag Overlay */

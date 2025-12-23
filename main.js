@@ -384,7 +384,7 @@
                 }
                 const now = performance.now();
                 const elapsed = now - lastOpacityRender;
-                if (elapsed >= 30) {
+                if (elapsed >= 50) {
                     lastOpacityRender = now;
                     render();
                     return;
@@ -396,7 +396,7 @@
                     opacityRenderTimer = null;
                     lastOpacityRender = performance.now();
                     render();
-                }, 30 - elapsed);
+                }, 50 - elapsed);
             };
 
             els.opacitySlider.addEventListener('input', (e) => {

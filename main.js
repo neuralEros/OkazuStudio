@@ -441,6 +441,24 @@
             els.workspaceResolution.style.display = '';
         }
 
+        function syncDrawerHeights() {
+            const adjContent = document.querySelector('#drawer-adj .drawer-content');
+            if (!adjContent) return;
+
+            // Allow browser to calculate natural height first
+            const height = adjContent.offsetHeight;
+            if (height === 0) return; // Not visible or not rendered yet
+
+            const otherDrawers = [
+                document.querySelector('#drawer-tools .drawer-content'),
+                document.querySelector('#drawer-layers .drawer-content')
+            ];
+
+            otherDrawers.forEach(el => {
+                if (el) el.style.height = `${height}px`;
+            });
+        }
+
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
@@ -737,6 +755,15 @@
             }
 
             updateWorkspaceLabel();
+
+            // Sync initial drawer heights and observe changes
+            const adjContent = document.querySelector('#drawer-adj .drawer-content');
+            if (adjContent) {
+                new ResizeObserver(syncDrawerHeights).observe(adjContent);
+            }
+            // Fallback
+            setTimeout(syncDrawerHeights, 100);
+            window.addEventListener('resize', syncDrawerHeights);
         }
 
         function truncate(str) {

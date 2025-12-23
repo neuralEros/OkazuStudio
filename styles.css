@@ -14,10 +14,10 @@
         /* Checkerboard pattern */
         .checkerboard {
             background-image:
-                linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
-                linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
-                linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+                linear-gradient(45deg, #151515 25%, transparent 25%),
+                linear-gradient(-45deg, #151515 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #151515 75%),
+                linear-gradient(-45deg, transparent 75%, #151515 75%);
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
@@ -26,10 +26,10 @@
         #canvas-container {
             position: relative;
             --workspace-label-padding: 18px;
-            --workspace-label-color: rgba(255, 255, 255, 0.25);
-            --workspace-label-font-size: 32px;
+            --workspace-label-color: rgba(255, 255, 255, 0.025);
+            --workspace-label-font-size: 200px;
             --workspace-label-font-weight: 800;
-            --workspace-label-letter-spacing: 0.08em;
+            --workspace-label-letter-spacing: -0.02em;
         }
 
         #workspace-labels {
@@ -48,9 +48,7 @@
             font-size: var(--workspace-label-font-size);
             font-weight: var(--workspace-label-font-weight);
             letter-spacing: var(--workspace-label-letter-spacing);
-            line-height: 1.05;
-            text-transform: uppercase;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            line-height: 0.75;
         }
 
         .workspace-label-top {

@@ -429,6 +429,26 @@
             pointer-events: none;
         }
 
+        .feather-toggle {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background-color: #000;
+            border: 1px solid #1f1f1f;
+            transition: all 0.2s;
+        }
+        .feather-toggle:hover { background-color: #111; }
+        .feather-toggle:active { transform: scale(0.95); }
+        .feather-toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+        .feather-toggle.active {
+            background-color: var(--accent);
+            border-color: var(--accent-strong);
+        }
+        .feather-toggle.active img { filter: brightness(0); }
+
     
 
 /* Loading Spinner */

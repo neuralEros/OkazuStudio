@@ -7,9 +7,10 @@
 - Adjustment drawer applies gamma/levels, shadows/highlights, saturation/vibrance, white balance, and RGB color balance via lookup tables before final render.
 
 ## High-level architecture
-- **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
+- **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and most JavaScript logic—no build step. File ingestion, swapping, merge/export, and censor helpers now live in `files.js` and are bootstrapped from the inline script.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings, adjustment values, history, and cropping data. `els` caches DOM references for fast event wiring.
 - **Canvas stack**: main display canvas (`#mainCanvas`) sits inside a transformable wrapper (`#canvas-wrapper`) controlled by the viewport for pan/zoom. Offscreen canvases include `maskCanvas` (brush strokes), `frontLayerCanvas` (front image after mask), and preview canvases for throttled adjustment previews.
+- **Event hub**: a lightweight emitter relays render and history-save requests between `files.js` and the core renderer/history functions.
 - **Input handling**: pointer/wheel listeners support brush painting (with optional polyline mode via Ctrl-click), panning (space drag), zooming (wheel), cropping drag handles, and keyboard shortcuts (undo/redo, view reset). Drag-and-drop auto-assigns images.
 - **Rendering pipeline**: image load updates canvas dimensions, the render routine composites the front/back images through the mask with optional opacity, applies LUT-driven adjustments and color operations, and refreshes previews during slider drags. Snapshot history enables undo/redo of mask and adjustment changes.
 - **Exports & utilities**: export saves the adjusted composition as PNG; merge moves the visible composite into slot A; censor creates blurred/mosaicked background mask; clear/reset helpers wipe mask and adjustments.

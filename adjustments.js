@@ -1,8 +1,4 @@
 function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
-    let gammaLUT = new Uint8Array(256);
-    let currentGammaLUTValue = -1;
-    let masterLUT = new Uint8Array(256);
-    let currentLUTHash = "";
     let saveSnapshot = () => {};
 
     function setSaveSnapshotHandler(handler) {
@@ -20,143 +16,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         return Math.round(sign * effective);
     }
 
-    function updateMasterLUT() {
-        const g = state.adjustments.gamma;
-        const l = state.adjustments.levels;
-        const hash = `${g}-${l.black}-${l.mid}-${l.white}`;
-        if (hash === currentLUTHash) return;
-        const invGamma = 1 / g;
-        const invMid = 1 / l.mid;
-        const blackNorm = l.black / 255;
-        const whiteNorm = l.white / 255;
-        const range = whiteNorm - blackNorm;
-        for (let i = 0; i < 256; i++) {
-            let n = i / 255;
-            if (range <= 0.001) n = (n > blackNorm) ? 1.0 : 0.0;
-            else n = (n - blackNorm) / range;
-            if (n < 0) n = 0; if (n > 1) n = 1;
-            n = Math.pow(n, invMid);
-            n = Math.pow(n, invGamma);
-            if (n < 0) n = 0; if (n > 1) n = 1;
-            masterLUT[i] = n * 255;
-        }
-        currentLUTHash = hash;
-    }
-
-    function applyMasterLUT(imageData) {
-        const data = imageData.data;
-        const g = state.adjustments.gamma;
-        const l = state.adjustments.levels;
-        if (Math.abs(g - 1.0) < 0.01 && l.black === 0 && Math.abs(l.mid - 1.0) < 0.01 && l.white === 255) return;
-        updateMasterLUT();
-        for (let i = 0; i < data.length; i += 4) {
-            data[i] = masterLUT[data[i]]; data[i+1] = masterLUT[data[i+1]]; data[i+2] = masterLUT[data[i+2]];
-        }
-    }
-
-    function applyColorOps(imageData) {
-        const a = state.adjustments;
-        const sat = a.saturation; const vib = a.vibrance; const wb = a.wb;
-        const shad = a.shadows; const high = a.highlights;
-        const crSlider = a.colorBal.r; const cgSlider = a.colorBal.g; const cbSlider = a.colorBal.b;
-        if (sat === 0 && vib === 0 && wb === 0 && shad === 0 && high === 0 && crSlider === 0 && cgSlider === 0 && cbSlider === 0) return;
-        const data = imageData.data;
-        const satMult = 1 + (sat / 100);
-        const cr = getCurvedValue(crSlider); const cg = getCurvedValue(cgSlider); const cb = getCurvedValue(cbSlider);
-        const wbR = wb > 0 ? 1 + (wb/200) : 1 - (Math.abs(wb)/400);
-        const wbB = wb < 0 ? 1 + (Math.abs(wb)/200) : 1 - (wb/400);
-
-        for (let i = 0; i < data.length; i += 4) {
-            let r = data[i]; let g = data[i+1]; let b = data[i+2];
-            const lum = 0.299*r + 0.587*g + 0.114*b;
-            const normLum = lum / 255;
-            if (shad !== 0 || high !== 0) {
-                if (shad !== 0) {
-                     const sFactor = (1.0 - normLum) * (1.0 - normLum);
-                     const sMult = 1 + (shad / 100) * sFactor;
-                     r *= sMult; g *= sMult; b *= sMult;
-                }
-                if (high !== 0) {
-                     const hFactor = normLum * normLum;
-                     const hMult = 1 + (high / 100) * hFactor;
-                     r *= hMult; g *= hMult; b *= hMult;
-                }
-            }
-            if (sat !== 0 || vib !== 0) {
-                const gray = 0.299*r + 0.587*g + 0.114*b;
-                if (sat !== 0) {
-                    r = gray + (r - gray) * satMult;
-                    g = gray + (g - gray) * satMult;
-                    b = gray + (b - gray) * satMult;
-                }
-                if (vib !== 0) {
-                    const max = Math.max(r, g, b);
-                    const satVal = (max - gray) / 255;
-                    const vMult = (vib / 100) * 2.0 * (1 - satVal);
-                    const scale = 1 + vMult;
-                    r = gray + (r - gray) * scale;
-                    g = gray + (g - gray) * scale;
-                    b = gray + (b - gray) * scale;
-                }
-            }
-            if (wb !== 0) {
-                const oldLum = 0.299*r + 0.587*g + 0.114*b;
-                r *= wbR; b *= wbB;
-                const newLum = 0.299*r + 0.587*g + 0.114*b;
-                if (newLum > 0.01) {
-                     const scale = oldLum / newLum;
-                     r *= scale; g *= scale; b *= scale;
-                }
-            }
-            if (cr !== 0 || cg !== 0 || cb !== 0) {
-                const oldLum = 0.299*r + 0.587*g + 0.114*b;
-                r += cr; g += cg; b += cb;
-                const rClamped = Math.max(0, r); const gClamped = Math.max(0, g); const bClamped = Math.max(0, b);
-                const newLum = 0.299*rClamped + 0.587*gClamped + 0.114*bClamped;
-                if (newLum > 0.01) {
-                    const scale = oldLum / newLum;
-                    r = rClamped * scale; g = gClamped * scale; b = bClamped * scale;
-                } else {
-                    r = Math.max(0, r); g = Math.max(0, g); b = Math.max(0, b);
-                }
-            }
-            data[i] = Math.min(255, Math.max(0, r));
-            data[i+1] = Math.min(255, Math.max(0, g));
-            data[i+2] = Math.min(255, Math.max(0, b));
-        }
-    }
-
     function updateAdjustmentPreview() {
-        if (!state.imgA && !state.imgB) return;
-        const now = Date.now();
-        if (now - state.previewThrottle < 100) return;
-        state.previewThrottle = now;
-        if (!state.previewCanvas) state.previewCanvas = document.createElement('canvas');
-        if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
-
-        const w = els.mainCanvas.width;
-        const h = els.mainCanvas.height;
-        const scale = Math.min(1, 1920 / Math.max(w, h));
-        const pw = Math.floor(w * scale);
-        const ph = Math.floor(h * scale);
-
-        if (state.previewCanvas.width !== pw || state.previewCanvas.height !== ph) {
-            state.previewCanvas.width = pw;
-            state.previewCanvas.height = ph;
-            state.previewFrontLayer.width = pw;
-            state.previewFrontLayer.height = ph;
-        }
-        const pCtx = state.previewCanvas.getContext('2d');
-        renderToContext(pCtx, pw, ph, true);
-        const imgData = pCtx.getImageData(0, 0, pw, ph);
-        applyMasterLUT(imgData);
-        applyColorOps(imgData);
-        pCtx.putImageData(imgData, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        ctx.imageSmoothingEnabled = false;
-        ctx.globalAlpha = 1.0;
-        ctx.drawImage(state.previewCanvas, 0, 0, w, h);
-        ctx.imageSmoothingEnabled = true;
+        // WebGL is fast enough for real-time preview
+        render();
     }
 
     function resetAllAdjustments() {
@@ -283,5 +145,13 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         });
     }
 
-    return { applyMasterLUT, applyColorOps, updateAdjustmentPreview, initAdjustments, resetAllAdjustments, updateSlider, setSaveSnapshotHandler };
+    return {
+        applyMasterLUT: () => {},
+        applyColorOps: () => {},
+        updateAdjustmentPreview,
+        initAdjustments,
+        resetAllAdjustments,
+        updateSlider,
+        setSaveSnapshotHandler
+    };
 }

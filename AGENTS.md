@@ -8,13 +8,14 @@
 
 ## High-level architecture
 - **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
+- **webgl.js** (NEW) handles WebGL context initialization, texture management, and the main rendering loop using GLSL shaders for real-time adjustments.
 - **undo.js** encapsulates history/undo helpers while `main.js` wires them to state, rendering, and UI controls.
-- **adjustments.js** holds LUT/color adjustment logic and UI wiring, with `main.js` delegating slider handling and image filtering to it.
+- **adjustments.js** holds UI wiring for color adjustments. CPU-based processing has been replaced by WebGL shaders.
 - **input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `main.js` consuming the exported hooks.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings, adjustment values, history, and cropping data. `els` caches DOM references for fast event wiring.
-- **Canvas stack**: main display canvas (`#mainCanvas`) sits inside a transformable wrapper (`#canvas-wrapper`) controlled by the viewport for pan/zoom. Offscreen canvases include `maskCanvas` (brush strokes), `frontLayerCanvas` (front image after mask), and preview canvases for throttled adjustment previews.
+- **Canvas stack**: main display canvas (`#mainCanvas`) uses a WebGL context. `maskCanvas` remains a 2D canvas for brush interaction and is uploaded as a texture to WebGL. `frontLayerCanvas` has been removed.
 - **Input handling**: pointer/wheel listeners support brush painting (with optional polyline mode via Ctrl-click), panning (space drag), zooming (wheel), cropping drag handles, and keyboard shortcuts (undo/redo, view reset). Drag-and-drop auto-assigns images.
-- **Rendering pipeline**: image load updates canvas dimensions, the render routine composites the front/back images through the mask with optional opacity, applies LUT-driven adjustments and color operations, and refreshes previews during slider drags. Snapshot history enables undo/redo of mask and adjustment changes.
+- **Rendering pipeline**: WebGL composites front/back images and mask, and applies color adjustments in a single shader pass. This improves performance for large images.
 - **Exports & utilities**: export saves the adjusted composition as PNG; merge moves the visible composite into slot A; censor creates blurred/mosaicked background mask; clear/reset helpers wipe mask and adjustments.
 
 ## Contribution expectations

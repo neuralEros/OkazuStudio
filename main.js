@@ -55,16 +55,15 @@
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box')
         };
 
-        const ctx = els.mainCanvas.getContext('2d', { willReadFrequently: true });
+        // Init WebGL
+        WebGLEngine.initWebGL(els.mainCanvas);
+
         const maskCanvas = document.createElement('canvas');
         const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-        const frontLayerCanvas = document.createElement('canvas');
-        const frontLayerCtx = frontLayerCanvas.getContext('2d');
+
+        // Removed frontLayerCanvas as composition happens in WebGL shader
 
         const {
-            applyMasterLUT,
-            applyColorOps,
-            updateAdjustmentPreview,
             initAdjustments,
             resetAllAdjustments,
             updateSlider,
@@ -72,8 +71,8 @@
         } = createAdjustmentSystem({
             state,
             els,
-            ctx,
-            renderToContext,
+            ctx: null, // No longer used
+            renderToContext: null, // No longer used
             render
         });
 
@@ -209,130 +208,29 @@
         }
 
         // --- Core Rendering & Helper ---
-        function renderToContext(targetCtx, w, h, forceOpacity = false) {
-            targetCtx.clearRect(0, 0, w, h);
-
-            const frontImg = state.isAFront ? state.imgA : state.imgB;
-            const backImg = state.isAFront ? state.imgB : state.imgA;
-            
-            // Adjust draw args for crop logic
-            const sX = state.isCropping ? 0 : state.cropRect.x;
-            const sY = state.isCropping ? 0 : state.cropRect.y;
-            const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
-
-            // Draw Back
-            if (backImg && state.backVisible) {
-                targetCtx.globalAlpha = 1.0;
-                targetCtx.globalCompositeOperation = 'source-over';
-                
-                const scale = state.fullDims.h / backImg.height; 
-                const backW = backImg.width * scale;
-                const backH = state.fullDims.h;
-                const backX = (state.fullDims.w - backW) / 2;
-                
-                const bSrcX = (sX - backX) / scale;
-                const bSrcY = sY / scale;
-                const bSrcW = sW / scale;
-                const bSrcH = sH / scale;
-                
-                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, w, h);
-            }
-
-            // Draw Front
-            if (frontImg) {
-                const fCtx = state.previewFrontLayer.getContext('2d');
-                fCtx.clearRect(0, 0, w, h);
-                
-                fCtx.globalCompositeOperation = 'source-over';
-                fCtx.drawImage(frontImg, sX, sY, sW, sH, 0, 0, w, h);
-
-                if (state.maskVisible) {
-                    fCtx.globalCompositeOperation = 'destination-out';
-                    fCtx.drawImage(maskCanvas, sX, sY, sW, sH, 0, 0, w, h);
-                }
-                
-                targetCtx.globalCompositeOperation = 'source-over';
-                // Use forceOpacity for adjustments preview (so we see true pixels)
-                const effectiveOpacity = (!state.backVisible || forceOpacity) ? 1.0 : state.opacity;
-                targetCtx.globalAlpha = effectiveOpacity; 
-                targetCtx.drawImage(state.previewFrontLayer, 0, 0);
-            }
-        }
+        // renderToContext removed
         
         function render(finalOutput = false, skipAdjustments = false) {
+            // Throttling logic - optional in WebGL but kept for safety
             if (state.isAdjusting && !finalOutput) {
-                 if (Date.now() - state.previewThrottle > 500) state.isAdjusting = false;
-                 else return;
-            }
-
-            const cw = els.mainCanvas.width;
-            const ch = els.mainCanvas.height;
-            
-            ctx.clearRect(0, 0, cw, ch);
-            
-            // If cropping, draw full source image, then overlay
-            // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
-            const sX = state.isCropping ? 0 : state.cropRect.x;
-            const sY = state.isCropping ? 0 : state.cropRect.y;
-            const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
-
-            const frontImg = state.isAFront ? state.imgA : state.imgB;
-            const backImg = state.isAFront ? state.imgB : state.imgA;
-
-            // 1. Draw Back
-            const shouldRenderBack = backImg && (state.backVisible || finalOutput);
-
-            if (shouldRenderBack) {
-                ctx.globalAlpha = 1.0;
-                ctx.globalCompositeOperation = 'source-over';
-                
-                const scale = state.fullDims.h / backImg.height;
-                const backW = backImg.width * scale;
-                const backH = state.fullDims.h;
-                const backX = (state.fullDims.w - backW) / 2;
-                
-                // Mapping crop rect to back image source rect
-                const bSrcX = (sX - backX) / scale;
-                const bSrcY = sY / scale;
-                const bSrcW = sW / scale;
-                const bSrcH = sH / scale;
-                
-                ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
-            }
-
-            // 2. Prepare Front Layer
-            if (frontImg) {
-                frontLayerCtx.clearRect(0, 0, cw, ch);
-                frontLayerCtx.globalCompositeOperation = 'source-over';
-                // Draw clipped portion of front image
-                frontLayerCtx.drawImage(frontImg, sX, sY, sW, sH, 0, 0, cw, ch);
-
-                let maskSource = maskCanvas;
-                if (state.isPreviewing && state.previewMaskCanvas) {
-                    maskSource = state.previewMaskCanvas;
-                }
-
-                if (state.maskVisible) {
-                    frontLayerCtx.globalCompositeOperation = 'destination-out';
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                         // Scale logic for preview mask not needed here since we render 1:1 on main canvas usually
-                         // But we need to clip the mask too
-                         frontLayerCtx.drawImage(maskSource, sX, sY, sW, sH, 0, 0, cw, ch);
-                    } else {
-                         frontLayerCtx.drawImage(maskSource, sX, sY, sW, sH, 0, 0, cw, ch);
-                    }
-                }
-                
-                // 3. Composite Front to Main
-                frontLayerCtx.globalCompositeOperation = 'source-over';
-                const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
-                ctx.globalAlpha = effectiveOpacity;
-                ctx.drawImage(frontLayerCanvas, 0, 0);
+                 // We might want to render faster in WebGL, so maybe increase throttle limit or remove it
+                 // Let's keep it minimal
+                 // if (Date.now() - state.previewThrottle > 500) state.isAdjusting = false;
+                 // else return;
+                 // Actually, WebGL is fast. Let's remove the throttle block or make it very short (16ms)
+                 // But wait, adjustments.js input events fire rapidly.
+                 // Ideally we render every frame.
             }
             
-            // 4. Update Crop DOM Overlay
+            // WebGL Render
+            let maskSource = maskCanvas;
+            if (state.isPreviewing && state.previewMaskCanvas) {
+                maskSource = state.previewMaskCanvas;
+            }
+            
+            WebGLEngine.renderWebGL(state, maskSource, skipAdjustments);
+
+            // Update Crop DOM Overlay
             if (state.isCropping) {
                 els.cropOverlayDom.style.display = 'block';
                 const r = state.cropRect;
@@ -347,20 +245,6 @@
                 });
             } else {
                 els.cropOverlayDom.style.display = 'none';
-            }
-            
-            // 5. Apply Global Adjustments (Non-Destructive) - Only if NOT cropping (cropping shows raw)
-            const a = state.adjustments;
-            const needsAdj = a.gamma !== 1.0 || a.levels.black !== 0 || a.levels.mid !== 1.0 || a.levels.white !== 255 || 
-                             a.saturation !== 0 || a.vibrance !== 0 || a.wb !== 0 ||
-                             a.colorBal.r !== 0 || a.colorBal.g !== 0 || a.colorBal.b !== 0 ||
-                             a.shadows !== 0 || a.highlights !== 0;
-
-            if (needsAdj && !skipAdjustments && !state.isCropping) {
-                const imgData = ctx.getImageData(0, 0, cw, ch);
-                applyMasterLUT(imgData); 
-                applyColorOps(imgData); 
-                ctx.putImageData(imgData, 0, 0);
             }
         }
 
@@ -388,8 +272,9 @@
         function resizeMainCanvas(w, h) {
             els.mainCanvas.width = w;
             els.mainCanvas.height = h;
-            frontLayerCanvas.width = w;
-            frontLayerCanvas.height = h;
+            // frontLayerCanvas removed
+
+            // We need to tell WebGL about the resize, but renderWebGL calls gl.viewport every frame.
         }
 
         // --- Standard App Functions ---
@@ -623,7 +508,7 @@
                         else resizeMainCanvas(newW, newH);
 
                         maskCanvas.width = newW; maskCanvas.height = newH;
-                        frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
+                        // frontLayerCanvas removal from mergeDown
                         maskCtx.clearRect(0, 0, newW, newH);
                         
                         state.isAFront = true; state.opacity = 1.0;
@@ -671,4 +556,3 @@
         }
 
         init();
-    

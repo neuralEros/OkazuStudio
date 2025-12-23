@@ -39,19 +39,30 @@
     </div>
 
     <!-- Adjustment Drawer (Right) -->
-    <div id="adj-drawer" class="flex items-center">
-        <!-- Lip -->
-        <div class="w-6 h-24 bg-panel-strong rounded-l-lg border-y border-l border-panel flex items-center justify-center cursor-pointer shadow-lg">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-        </div>
-        <!-- Drawer Content -->
-        <div class="w-72 bg-panel border border-panel p-4 shadow-2xl rounded-bl-lg max-h-[80vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
-                <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
+    <div id="adj-drawer" class="flex items-start">
+        <!-- Tabs Column -->
+        <div class="flex flex-col gap-2 mt-4 relative z-50">
+            <div data-tab="0" class="drawer-tab w-8 h-20 bg-panel-strong rounded-l-lg border-y border-l border-panel flex items-center justify-center cursor-pointer shadow-lg transition-all relative">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
             </div>
-            <!-- Sliders -->
-            <div class="drawer-slider-group">
+            <div data-tab="1" class="drawer-tab w-8 h-20 bg-panel-strong rounded-l-lg border-y border-l border-panel flex items-center justify-center cursor-pointer shadow-lg transition-all relative">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </div>
+            <div data-tab="2" class="drawer-tab w-8 h-20 bg-panel-strong rounded-l-lg border-y border-l border-panel flex items-center justify-center cursor-pointer shadow-lg transition-all relative">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </div>
+        </div>
+
+        <!-- Drawer Content -->
+        <div class="w-72 bg-panel border border-panel p-4 shadow-2xl rounded-bl-lg max-h-[80vh] overflow-y-auto flex flex-col">
+            <!-- Tab 0: Adjustments -->
+            <div id="tab-content-0" class="tab-content w-full">
+                <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
+                    <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
+                </div>
+                <!-- Sliders -->
+                <div class="drawer-slider-group">
                 <div class="drawer-label"><span>Gamma</span> <span id="val-gamma" class="val-display">1.00</span></div>
                 <input id="adj-gamma" type="range" min="0.0" max="2.0" step="0.01" value="1.0" class="w-full" data-default="1.0">
             </div>
@@ -114,6 +125,21 @@
             <div class="drawer-slider-group">
                 <div class="drawer-label"><span>Yellow - Blue</span> <span id="val-cb-b" class="val-display">0</span></div>
                 <input id="adj-cb-b" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
+            </div>
+            </div>
+            <!-- Tab 1: Placeholder -->
+            <div id="tab-content-1" class="tab-content hidden w-full">
+                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Tools</h3>
+                </div>
+                <p class="text-xs text-gray-500">More tools coming soon.</p>
+            </div>
+             <!-- Tab 2: Placeholder -->
+            <div id="tab-content-2" class="tab-content hidden w-full">
+                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Layers</h3>
+                </div>
+                <p class="text-xs text-gray-500">Layer management coming soon.</p>
             </div>
         </div>
     </div>

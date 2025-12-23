@@ -48,7 +48,8 @@
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
-            pendingAdjustmentCommit: false, drawerCloseTimer: null
+            pendingAdjustmentCommit: false, drawerCloseTimer: null,
+            activeDrawerTab: null
         };
 
         const els = {
@@ -57,6 +58,8 @@
             mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
             loadingOverlay: document.getElementById('loading-overlay'),
             adjDrawer: document.getElementById('adj-drawer'),
+            drawerTabs: document.querySelectorAll('.drawer-tab'),
+            tabContents: document.querySelectorAll('.tab-content'),
             viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
@@ -328,21 +331,51 @@
              });
         }
 
+        function toggleDrawer(tabIndex) {
+            tabIndex = parseInt(tabIndex);
+
+            // Closing the currently open tab
+            if (state.activeDrawerTab === tabIndex) {
+                els.adjDrawer.classList.remove('open');
+                state.activeDrawerTab = null;
+
+                // Deselect tabs
+                els.drawerTabs.forEach(t => t.classList.remove('active'));
+
+                // Commit if needed
+                if (state.pendingAdjustmentCommit) {
+                    commitAdjustments();
+                }
+                return;
+            }
+
+            // Switching or Opening
+            els.adjDrawer.classList.add('open');
+            state.activeDrawerTab = tabIndex;
+
+            // Update Tabs UI
+            els.drawerTabs.forEach(t => {
+                if (parseInt(t.dataset.tab) === tabIndex) t.classList.add('active');
+                else t.classList.remove('active');
+            });
+
+            // Update Content UI
+            els.tabContents.forEach(c => {
+                if (c.id === `tab-content-${tabIndex}`) c.classList.remove('hidden');
+                else c.classList.add('hidden');
+            });
+        }
+
         function init() {
             initAdjustments();
 
-            setInterval(() => {
-                if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
-                    if (!state.drawerCloseTimer) {
-                         state.drawerCloseTimer = setTimeout(() => {
-                             if (state.pendingAdjustmentCommit && !els.adjDrawer.matches(':hover')) {
-                                 commitAdjustments();
-                             }
-                             state.drawerCloseTimer = null;
-                         }, 350);
-                    }
-                }
-            }, 200);
+            // Setup Drawer Tabs
+            els.drawerTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    toggleDrawer(tab.dataset.tab);
+                });
+            });
+
             els.fileA.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'A'));
             els.fileB.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'B'));
             setupDragAndDrop();

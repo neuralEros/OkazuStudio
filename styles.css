@@ -329,12 +329,28 @@
             position: fixed;
             right: 0;
             top: 50%;
-            transform: translateY(-50%) translateX(calc(100% - 24px)); 
+            /* 32px is tab width */
+            transform: translateY(-50%) translateX(calc(100% - 32px));
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 60;
         }
-        #adj-drawer:hover {
+        #adj-drawer.open {
             transform: translateY(-50%) translateX(0);
+        }
+
+        .drawer-tab {
+            /* Tabs need to look clickable */
+            transition: all 0.2s;
+        }
+        .drawer-tab:hover {
+            background-color: #252525;
+            color: #fff;
+        }
+        .drawer-tab.active {
+            background-color: var(--panel);
+            border-right-color: transparent;
+            width: 34px; /* Slightly wider to cover border */
+            z-index: 60;
         }
         
         /* Drawer Styling */

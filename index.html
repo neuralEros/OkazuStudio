@@ -511,6 +511,20 @@
     </div>
 
     <script>
+        (async () => {
+        const {
+            els,
+            ctx,
+            maskCanvas,
+            maskCtx,
+            frontLayerCanvas,
+            frontLayerCtx,
+            updateViewTransform,
+            updateCursorStyle,
+            updateCursorSize,
+            updateCursorPos
+        } = await import('./cache.js');
+
         const log = (msg, type = 'error') => {
             console.log(`[${type}] ${msg}`);
             const consoleEl = document.getElementById('error-console');
@@ -545,34 +559,6 @@
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null
         };
-
-        const els = {
-            fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
-            btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
-            mainCanvas: document.getElementById('mainCanvas'), viewport: document.getElementById('viewport'),
-            canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
-            swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
-            opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
-            brushSizeVal: document.getElementById('brushSizeVal'), feather: document.getElementById('feather'),
-            featherVal: document.getElementById('featherVal'), eraseMode: document.getElementById('eraseMode'),
-            repairMode: document.getElementById('repairMode'), clearMask: document.getElementById('clearMask'),
-            saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
-            toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
-            toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
-            mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
-            undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
-            cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
-            resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
-            resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
-            adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
-            cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box')
-        };
-
-        const ctx = els.mainCanvas.getContext('2d', { willReadFrequently: true });
-        const maskCanvas = document.createElement('canvas');
-        const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
-        const frontLayerCanvas = document.createElement('canvas');
-        const frontLayerCtx = frontLayerCanvas.getContext('2d');
 
         function setupDragAndDrop() {
             const body = document.body;
@@ -781,7 +767,7 @@
             els.brushSize.addEventListener('input', (e) => {
                 state.brushPercent = parseInt(e.target.value);
                 els.brushSizeVal.textContent = state.brushPercent;
-                updateCursorSize();
+                updateCursorSize(state, canDraw, getBrushPixelSize);
             });
             els.feather.addEventListener('input', (e) => {
                 const val = parseInt(e.target.value);
@@ -833,7 +819,7 @@
                 if (e.code === 'Space' && !e.repeat) {
                     e.preventDefault(); 
                     state.isSpacePressed = true;
-                    updateCursorStyle();
+                    updateCursorStyle(state, canDraw);
                     const now = Date.now();
                     if (now - state.lastSpaceUp < 250) resetView();
                 }
@@ -852,7 +838,7 @@
                     state.brushPercent = newSize;
                     els.brushSize.value = newSize;
                     els.brushSizeVal.textContent = newSize;
-                    updateCursorSize();
+                    updateCursorSize(state, canDraw, getBrushPixelSize);
                 }
                 if ((e.ctrlKey || e.metaKey)) {
                     if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
@@ -863,9 +849,9 @@
             window.addEventListener('keyup', (e) => {
                 if (e.code === 'Space') {
                     state.isSpacePressed = false;
-                    state.isPanning = false; 
+                    state.isPanning = false;
                     state.lastSpaceUp = Date.now();
-                    updateCursorStyle();
+                    updateCursorStyle(state, canDraw);
                 }
                 if (e.key === 'Control' || e.key === 'Meta') {
                     if (state.polylineDirty) {
@@ -1409,35 +1395,7 @@
             const x = (vpW - cW * scale) / 2;
             const y = (vpH - cH * scale) / 2;
             state.view = { x, y, scale };
-            updateViewTransform();
-        }
-
-        function updateViewTransform() {
-            els.canvasWrapper.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
-            updateCursorSize();
-        }
-
-        function updateCursorSize() {
-            if(!canDraw()) return;
-            const visualSize = getBrushPixelSize() * state.view.scale;
-            els.cursor.style.width = visualSize + 'px';
-            els.cursor.style.height = visualSize + 'px';
-        }
-
-        function updateCursorPos(e) {
-            if (!canDraw() || state.isPanning || state.isSpacePressed || state.isCropping) {
-                els.cursor.style.display = 'none';
-                return;
-            }
-            const rect = els.viewport.getBoundingClientRect();
-            if (e.clientX >= rect.left && e.clientX <= rect.right && 
-                e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                els.cursor.style.display = 'block';
-                els.cursor.style.left = e.clientX + 'px';
-                els.cursor.style.top = e.clientY + 'px';
-            } else {
-                els.cursor.style.display = 'none';
-            }
+            updateViewTransform(state, canDraw, getBrushPixelSize);
         }
 
         function getCanvasCoordinates(e) {
@@ -1477,9 +1435,9 @@
                 state.isPanning = true;
                 state.lastPanX = e.clientX;
                 state.lastPanY = e.clientY;
-                updateCursorStyle();
+                updateCursorStyle(state, canDraw);
                 return;
-            } 
+            }
             
             // Crop Interaction with DOM
             // Mouse events on crop handles/box are handled by DOM listeners below to be cleaner
@@ -1581,7 +1539,7 @@
         // Call in init
         
         function handlePointerMove(e) {
-            updateCursorPos(e);
+            updateCursorPos(state, e, canDraw);
             if (!state.cropRect) return; 
             const coords = getCanvasCoordinates(e);
             state.currentPointerX = coords.x;
@@ -1609,7 +1567,7 @@
                 state.view.y = newY;
                 state.lastPanX = e.clientX;
                 state.lastPanY = e.clientY;
-                updateViewTransform();
+                updateViewTransform(state, canDraw, getBrushPixelSize);
             } else if (state.isCropping && state.cropDrag) {
                  // Raw mouse coords converted to full image space
                  const rect = els.viewport.getBoundingClientRect();
@@ -1667,7 +1625,7 @@
             }
             state.isPanning = false;
             state.isDrawing = false;
-            updateCursorStyle();
+            updateCursorStyle(state, canDraw);
         }
 
         function drawStrokeDistance(x, y, context = maskCtx, isPreview = false) {
@@ -1907,17 +1865,6 @@
             } catch (e) { log("Save failed"); }
         }
 
-        function updateCursorStyle() {
-            if (!canDraw()) return;
-            if (state.isSpacePressed || state.isPanning) {
-                els.viewport.classList.add('panning');
-                els.cursor.style.display = 'none'; 
-            } else {
-                els.viewport.classList.remove('panning');
-                if(!state.isCropping) els.cursor.style.display = 'block';
-            }
-        }
-        
         // Ctrl preview loop
         function startPreviewLoop() {
             if (state.previewLoopId) return;
@@ -1971,7 +1918,7 @@
                 state.brushPercent = newSize;
                 els.brushSize.value = newSize;
                 els.brushSizeVal.textContent = newSize;
-                updateCursorSize();
+                updateCursorSize(state, canDraw, getBrushPixelSize);
                 return;
             }
             const zoomSpeed = 0.1;
@@ -1985,12 +1932,13 @@
             state.view.scale = newScale;
             state.view.x = mouseX - canvasX * newScale;
             state.view.y = mouseY - canvasY * newScale;
-            updateViewTransform();
-            updateCursorPos(e);
+            updateViewTransform(state, canDraw, getBrushPixelSize);
+            updateCursorPos(state, e, canDraw);
         }
 
         init();
         cropHandlers(); // Attach DOM listeners
+        })();
     </script>
 </body>
 </html>

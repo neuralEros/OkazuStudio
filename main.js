@@ -27,7 +27,7 @@
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewLoopId: null,
-            isPolylineStart: false, polylinePoints: [], polylineDirty: false, currentPointerX: null, currentPointerY: null,
+            isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null
@@ -326,10 +326,12 @@
                 }
                 if ((e.ctrlKey || e.metaKey) && !e.repeat && !state.isCropping) {
                     state.isCtrlPressed = true;
+                    state.polylineSessionId += 1;
+                    state.currentPolylineAction = `polyline-${state.polylineSessionId}`;
                     state.isPolylineStart = true;
                     state.lastDrawX = null;
-                    state.polylinePoints = []; 
-                    state.polylineDirty = false; 
+                    state.polylinePoints = [];
+                    state.polylineDirty = false;
                     startPreviewLoop();
                 }
                 if (e.key === '[' || e.key === ']') {
@@ -356,14 +358,16 @@
                 }
                 if (e.key === 'Control' || e.key === 'Meta') {
                     if (state.polylineDirty) {
-                        saveSnapshot('mask');
+                        const actionType = state.currentPolylineAction || 'mask';
+                        saveSnapshot(actionType);
                         state.polylineDirty = false;
                     }
                     state.isCtrlPressed = false;
+                    state.currentPolylineAction = null;
                     state.isPreviewing = false;
-                    state.isPolylineStart = false; 
-                    state.lastDrawX = null; 
-                    state.polylinePoints = []; 
+                    state.isPolylineStart = false;
+                    state.lastDrawX = null;
+                    state.polylinePoints = [];
                     stopPreviewLoop();
                     render(); 
                 }
@@ -378,6 +382,7 @@
             function attach(id, key, subkey, type='float') {
                 const el = document.getElementById(id);
                 const label = document.getElementById('val-' + id.replace('adj-', ''));
+                const actionKey = `adjustment-${id}`;
                 if(!el) return;
                 
                 el.addEventListener('input', (e) => {
@@ -396,7 +401,7 @@
 
                 el.addEventListener('change', (e) => {
                     state.isAdjusting = false;
-                    saveSnapshot('adjustment');
+                    saveSnapshot(actionKey);
                     render();
                 });
             }
@@ -689,7 +694,8 @@
                 cropRect: { ...state.cropRect } // Add crop to history
             };
 
-            const isSameAction = actionType !== 'generic'
+            const canCoalesce = actionType !== 'draw' && actionType !== 'generic';
+            const isSameAction = canCoalesce
                 && actionType === state.lastActionType
                 && state.historyIndex === state.history.length - 1;
 
@@ -996,7 +1002,7 @@
                             // Close Loop
                             drawStrokeDistance(coords.x, coords.y);
                             state.polylinePoints.push({x: coords.x, y: coords.y});
-                            state.lastDrawX = coords.x; 
+                            state.lastDrawX = coords.x;
                             state.lastDrawY = coords.y;
                             drawStrokeDistance(startPt.x, startPt.y);
                             maskCtx.beginPath();
@@ -1014,8 +1020,9 @@
                             state.isPolylineStart = true;
                             state.polylinePoints = [];
                             state.lastDrawX = null;
-                            saveSnapshot('draw');
-                            state.polylineDirty = false; 
+                            const actionType = state.currentPolylineAction || 'draw';
+                            saveSnapshot(actionType);
+                            state.polylineDirty = false;
                             render();
                             return;
                         }

@@ -254,13 +254,13 @@
         .crop-thirds-vertical {
             top: 0;
             bottom: 0;
-            width: 1px;
+            width: 0.75px;
             transform: scaleX(var(--inv-scale, 1));
         }
         .crop-thirds-horizontal {
             left: 0;
             right: 0;
-            height: 1px;
+            height: 0.75px;
             transform: scaleY(var(--inv-scale, 1));
         }
         .crop-thirds-left { left: 33.3333%; }

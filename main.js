@@ -192,6 +192,7 @@
 
             els.swapBtn.addEventListener('click', () => {
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                [state.workingA, state.workingB] = [state.workingB, state.workingA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");

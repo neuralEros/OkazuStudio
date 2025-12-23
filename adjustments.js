@@ -155,11 +155,28 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
 
-        if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
-
         const w = els.mainCanvas.width;
         const h = els.mainCanvas.height;
-        const targetH = state.settings.adjustmentPreviewResolution === 'Full' ? 100000 : (state.settings.adjustmentPreviewResolution || 1080);
+
+        // If Full resolution, render directly to main canvas context
+        if (state.settings.adjustmentPreviewResolution === 'Full') {
+             els.mainCanvas.style.visibility = 'visible';
+             els.previewCanvas.classList.add('hidden');
+
+             // Render source (raw) to main canvas
+             renderToContext(ctx, w, h, true, false);
+
+             // Apply adjustments live
+             const imgData = ctx.getImageData(0, 0, w, h);
+             applyMasterLUT(imgData);
+             applyColorOps(imgData);
+             ctx.putImageData(imgData, 0, 0);
+             return;
+        }
+
+        if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
+
+        const targetH = state.settings.adjustmentPreviewResolution || 1080;
         const scale = Math.min(1, targetH / h);
         const pw = Math.floor(w * scale);
         const ph = Math.floor(h * scale);

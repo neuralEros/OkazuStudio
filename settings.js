@@ -10,6 +10,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         apiKey: ''
     };
 
+    let lastStaticHue = defaults.hue;
+    let rgbInterval = null;
+
     // Load settings from localStorage or use defaults
     function loadSettings() {
         const stored = localStorage.getItem('okazu_settings');
@@ -22,6 +25,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 if (state.settings.apiKey) {
                     state.settings.apiKey = decodeApiKey(state.settings.apiKey);
                 }
+                lastStaticHue = state.settings.hue;
             } catch (e) {
                 console.error("Failed to load settings", e);
                 state.settings = { ...defaults };
@@ -39,6 +43,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (toSave.apiKey) {
             toSave.apiKey = encodeApiKey(toSave.apiKey);
         }
+
+        // If RGB mode is active, don't save the current cycling hue, save the last user-set hue.
+        if (toSave.rgbMode) {
+             toSave.hue = lastStaticHue;
+        }
+
         // Don't save runtime state if any
         localStorage.setItem('okazu_settings', JSON.stringify(toSave));
     }
@@ -58,8 +68,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } catch (e) { return encoded; }
     }
 
-    let rgbInterval = null;
-
     function applySettings() {
         // Apply Hue
         document.documentElement.style.setProperty('--accent-h', state.settings.hue);
@@ -70,10 +78,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } else {
             stopRgbMode();
         }
-
-        // Apply Resolution Settings (State is already updated, logic uses state.settings)
-        // No immediate render needed unless we want to force re-cache of previews,
-        // but typically previews are rebuilt on next interaction or implicitly.
     }
 
     function startRgbMode() {
@@ -85,7 +89,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             const slider = document.getElementById('setting-hue');
             if (slider) slider.value = state.settings.hue;
             // We don't save constantly during RGB mode loop
-        }, 2000);
+        }, 1000); // 1 notch per second
     }
 
     function stopRgbMode() {
@@ -180,6 +184,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 updateRgbButtonState();
                 stopRgbMode();
             }
+            lastStaticHue = state.settings.hue;
             applySettings();
             saveDebounced();
         });
@@ -192,6 +197,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 updateRgbButtonState();
                 stopRgbMode();
             }
+            lastStaticHue = 28;
             applySettings();
             saveSettings();
         });

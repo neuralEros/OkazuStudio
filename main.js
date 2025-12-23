@@ -197,6 +197,8 @@
 
         function rebuildPreviewLayerForSlot(slot, allowFullResWork = true) {
             if (!allowFullResWork) return;
+            if (state.settings.brushPreviewResolution === 'Full') return; // Skip preview buffer if Full
+
             const working = slot === 'A' ? state.workingA : state.workingB;
             if (!working) {
                 if (slot === 'A') { state.previewWorkingA = null; state.previewWorkingVersionA = 0; state.previewScaleA = 1; }
@@ -204,7 +206,7 @@
                 return;
             }
 
-            const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
+            const targetH = state.settings.brushPreviewResolution || 1080;
             const scale = Math.min(1, targetH / working.height);
             const pw = Math.max(1, Math.round(working.width * scale));
             const ph = Math.max(1, Math.round(working.height * scale));
@@ -495,7 +497,11 @@
             const ch = els.mainCanvas.height;
 
             const useBakedLayers = !skipAdjustments;
-            const preferPreview = state.useFastPreview && !finalOutput;
+            // Determine if 'Full' mode applies to the current interaction
+            const isAdjusting = state.isAdjusting;
+            const resSetting = isAdjusting ? state.settings.adjustmentPreviewResolution : state.settings.brushPreviewResolution;
+            const preferPreview = state.useFastPreview && !finalOutput && resSetting !== 'Full';
+
             const allowRebuild = !isUserInteracting();
 
             // If cropping, draw full source image, then overlay

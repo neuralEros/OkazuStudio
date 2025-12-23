@@ -75,7 +75,8 @@
         #canvas-container {
             position: relative;
             --workspace-label-padding: 18px;
-            --workspace-label-color: rgba(255, 255, 255, 0.04);
+            --workspace-label-color: #ffffff;
+            --workspace-label-opacity: 0.04;
             --workspace-label-font-family: 'BBH Bogle', 'Inter', system-ui, -apple-system, sans-serif;
             --workspace-label-font-weight: 800;
             --workspace-label-letter-spacing: 0.00em;
@@ -100,6 +101,7 @@
 
         .workspace-label {
             color: var(--workspace-label-color);
+            opacity: var(--workspace-label-opacity);
             font-family: var(--workspace-label-font-family);
             font-weight: var(--workspace-label-font-weight);
             letter-spacing: var(--workspace-label-letter-spacing);
@@ -364,7 +366,7 @@
 
         .tool-btn { transition: all 0.2s; }
         .tool-btn:active { transform: scale(0.95); }
-        .tool-btn.active { background-color: var(--accent-strong); color: white; border-color: var(--accent-strong); }
+        .tool-btn.active { background-color: var(--accent-strong); color: black; border-color: var(--accent-strong); }
         .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
         
         .icon-btn {

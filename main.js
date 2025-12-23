@@ -689,7 +689,11 @@
                 cropRect: { ...state.cropRect } // Add crop to history
             };
 
-            if (actionType !== 'generic' && actionType === state.lastActionType) {
+            const isSameAction = actionType !== 'generic'
+                && actionType === state.lastActionType
+                && state.historyIndex === state.history.length - 1;
+
+            if (isSameAction) {
                 state.history[state.historyIndex] = snap;
             } else {
                 if (state.historyIndex < state.history.length - 1) {
@@ -759,15 +763,17 @@
             if (state.historyIndex > 0) {
                 state.historyIndex--;
                 restoreState(state.history[state.historyIndex]);
+                state.lastActionType = null;
                 updateUI();
                 log("Undo", "info");
             }
         }
-        
+
         function redo() {
             if (state.historyIndex < state.history.length - 1) {
                 state.historyIndex++;
                 restoreState(state.history[state.historyIndex]);
+                state.lastActionType = null;
                 updateUI();
                 log("Redo", "info");
             }

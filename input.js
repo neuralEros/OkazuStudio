@@ -417,6 +417,20 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     r.x = Math.max(0, r.x);
                     r.w = oldR - r.x;
                     r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                } else if (h === 'n') {
+                    const oldB = r.y + r.h;
+                    r.y = Math.min(my, oldB - 10);
+                    r.y = Math.max(0, r.y);
+                    r.h = oldB - r.y;
+                } else if (h === 's') {
+                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                } else if (h === 'e') {
+                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
+                } else if (h === 'w') {
+                    const oldR = r.x + r.w;
+                    r.x = Math.min(mx, oldR - 10);
+                    r.x = Math.max(0, r.x);
+                    r.w = oldR - r.x;
                 }
             }
             render();

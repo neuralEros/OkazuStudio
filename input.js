@@ -668,6 +668,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         pCtx.restore();
         state.previewMaskScale = scale;
         state.isPreviewing = true;
+        state.useFastPreview = true;
         render();
     }
 
@@ -799,6 +800,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.previewMaskCanvas = null;
                 state.previewMaskScale = 1;
                 state.isPreviewing = false;
+                state.useFastPreview = false;
                 state.isPolylineStart = false;
                 state.lastDrawX = null;
                 state.polylinePoints = [];

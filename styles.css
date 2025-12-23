@@ -19,7 +19,7 @@
 
             --panel: #0f0f0f;
             --panel-strong: #161616;
-            --panel-border: hsla(var(--accent-h), 22%, 30%, 0.85);
+            --panel-border: hsla(var(--accent-h), 30%, 35%, 0.85);
             --panel-divider: hsla(var(--accent-h), 24%, 36%, 0.9);
             --panel-900: #0f0f0f;
             --panel-800: #151515;

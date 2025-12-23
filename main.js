@@ -371,11 +371,53 @@
                 render();
             });
 
+            let opacityRenderTimer = null;
+            let lastOpacityRender = 0;
+            let isOpacityDragging = false;
+            const scheduleOpacityRender = (force = false) => {
+                if (force) {
+                    if (opacityRenderTimer) {
+                        clearTimeout(opacityRenderTimer);
+                        opacityRenderTimer = null;
+                    }
+                    lastOpacityRender = performance.now();
+                    render();
+                    return;
+                }
+                const now = performance.now();
+                const elapsed = now - lastOpacityRender;
+                if (elapsed >= 50) {
+                    lastOpacityRender = now;
+                    render();
+                    return;
+                }
+                if (opacityRenderTimer) {
+                    return;
+                }
+                opacityRenderTimer = setTimeout(() => {
+                    opacityRenderTimer = null;
+                    lastOpacityRender = performance.now();
+                    render();
+                }, 50 - elapsed);
+            };
+
             els.opacitySlider.addEventListener('input', (e) => {
                 state.opacity = e.target.value / 100;
                 els.opacityVal.textContent = Math.round(state.opacity * 100) + '%';
-                render();
+                scheduleOpacityRender();
             });
+            const finalizeOpacityRender = () => {
+                if (!isOpacityDragging) return;
+                isOpacityDragging = false;
+                scheduleOpacityRender(true);
+            };
+            els.opacitySlider.addEventListener('pointerdown', () => {
+                isOpacityDragging = true;
+            });
+            els.opacitySlider.addEventListener('pointerup', finalizeOpacityRender);
+            els.opacitySlider.addEventListener('pointercancel', finalizeOpacityRender);
+            els.opacitySlider.addEventListener('touchend', finalizeOpacityRender);
+            els.opacitySlider.addEventListener('change', () => scheduleOpacityRender(true));
             els.brushSize.addEventListener('input', (e) => {
                 setBrushPercentFromSlider(e.target.value);
             });

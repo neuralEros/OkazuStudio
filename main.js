@@ -1173,6 +1173,8 @@
             const dist = Math.hypot(dx, dy);
             const size = getBrushPixelSize();
             const spacing = Math.max(1, size * 0.15);
+            // Always stamp the endpoints so short moves still render visible circles.
+            drawBrushStamp(startX, startY, context);
             if (dist >= spacing) {
                 const steps = dist / spacing;
                 const stepX = dx / steps;
@@ -1182,10 +1184,11 @@
                     const drawY = startY + stepY * i;
                     drawBrushStamp(drawX, drawY, context);
                 }
-                if (!isPreview) {
-                    state.lastDrawX = x;
-                    state.lastDrawY = y;
-                }
+            }
+            drawBrushStamp(x, y, context);
+            if (!isPreview) {
+                state.lastDrawX = x;
+                state.lastDrawY = y;
             }
         }
 

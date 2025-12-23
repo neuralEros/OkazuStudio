@@ -10,6 +10,7 @@
 - **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
 - **undo.js** encapsulates history/undo helpers while `main.js` wires them to state, rendering, and UI controls.
 - **adjustments.js** holds LUT/color adjustment logic and UI wiring, with `main.js` delegating slider handling and image filtering to it.
+- **input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `main.js` consuming the exported hooks.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings, adjustment values, history, and cropping data. `els` caches DOM references for fast event wiring.
 - **Canvas stack**: main display canvas (`#mainCanvas`) sits inside a transformable wrapper (`#canvas-wrapper`) controlled by the viewport for pan/zoom. Offscreen canvases include `maskCanvas` (brush strokes), `frontLayerCanvas` (front image after mask), and preview canvases for throttled adjustment previews.
 - **Input handling**: pointer/wheel listeners support brush painting (with optional polyline mode via Ctrl-click), panning (space drag), zooming (wheel), cropping drag handles, and keyboard shortcuts (undo/redo, view reset). Drag-and-drop auto-assigns images.

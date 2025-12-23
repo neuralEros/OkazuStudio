@@ -405,14 +405,12 @@
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
-                els.maskEyeOpen.classList.toggle('hidden');
-                els.maskEyeClosed.classList.toggle('hidden');
+                updateVisibilityToggles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
-                els.rearEyeOpen.classList.toggle('hidden');
-                els.rearEyeClosed.classList.toggle('hidden');
+                updateVisibilityToggles();
                 render();
             });
 
@@ -425,6 +423,7 @@
             log("Ready. Load images to begin.", "info");
             showHints();
             updateWorkspaceLabel();
+            updateVisibilityToggles();
         }
 
         function updateWorkspaceLabel() {
@@ -734,6 +733,23 @@
             }
 
             updateWorkspaceLabel();
+            updateVisibilityToggles();
+        }
+
+        function updateVisibilityToggles() {
+            const maskHidden = !state.maskVisible;
+            els.toggleMaskBtn.classList.toggle('bg-accent-dark', maskHidden);
+            els.toggleMaskBtn.classList.toggle('border-accent-strong', maskHidden);
+            els.toggleMaskBtn.classList.toggle('accent-icon', maskHidden);
+            els.maskEyeOpen.classList.toggle('hidden', maskHidden);
+            els.maskEyeClosed.classList.toggle('hidden', !maskHidden);
+
+            const backHidden = !state.backVisible;
+            els.toggleBackBtn.classList.toggle('bg-accent-dark', backHidden);
+            els.toggleBackBtn.classList.toggle('border-accent-strong', backHidden);
+            els.toggleBackBtn.classList.toggle('accent-icon', backHidden);
+            els.rearEyeOpen.classList.toggle('hidden', backHidden);
+            els.rearEyeClosed.classList.toggle('hidden', !backHidden);
         }
 
         function truncate(str) {

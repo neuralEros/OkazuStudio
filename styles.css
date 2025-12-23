@@ -13,13 +13,53 @@
 
         /* Checkerboard pattern */
         .checkerboard {
-            background-image: 
-                linear-gradient(45deg, #2a2a2a 25%, transparent 25%), 
-                linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), 
-                linear-gradient(45deg, transparent 75%, #2a2a2a 75%), 
+            background-image:
+                linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+                linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
                 linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
             background-size: 20px 20px;
             background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        /* Workspace Labels */
+        #canvas-container {
+            --workspace-label-padding: 18px;
+            --workspace-label-color: rgba(255, 255, 255, 0.25);
+            --workspace-label-font-size: 32px;
+            --workspace-label-font-weight: 800;
+            --workspace-label-letter-spacing: 0.08em;
+        }
+
+        #workspace-labels {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .workspace-label {
+            color: var(--workspace-label-color);
+            font-size: var(--workspace-label-font-size);
+            font-weight: var(--workspace-label-font-weight);
+            letter-spacing: var(--workspace-label-letter-spacing);
+            line-height: 1.05;
+            text-transform: uppercase;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .workspace-label-top {
+            position: absolute;
+            top: var(--workspace-label-padding);
+            right: var(--workspace-label-padding);
+            text-align: right;
+        }
+
+        .workspace-label-bottom {
+            position: absolute;
+            bottom: var(--workspace-label-padding);
+            left: var(--workspace-label-padding);
+            text-align: left;
         }
 
         /* Drag Overlay */

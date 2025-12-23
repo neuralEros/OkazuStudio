@@ -4,10 +4,17 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
     let masterLUT = new Uint8Array(256);
     let currentLUTHash = "";
     let saveSnapshot = () => {};
+    let updateWorkingCopies = () => {};
 
     function setSaveSnapshotHandler(handler) {
         if (typeof handler === 'function') {
             saveSnapshot = handler;
+        }
+    }
+
+    function setUpdateWorkingCopiesHandler(handler) {
+        if (typeof handler === 'function') {
+            updateWorkingCopies = handler;
         }
     }
 
@@ -147,7 +154,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
             state.previewFrontLayer.height = ph;
         }
         const pCtx = state.previewCanvas.getContext('2d');
-        renderToContext(pCtx, pw, ph, true);
+        renderToContext(pCtx, pw, ph, true, false);
         const imgData = pCtx.getImageData(0, 0, pw, ph);
         applyMasterLUT(imgData);
         applyColorOps(imgData);
@@ -179,6 +186,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
          updateSlider('adj-cb-b', 0);
          updateSlider('adj-shadows', 0);
          updateSlider('adj-highlights', 0);
+         updateWorkingCopies();
     }
 
     function updateSlider(id, val) {
@@ -218,6 +226,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
 
             el.addEventListener('change', (e) => {
                 state.isAdjusting = false;
+                updateWorkingCopies();
                 saveSnapshot(actionKey);
                 render();
             });
@@ -244,6 +253,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
                 a.shadows === 0 && a.highlights === 0) return;
 
             resetAllAdjustments();
+            updateWorkingCopies();
             saveSnapshot('adjustments_reset');
             render();
         });
@@ -255,6 +265,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
             updateSlider('adj-l-black', 0);
             updateSlider('adj-l-mid', 1.0);
             updateSlider('adj-l-white', 255);
+            updateWorkingCopies();
             saveSnapshot('levels_reset');
             render();
         });
@@ -265,6 +276,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
              state.adjustments.vibrance = 0;
              updateSlider('adj-sat', 0);
              updateSlider('adj-vib', 0);
+             updateWorkingCopies();
              saveSnapshot('sat_reset');
              render();
         });
@@ -278,10 +290,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
              updateSlider('adj-cb-r', 0);
              updateSlider('adj-cb-g', 0);
              updateSlider('adj-cb-b', 0);
+             updateWorkingCopies();
              saveSnapshot('color_reset');
              render();
         });
     }
 
-    return { applyMasterLUT, applyColorOps, updateAdjustmentPreview, initAdjustments, resetAllAdjustments, updateSlider, setSaveSnapshotHandler };
+    return { applyMasterLUT, applyColorOps, updateAdjustmentPreview, initAdjustments, resetAllAdjustments, updateSlider, setSaveSnapshotHandler, setUpdateWorkingCopiesHandler };
 }

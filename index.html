@@ -250,10 +250,12 @@
                 <!-- Crop UI Elements (DOM based) -->
                 <div id="crop-overlay-dom">
                     <div id="crop-box">
-                        <div class="crop-thirds-line crop-thirds-vertical crop-thirds-left" aria-hidden="true"></div>
-                        <div class="crop-thirds-line crop-thirds-vertical crop-thirds-right" aria-hidden="true"></div>
-                        <div class="crop-thirds-line crop-thirds-horizontal crop-thirds-top" aria-hidden="true"></div>
-                        <div class="crop-thirds-line crop-thirds-horizontal crop-thirds-bottom" aria-hidden="true"></div>
+                        <div class="crop-grid" aria-hidden="true">
+                            <div class="crop-thirds-line crop-thirds-vertical crop-thirds-left"></div>
+                            <div class="crop-thirds-line crop-thirds-vertical crop-thirds-right"></div>
+                            <div class="crop-thirds-line crop-thirds-horizontal crop-thirds-top"></div>
+                            <div class="crop-thirds-line crop-thirds-horizontal crop-thirds-bottom"></div>
+                        </div>
                         <div class="crop-handle handle-nw" data-handle="nw"></div>
                         <div class="crop-handle handle-n" data-handle="n"></div>
                         <div class="crop-handle handle-ne" data-handle="ne"></div>

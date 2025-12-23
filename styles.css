@@ -240,10 +240,15 @@
             cursor: move;
         }
 
+        .crop-grid {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
         .crop-thirds-line {
             position: absolute;
             background: rgba(255, 255, 255, 0.55);
-            pointer-events: none;
         }
         .crop-thirds-vertical {
             top: 0;

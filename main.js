@@ -748,6 +748,13 @@
              log("Generating Censor layer...", "info");
              setTimeout(() => {
                 try {
+                    // Ensure any fast/preview mask state is cleared so the final render uses the full-resolution mask
+                    state.isPreviewing = false;
+                    state.previewMaskCanvas = null;
+                    state.previewMaskScale = 1;
+                    state.useFastPreview = false;
+                    state.fastPreviewLastPoint = null;
+
                     // Temporarily render full, uncropped frame for processing
                     const wasCropping = state.isCropping;
                     const prevCropRect = state.cropRect ? { ...state.cropRect } : null;

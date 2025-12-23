@@ -61,6 +61,36 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
 
+        const {
+            applyMasterLUT,
+            applyColorOps,
+            updateAdjustmentPreview,
+            initAdjustments,
+            resetAllAdjustments,
+            updateSlider,
+            setSaveSnapshotHandler
+        } = createAdjustmentSystem({
+            state,
+            els,
+            ctx,
+            renderToContext,
+            render
+        });
+
+        const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
+            state,
+            maskCtx,
+            maskCanvas,
+            updateSlider,
+            resizeMainCanvas,
+            render,
+            resetAllAdjustments,
+            log,
+            updateUI
+        });
+
+        setSaveSnapshotHandler(saveSnapshot);
+
         function setupDragAndDrop() {
             const body = document.body;
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => body.addEventListener(eventName, preventDefaults, false));
@@ -78,160 +108,6 @@
                     handleFileLoad(files[1], 'B');
                 }
             });
-        }
-
-        let gammaLUT = new Uint8Array(256);
-        let currentGammaLUTValue = -1;
-        let masterLUT = new Uint8Array(256);
-        let currentLUTHash = "";
-
-        function getCurvedValue(sliderVal) {
-            const abs = Math.abs(sliderVal);
-            const sign = Math.sign(sliderVal);
-            let effective = 0;
-            if (abs <= 80) effective = (abs / 80) * 50;
-            else effective = 50 + ((abs - 80) / 20) * 50;
-            return Math.round(sign * effective);
-        }
-
-        function updateMasterLUT() {
-            const g = state.adjustments.gamma;
-            const l = state.adjustments.levels;
-            const hash = `${g}-${l.black}-${l.mid}-${l.white}`;
-            if (hash === currentLUTHash) return;
-            const invGamma = 1 / g; 
-            const invMid = 1 / l.mid;
-            const blackNorm = l.black / 255;
-            const whiteNorm = l.white / 255;
-            const range = whiteNorm - blackNorm;
-            for (let i = 0; i < 256; i++) {
-                let n = i / 255;
-                if (range <= 0.001) n = (n > blackNorm) ? 1.0 : 0.0;
-                else n = (n - blackNorm) / range;
-                if (n < 0) n = 0; if (n > 1) n = 1;
-                n = Math.pow(n, invMid);
-                n = Math.pow(n, invGamma);
-                if (n < 0) n = 0; if (n > 1) n = 1;
-                masterLUT[i] = n * 255;
-            }
-            currentLUTHash = hash;
-        }
-
-        function applyMasterLUT(imageData) {
-            const data = imageData.data;
-            const g = state.adjustments.gamma;
-            const l = state.adjustments.levels;
-            if (Math.abs(g - 1.0) < 0.01 && l.black === 0 && Math.abs(l.mid - 1.0) < 0.01 && l.white === 255) return;
-            updateMasterLUT();
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = masterLUT[data[i]]; data[i+1] = masterLUT[data[i+1]]; data[i+2] = masterLUT[data[i+2]]; 
-            }
-        }
-
-        function applyColorOps(imageData) {
-            const a = state.adjustments;
-            const sat = a.saturation; const vib = a.vibrance; const wb = a.wb;
-            const shad = a.shadows; const high = a.highlights;
-            const crSlider = a.colorBal.r; const cgSlider = a.colorBal.g; const cbSlider = a.colorBal.b;
-            if (sat === 0 && vib === 0 && wb === 0 && shad === 0 && high === 0 && crSlider === 0 && cgSlider === 0 && cbSlider === 0) return;
-            const data = imageData.data;
-            const satMult = 1 + (sat / 100);
-            const cr = getCurvedValue(crSlider); const cg = getCurvedValue(cgSlider); const cb = getCurvedValue(cbSlider);
-            const wbR = wb > 0 ? 1 + (wb/200) : 1 - (Math.abs(wb)/400); 
-            const wbB = wb < 0 ? 1 + (Math.abs(wb)/200) : 1 - (wb/400);
-
-            for (let i = 0; i < data.length; i += 4) {
-                let r = data[i]; let g = data[i+1]; let b = data[i+2];
-                const lum = 0.299*r + 0.587*g + 0.114*b;
-                const normLum = lum / 255;
-                if (shad !== 0 || high !== 0) {
-                    if (shad !== 0) {
-                         const sFactor = (1.0 - normLum) * (1.0 - normLum);
-                         const sMult = 1 + (shad / 100) * sFactor;
-                         r *= sMult; g *= sMult; b *= sMult;
-                    }
-                    if (high !== 0) {
-                         const hFactor = normLum * normLum;
-                         const hMult = 1 + (high / 100) * hFactor;
-                         r *= hMult; g *= hMult; b *= hMult;
-                    }
-                }
-                if (sat !== 0 || vib !== 0) {
-                    const gray = 0.299*r + 0.587*g + 0.114*b;
-                    if (sat !== 0) {
-                        r = gray + (r - gray) * satMult;
-                        g = gray + (g - gray) * satMult;
-                        b = gray + (b - gray) * satMult;
-                    }
-                    if (vib !== 0) {
-                        const max = Math.max(r, g, b);
-                        const satVal = (max - gray) / 255; 
-                        const vMult = (vib / 100) * 2.0 * (1 - satVal); 
-                        const scale = 1 + vMult;
-                        r = gray + (r - gray) * scale;
-                        g = gray + (g - gray) * scale;
-                        b = gray + (b - gray) * scale;
-                    }
-                }
-                if (wb !== 0) {
-                    const oldLum = 0.299*r + 0.587*g + 0.114*b;
-                    r *= wbR; b *= wbB;
-                    const newLum = 0.299*r + 0.587*g + 0.114*b;
-                    if (newLum > 0.01) {
-                         const scale = oldLum / newLum;
-                         r *= scale; g *= scale; b *= scale;
-                    }
-                }
-                if (cr !== 0 || cg !== 0 || cb !== 0) {
-                    const oldLum = 0.299*r + 0.587*g + 0.114*b;
-                    r += cr; g += cg; b += cb;
-                    const rClamped = Math.max(0, r); const gClamped = Math.max(0, g); const bClamped = Math.max(0, b);
-                    const newLum = 0.299*rClamped + 0.587*gClamped + 0.114*bClamped;
-                    if (newLum > 0.01) {
-                        const scale = oldLum / newLum;
-                        r = rClamped * scale; g = gClamped * scale; b = bClamped * scale;
-                    } else {
-                        r = Math.max(0, r); g = Math.max(0, g); b = Math.max(0, b);
-                    }
-                }
-                data[i] = Math.min(255, Math.max(0, r));
-                data[i+1] = Math.min(255, Math.max(0, g));
-                data[i+2] = Math.min(255, Math.max(0, b));
-            }
-        }
-
-        function updateAdjustmentPreview() {
-            if (!state.imgA && !state.imgB) return;
-            const now = Date.now();
-            if (now - state.previewThrottle < 100) return; 
-            state.previewThrottle = now;
-            if (!state.previewCanvas) state.previewCanvas = document.createElement('canvas');
-            if (!state.previewFrontLayer) state.previewFrontLayer = document.createElement('canvas');
-            
-            // Adjust to use current view size (cropped or full)
-            const w = els.mainCanvas.width;
-            const h = els.mainCanvas.height;
-            const scale = Math.min(1, 1920 / Math.max(w, h));
-            const pw = Math.floor(w * scale);
-            const ph = Math.floor(h * scale);
-
-            if (state.previewCanvas.width !== pw || state.previewCanvas.height !== ph) {
-                state.previewCanvas.width = pw;
-                state.previewCanvas.height = ph;
-                state.previewFrontLayer.width = pw;
-                state.previewFrontLayer.height = ph;
-            }
-            const pCtx = state.previewCanvas.getContext('2d');
-            renderToContext(pCtx, pw, ph, true); 
-            const imgData = pCtx.getImageData(0, 0, pw, ph);
-            applyMasterLUT(imgData); 
-            applyColorOps(imgData);  
-            pCtx.putImageData(imgData, 0, 0);
-            ctx.clearRect(0, 0, w, h);
-            ctx.imageSmoothingEnabled = false; 
-            ctx.globalAlpha = 1.0; 
-            ctx.drawImage(state.previewCanvas, 0, 0, w, h);
-            ctx.imageSmoothingEnabled = true;
         }
 
         function init() {
@@ -375,131 +251,6 @@
             
             log("Ready. Load images to begin.", "info");
             showHints(); 
-        }
-
-        // --- Adjustment UI Logic ---
-        function initAdjustments() {
-            function attach(id, key, subkey, type='float') {
-                const el = document.getElementById(id);
-                const label = document.getElementById('val-' + id.replace('adj-', ''));
-                const actionKey = `adjustment-${id}`;
-                if(!el) return;
-                
-                el.addEventListener('input', (e) => {
-                    let val = parseFloat(e.target.value);
-                    if (subkey) state.adjustments[key][subkey] = val;
-                    else state.adjustments[key] = val;
-
-                    if (type === 'curve') label.textContent = getCurvedValue(val);
-                    else if (type === 'float') label.textContent = val.toFixed(2);
-                    else if (type === 'K') label.textContent = (6500 + val*30) + 'K';
-                    else label.textContent = val;
-
-                    state.isAdjusting = true;
-                    updateAdjustmentPreview();
-                });
-
-                el.addEventListener('change', (e) => {
-                    state.isAdjusting = false;
-                    saveSnapshot(actionKey);
-                    render();
-                });
-            }
-
-            attach('adj-gamma', 'gamma');
-            attach('adj-shadows', 'shadows', null, 'int');
-            attach('adj-highlights', 'highlights', null, 'int');
-            attach('adj-l-black', 'levels', 'black', 'int');
-            attach('adj-l-mid', 'levels', 'mid', 'float');
-            attach('adj-l-white', 'levels', 'white', 'int');
-            attach('adj-sat', 'saturation', null, 'int');
-            attach('adj-vib', 'vibrance', null, 'int');
-            attach('adj-wb', 'wb', null, 'K');
-            attach('adj-cb-r', 'colorBal', 'r', 'curve');
-            attach('adj-cb-g', 'colorBal', 'g', 'curve');
-            attach('adj-cb-b', 'colorBal', 'b', 'curve');
-
-            els.resetAdjBtn.addEventListener('click', () => {
-                const a = state.adjustments;
-                if (a.gamma === 1.0 && a.levels.black === 0 && a.levels.mid === 1.0 && a.levels.white === 255 &&
-                    a.saturation === 0 && a.vibrance === 0 && a.wb === 0 && 
-                    a.colorBal.r === 0 && a.colorBal.g === 0 && a.colorBal.b === 0 &&
-                    a.shadows === 0 && a.highlights === 0) return;
-
-                resetAllAdjustments();
-                saveSnapshot('adjustments_reset');
-                render();
-            });
-
-            els.resetLevelsBtn.addEventListener('click', () => {
-                const l = state.adjustments.levels;
-                if (l.black === 0 && l.mid === 1.0 && l.white === 255) return;
-                state.adjustments.levels = { black: 0, mid: 1.0, white: 255 };
-                updateSlider('adj-l-black', 0);
-                updateSlider('adj-l-mid', 1.0);
-                updateSlider('adj-l-white', 255);
-                saveSnapshot('levels_reset');
-                render();
-            });
-
-            document.getElementById('resetSatBtn').addEventListener('click', () => {
-                 if (state.adjustments.saturation === 0 && state.adjustments.vibrance === 0) return;
-                 state.adjustments.saturation = 0;
-                 state.adjustments.vibrance = 0;
-                 updateSlider('adj-sat', 0);
-                 updateSlider('adj-vib', 0);
-                 saveSnapshot('sat_reset');
-                 render();
-            });
-            
-            els.resetColorBtn.addEventListener('click', () => {
-                 const a = state.adjustments;
-                 if (a.wb === 0 && a.colorBal.r === 0 && a.colorBal.g === 0 && a.colorBal.b === 0) return;
-                 state.adjustments.wb = 0;
-                 state.adjustments.colorBal = { r:0, g:0, b:0 };
-                 updateSlider('adj-wb', 0);
-                 updateSlider('adj-cb-r', 0);
-                 updateSlider('adj-cb-g', 0);
-                 updateSlider('adj-cb-b', 0);
-                 saveSnapshot('color_reset');
-                 render();
-            });
-        }
-
-        function resetAllAdjustments() {
-             state.adjustments = { 
-                 gamma: 1.0, 
-                 levels: { black: 0, mid: 1.0, white: 255 },
-                 saturation: 0, vibrance: 0,
-                 wb: 0, colorBal: { r:0, g:0, b:0 },
-                 shadows: 0, highlights: 0
-             };
-             updateSlider('adj-gamma', 1.0);
-             updateSlider('adj-l-black', 0);
-             updateSlider('adj-l-mid', 1.0);
-             updateSlider('adj-l-white', 255);
-             updateSlider('adj-sat', 0);
-             updateSlider('adj-vib', 0);
-             updateSlider('adj-wb', 0);
-             updateSlider('adj-cb-r', 0);
-             updateSlider('adj-cb-g', 0);
-             updateSlider('adj-cb-b', 0);
-             updateSlider('adj-shadows', 0);
-             updateSlider('adj-highlights', 0);
-        }
-
-        function updateSlider(id, val) {
-            const el = document.getElementById(id);
-            if(el) {
-                el.value = val;
-                const label = document.getElementById('val-' + id.replace('adj-', ''));
-                if (label) {
-                     if (id.startsWith('adj-cb')) label.textContent = getCurvedValue(val);
-                     else if (id === 'adj-wb') label.textContent = (6500 + val*30) + 'K';
-                     else if (el.step === '0.01' || el.step === '0.1') label.textContent = parseFloat(val).toFixed(2);
-                     else label.textContent = val;
-                }
-            }
         }
 
         // --- Core Rendering & Helper ---
@@ -684,105 +435,6 @@
             els.mainCanvas.height = h;
             frontLayerCanvas.width = w;
             frontLayerCanvas.height = h;
-        }
-
-        // --- History Logic Updated ---
-        function saveSnapshot(actionType = 'generic') {
-            const snap = {
-                mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
-                adjustments: JSON.parse(JSON.stringify(state.adjustments)),
-                cropRect: { ...state.cropRect } // Add crop to history
-            };
-
-            const canCoalesce = actionType !== 'draw' && actionType !== 'generic';
-            const isSameAction = canCoalesce
-                && actionType === state.lastActionType
-                && state.historyIndex === state.history.length - 1;
-
-            if (isSameAction) {
-                state.history[state.historyIndex] = snap;
-            } else {
-                if (state.historyIndex < state.history.length - 1) {
-                    state.history = state.history.slice(0, state.historyIndex + 1);
-                }
-                if (state.history.length > 30) state.history.shift();
-                state.history.push(snap);
-                state.historyIndex = state.history.length - 1;
-            }
-            state.lastActionType = actionType;
-            updateUI(); 
-        }
-
-        function resetMaskAndHistory() {
-             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-             state.history = [];
-             state.historyIndex = -1;
-             resetAllAdjustments();
-             state.lastActionType = null;
-             // Reset Crop
-             if (state.fullDims.w > 0) {
-                 state.cropRect = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
-             }
-             saveSnapshot('init');
-        }
-        
-        function resetMaskOnly() {
-             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-             state.history = [];
-             state.historyIndex = -1;
-             state.lastActionType = null;
-             // Don't reset crop rect unless image size changed significantly? 
-             // Merge re-inits image data, so it resets state.fullDims.
-             saveSnapshot('merge_init');
-        }
-
-        function restoreState(snapshot) {
-            maskCtx.putImageData(snapshot.mask, 0, 0);
-            state.adjustments = JSON.parse(JSON.stringify(snapshot.adjustments));
-            state.cropRect = { ...snapshot.cropRect };
-            
-            updateSlider('adj-gamma', state.adjustments.gamma);
-            updateSlider('adj-l-black', state.adjustments.levels.black);
-            updateSlider('adj-l-mid', state.adjustments.levels.mid);
-            updateSlider('adj-l-white', state.adjustments.levels.white);
-            updateSlider('adj-sat', state.adjustments.saturation);
-            updateSlider('adj-vib', state.adjustments.vibrance);
-            updateSlider('adj-wb', state.adjustments.wb);
-            updateSlider('adj-cb-r', state.adjustments.colorBal.r);
-            updateSlider('adj-cb-g', state.adjustments.colorBal.g);
-            updateSlider('adj-cb-b', state.adjustments.colorBal.b);
-            updateSlider('adj-shadows', state.adjustments.shadows);
-            updateSlider('adj-highlights', state.adjustments.highlights);
-            
-            // Restore View context based on crop mode
-            if (!state.isCropping) {
-                resizeMainCanvas(state.cropRect.w, state.cropRect.h);
-                // resetView(); // optional to force fit? maybe jarring.
-            } else {
-                resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-            }
-
-            render();
-        }
-
-        function undo() {
-            if (state.historyIndex > 0) {
-                state.historyIndex--;
-                restoreState(state.history[state.historyIndex]);
-                state.lastActionType = null;
-                updateUI();
-                log("Undo", "info");
-            }
-        }
-
-        function redo() {
-            if (state.historyIndex < state.history.length - 1) {
-                state.historyIndex++;
-                restoreState(state.history[state.historyIndex]);
-                state.lastActionType = null;
-                updateUI();
-                log("Redo", "info");
-            }
         }
 
         // --- Standard App Functions ---

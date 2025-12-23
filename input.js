@@ -181,6 +181,99 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
+    function paintStampAt(context, x, y, size, feather, isErasing) {
+        const radius = size / 2;
+        const softness = feather / 20;
+        context.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
+        if (softness === 0) {
+            context.fillStyle = isErasing ? 'white' : 'black';
+            context.beginPath();
+            context.arc(x, y, radius, 0, Math.PI * 2);
+            context.fill();
+            return;
+        }
+        const grad = context.createRadialGradient(x, y, radius * (1 - softness), x, y, radius);
+        grad.addColorStop(0, isErasing ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)');
+        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        context.fillStyle = grad;
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+    }
+
+    function paintStrokeSegment(context, lastPoint, point, size, feather, isErasing) {
+        const spacing = Math.max(1, size * 0.15);
+        if (!lastPoint) {
+            paintStampAt(context, point.x, point.y, size, feather, isErasing);
+            return;
+        }
+        const dx = point.x - lastPoint.x;
+        const dy = point.y - lastPoint.y;
+        const dist = Math.hypot(dx, dy);
+        paintStampAt(context, lastPoint.x, lastPoint.y, size, feather, isErasing);
+        if (dist >= spacing) {
+            const steps = dist / spacing;
+            const stepX = dx / steps;
+            const stepY = dy / steps;
+            for (let i = 1; i <= steps; i++) {
+                paintStampAt(context, lastPoint.x + stepX * i, lastPoint.y + stepY * i, size, feather, isErasing);
+            }
+        }
+        paintStampAt(context, point.x, point.y, size, feather, isErasing);
+    }
+
+    function ensureFastMaskCanvas() {
+        if (!state.fastMaskCanvas) {
+            state.fastMaskCanvas = document.createElement('canvas');
+            state.fastMaskCtx = state.fastMaskCanvas.getContext('2d', { willReadFrequently: true });
+        }
+        const maxDim = 1080;
+        const scale = Math.min(1, maxDim / Math.max(state.fullDims.w || 1, state.fullDims.h || 1));
+        const w = Math.max(1, Math.round(state.fullDims.w * scale));
+        const h = Math.max(1, Math.round(state.fullDims.h * scale));
+
+        if (state.fastMaskCanvas.width !== w || state.fastMaskCanvas.height !== h) {
+            state.fastMaskCanvas.width = w;
+            state.fastMaskCanvas.height = h;
+        }
+        state.fastMaskScale = scale;
+        state.fastMaskCtx.clearRect(0, 0, w, h);
+        state.fastMaskCtx.drawImage(maskCanvas, 0, 0, w, h);
+    }
+
+    function beginFastStrokeSession() {
+        ensureFastMaskCanvas();
+        state.previewMaskCanvas = state.fastMaskCanvas;
+        state.isPreviewing = true;
+        state.useFastPreview = true;
+        state.activeStroke = {
+            points: [],
+            brushSize: getBrushPixelSize(),
+            feather: state.feather,
+            isErasing: state.isErasing
+        };
+        state.fastPreviewLastPoint = null;
+    }
+
+    function addFastStrokePoint(coords) {
+        if (!state.activeStroke) return;
+        const stroke = state.activeStroke;
+        stroke.points.push({ x: coords.x, y: coords.y });
+        const scaledPoint = { x: coords.x * state.fastMaskScale, y: coords.y * state.fastMaskScale };
+        paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastPoint, scaledPoint, stroke.brushSize * state.fastMaskScale, stroke.feather, stroke.isErasing);
+        state.fastPreviewLastPoint = scaledPoint;
+    }
+
+    function replayStrokeToFullMask() {
+        const stroke = state.activeStroke;
+        if (!stroke || stroke.points.length === 0) return;
+        let last = null;
+        for (const pt of stroke.points) {
+            paintStrokeSegment(maskCtx, last, pt, stroke.brushSize, stroke.feather, stroke.isErasing);
+            last = pt;
+        }
+    }
+
     function handlePointerDown(e) {
         if (!canDraw()) return;
         const coords = getCanvasCoordinates(e);
@@ -250,9 +343,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.isDrawing = true;
             state.lastDrawX = null;
             state.lastDrawY = null;
-            drawBrushStamp(coords.x, coords.y);
-            state.lastDrawX = coords.x;
-            state.lastDrawY = coords.y;
+            beginFastStrokeSession();
+            addFastStrokePoint(coords);
             render();
         }
     }
@@ -329,13 +421,22 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             }
             render();
         } else if (state.isDrawing) {
-            drawStrokeDistance(coords.x, coords.y);
+            addFastStrokePoint(coords);
             render();
         }
     }
 
     function handlePointerUp() {
-        if (state.isDrawing) saveSnapshot('draw');
+        if (state.isDrawing) {
+            replayStrokeToFullMask();
+            state.previewMaskCanvas = null;
+            state.isPreviewing = false;
+            state.useFastPreview = false;
+            state.fastPreviewLastPoint = null;
+            state.activeStroke = null;
+            render();
+            saveSnapshot('draw');
+        }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;
             saveSnapshot('crop');

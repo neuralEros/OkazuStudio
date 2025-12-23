@@ -66,37 +66,50 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
         const sat = a.saturation; const vib = a.vibrance; const wb = a.wb;
         const shad = a.shadows; const high = a.highlights;
         const crSlider = a.colorBal.r; const cgSlider = a.colorBal.g; const cbSlider = a.colorBal.b;
-        if (sat === 0 && vib === 0 && wb === 0 && shad === 0 && high === 0 && crSlider === 0 && cgSlider === 0 && cbSlider === 0) return;
+
+        const useShadows = shad !== 0;
+        const useHighlights = high !== 0;
+        const useSat = sat !== 0;
+        const useVib = vib !== 0;
+        const useWb = wb !== 0;
+        const useColorBal = crSlider !== 0 || cgSlider !== 0 || cbSlider !== 0;
+
+        if (!useShadows && !useHighlights && !useSat && !useVib && !useWb && !useColorBal) return;
+
         const data = imageData.data;
-        const satMult = 1 + (sat / 100);
-        const cr = getCurvedValue(crSlider); const cg = getCurvedValue(cgSlider); const cb = getCurvedValue(cbSlider);
-        const wbR = wb > 0 ? 1 + (wb/200) : 1 - (Math.abs(wb)/400);
-        const wbB = wb < 0 ? 1 + (Math.abs(wb)/200) : 1 - (wb/400);
+        const satMult = useSat ? 1 + (sat / 100) : 1;
+        const cr = useColorBal ? getCurvedValue(crSlider) : 0;
+        const cg = useColorBal ? getCurvedValue(cgSlider) : 0;
+        const cb = useColorBal ? getCurvedValue(cbSlider) : 0;
+        const wbR = useWb ? (wb > 0 ? 1 + (wb/200) : 1 - (Math.abs(wb)/400)) : 1;
+        const wbB = useWb ? (wb < 0 ? 1 + (Math.abs(wb)/200) : 1 - (wb/400)) : 1;
 
         for (let i = 0; i < data.length; i += 4) {
             let r = data[i]; let g = data[i+1]; let b = data[i+2];
             const lum = 0.299*r + 0.587*g + 0.114*b;
             const normLum = lum / 255;
-            if (shad !== 0 || high !== 0) {
-                if (shad !== 0) {
+
+            if (useShadows || useHighlights) {
+                if (useShadows) {
                      const sFactor = (1.0 - normLum) * (1.0 - normLum);
                      const sMult = 1 + (shad / 100) * sFactor;
                      r *= sMult; g *= sMult; b *= sMult;
                 }
-                if (high !== 0) {
+                if (useHighlights) {
                      const hFactor = normLum * normLum;
                      const hMult = 1 + (high / 100) * hFactor;
                      r *= hMult; g *= hMult; b *= hMult;
                 }
             }
-            if (sat !== 0 || vib !== 0) {
+
+            if (useSat || useVib) {
                 const gray = 0.299*r + 0.587*g + 0.114*b;
-                if (sat !== 0) {
+                if (useSat) {
                     r = gray + (r - gray) * satMult;
                     g = gray + (g - gray) * satMult;
                     b = gray + (b - gray) * satMult;
                 }
-                if (vib !== 0) {
+                if (useVib) {
                     const max = Math.max(r, g, b);
                     const satVal = (max - gray) / 255;
                     const vMult = (vib / 100) * 2.0 * (1 - satVal);
@@ -106,7 +119,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
                     b = gray + (b - gray) * scale;
                 }
             }
-            if (wb !== 0) {
+
+            if (useWb) {
                 const oldLum = 0.299*r + 0.587*g + 0.114*b;
                 r *= wbR; b *= wbB;
                 const newLum = 0.299*r + 0.587*g + 0.114*b;
@@ -115,7 +129,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
                      r *= scale; g *= scale; b *= scale;
                 }
             }
-            if (cr !== 0 || cg !== 0 || cb !== 0) {
+
+            if (useColorBal) {
                 const oldLum = 0.299*r + 0.587*g + 0.114*b;
                 r += cr; g += cg; b += cb;
                 const rClamped = Math.max(0, r); const gClamped = Math.max(0, g); const bClamped = Math.max(0, b);
@@ -127,6 +142,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render }) {
                     r = Math.max(0, r); g = Math.max(0, g); b = Math.max(0, b);
                 }
             }
+
             data[i] = Math.min(255, Math.max(0, r));
             data[i+1] = Math.min(255, Math.max(0, g));
             data[i+2] = Math.min(255, Math.max(0, b));

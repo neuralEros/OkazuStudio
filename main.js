@@ -28,10 +28,16 @@
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
+            activeStroke: null, fastPreviewLastPoint: null,
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
-            workingA: null, workingB: null,
-            isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null
+            workingA: null, workingB: null, sourceA: null, sourceB: null,
+            previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
+            previewWorkingVersionA: 0, previewWorkingVersionB: 0,
+            previewComposite: null,
+            adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
+            isCropping: false, cropRect: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
+            fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false
         };
 
         const els = {
@@ -90,7 +96,7 @@
             resetAllAdjustments,
             log,
             updateUI,
-            rebuildWorkingCopies
+            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments
         });
 
         const {
@@ -113,7 +119,7 @@
         });
 
         setSaveSnapshotHandler(saveSnapshot);
-        setUpdateWorkingCopiesHandler(rebuildWorkingCopies);
+        setUpdateWorkingCopiesHandler(updateWorkingCopiesAfterAdjustments);
 
         function hasActiveAdjustments() {
             const a = state.adjustments;
@@ -123,18 +129,101 @@
                              a.shadows !== 0 || a.highlights !== 0;
         }
 
-        function getLayerSource(slot, useBakedLayers = true) {
-            const source = slot === 'A' ? state.imgA : state.imgB;
-            if (!source) return null;
-            if (!useBakedLayers) return source;
+        function markAdjustmentsDirty() {
+            state.adjustmentsVersion += 1;
+        }
+
+        function cloneToCanvas(img) {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const c = canvas.getContext('2d');
+            c.drawImage(img, 0, 0);
+            return canvas;
+        }
+
+        function setLayerSource(slot, img) {
+            const base = cloneToCanvas(img);
+            if (slot === 'A') {
+                state.imgA = base;
+                state.sourceA = base;
+                state.workingVersionA = 0;
+                state.previewWorkingVersionA = 0;
+            } else {
+                state.imgB = base;
+                state.sourceB = base;
+                state.workingVersionB = 0;
+                state.previewWorkingVersionB = 0;
+            }
+        }
+
+        function rebuildPreviewLayerForSlot(slot, allowFullResWork = true) {
+            if (!allowFullResWork) return;
             const working = slot === 'A' ? state.workingA : state.workingB;
-            return working || source;
+            if (!working) {
+                if (slot === 'A') { state.previewWorkingA = null; state.previewWorkingVersionA = 0; state.previewScaleA = 1; }
+                else { state.previewWorkingB = null; state.previewWorkingVersionB = 0; state.previewScaleB = 1; }
+                return;
+            }
+
+            const maxDim = 1080;
+            const scale = Math.min(1, maxDim / Math.max(working.width, working.height));
+            const pw = Math.max(1, Math.round(working.width * scale));
+            const ph = Math.max(1, Math.round(working.height * scale));
+            const canvas = document.createElement('canvas');
+            canvas.width = pw;
+            canvas.height = ph;
+            canvas.getContext('2d').drawImage(working, 0, 0, pw, ph);
+
+            if (slot === 'A') {
+                state.previewWorkingA = canvas;
+                state.previewScaleA = scale;
+                state.previewWorkingVersionA = state.adjustmentsVersion;
+            } else {
+                state.previewWorkingB = canvas;
+                state.previewScaleB = scale;
+                state.previewWorkingVersionB = state.adjustmentsVersion;
+            }
+        }
+
+        function getLayerForRender(slot, { useBakedLayers = true, preferPreview = false, allowRebuild = true } = {}) {
+            const source = slot === 'A' ? state.imgA : state.imgB;
+            if (!source) return { img: null, scale: 1 };
+            if (!useBakedLayers) return { img: source, scale: 1 };
+
+            const working = slot === 'A' ? state.workingA : state.workingB;
+            const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
+            if (allowRebuild && (!working || workingVersion !== state.adjustmentsVersion)) {
+                rebuildWorkingCopyForSlot(slot);
+            }
+
+            const previewVersion = slot === 'A' ? state.previewWorkingVersionA : state.previewWorkingVersionB;
+            const previewLayer = slot === 'A' ? state.previewWorkingA : state.previewWorkingB;
+            const previewScale = slot === 'A' ? state.previewScaleA : state.previewScaleB;
+
+            if (preferPreview && working && previewVersion !== state.adjustmentsVersion) {
+                rebuildPreviewLayerForSlot(slot, allowRebuild);
+            }
+
+            if (preferPreview && working && previewLayer && (previewVersion === state.adjustmentsVersion || !allowRebuild)) {
+                return { img: previewLayer, scale: previewScale };
+            }
+
+            return {
+                img: slot === 'A' ? state.workingA || source : state.workingB || source,
+                scale: 1
+            };
+        }
+
+        function isUserInteracting() {
+            return state.isDrawing || state.isAdjusting || state.isPanning || state.isPolylineStart || !!state.cropDrag;
         }
 
         function rebuildWorkingCopyForSlot(slot) {
-            const source = slot === 'A' ? state.imgA : state.imgB;
+            const source = slot === 'A' ? state.sourceA : state.sourceB;
             if (!source) {
-                if (slot === 'A') state.workingA = null; else state.workingB = null;
+                if (slot === 'A') { state.workingA = null; state.workingVersionA = 0; }
+                else { state.workingB = null; state.workingVersionB = 0; }
                 return;
             }
             const canvas = document.createElement('canvas');
@@ -150,12 +239,21 @@
                 layerCtx.putImageData(imgData, 0, 0);
             }
 
-            if (slot === 'A') state.workingA = canvas; else state.workingB = canvas;
+            if (slot === 'A') { state.workingA = canvas; state.workingVersionA = state.adjustmentsVersion; }
+            else { state.workingB = canvas; state.workingVersionB = state.adjustmentsVersion; }
+
+            rebuildPreviewLayerForSlot(slot);
         }
 
-        function rebuildWorkingCopies() {
+        function rebuildWorkingCopies(forceVersionBump = false) {
+            if (forceVersionBump) markAdjustmentsDirty();
             rebuildWorkingCopyForSlot('A');
             rebuildWorkingCopyForSlot('B');
+        }
+
+        function updateWorkingCopiesAfterAdjustments() {
+            markAdjustmentsDirty();
+            rebuildWorkingCopies();
         }
 
         function setupDragAndDrop() {
@@ -182,7 +280,7 @@
             window.addEventListener('pointerup', () => {
                 if(state.isAdjusting) {
                     state.isAdjusting = false;
-                    rebuildWorkingCopies();
+                    updateWorkingCopiesAfterAdjustments();
                     render();
                 }
             });
@@ -192,7 +290,12 @@
 
             els.swapBtn.addEventListener('click', () => {
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
                 [state.workingA, state.workingB] = [state.workingB, state.workingA];
+                [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
+                [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
+                [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
+                [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");
@@ -200,7 +303,9 @@
                 else els.btnA.classList.remove('border-accent-strong', 'text-accent');
                 if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
                 else els.btnB.classList.remove('border-accent-strong', 'text-accent');
-                updateCanvasDimensions(true); 
+                markAdjustmentsDirty();
+                rebuildWorkingCopies();
+                updateCanvasDimensions(true);
                 updateUI();
                 render();
             });
@@ -273,12 +378,14 @@
         }
 
         // --- Core Rendering & Helper ---
-        function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true) {
+        function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
 
-            const frontImg = state.isAFront ? getLayerSource('A', useBakedLayers) : getLayerSource('B', useBakedLayers);
-            const backImg = state.isAFront ? getLayerSource('B', useBakedLayers) : getLayerSource('A', useBakedLayers);
-            
+            const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
+            const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
+            const frontImg = frontLayer.img;
+            const backImg = backLayer.img;
+
             // Adjust draw args for crop logic
             const sX = state.isCropping ? 0 : state.cropRect.x;
             const sY = state.isCropping ? 0 : state.cropRect.y;
@@ -289,17 +396,17 @@
             if (backImg && state.backVisible) {
                 targetCtx.globalAlpha = 1.0;
                 targetCtx.globalCompositeOperation = 'source-over';
-                
-                const scale = state.fullDims.h / backImg.height; 
+
+                const scale = state.fullDims.h / backImg.height;
                 const backW = backImg.width * scale;
                 const backH = state.fullDims.h;
                 const backX = (state.fullDims.w - backW) / 2;
-                
+
                 const bSrcX = (sX - backX) / scale;
                 const bSrcY = sY / scale;
                 const bSrcW = sW / scale;
                 const bSrcH = sH / scale;
-                
+
                 targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, w, h);
             }
 
@@ -307,13 +414,16 @@
             if (frontImg) {
                 const fCtx = state.previewFrontLayer.getContext('2d');
                 fCtx.clearRect(0, 0, w, h);
-                
+
                 fCtx.globalCompositeOperation = 'source-over';
-                fCtx.drawImage(frontImg, sX, sY, sW, sH, 0, 0, w, h);
+                const frontScale = frontLayer.scale || 1;
+                fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, w, h);
 
                 if (state.maskVisible) {
                     fCtx.globalCompositeOperation = 'destination-out';
-                    fCtx.drawImage(maskCanvas, sX, sY, sW, sH, 0, 0, w, h);
+                    const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
+                    const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
+                    fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, w, h);
                 }
                 
                 targetCtx.globalCompositeOperation = 'source-over';
@@ -334,6 +444,8 @@
             const ch = els.mainCanvas.height;
 
             const useBakedLayers = !skipAdjustments;
+            const preferPreview = state.useFastPreview && !finalOutput;
+            const allowRebuild = !isUserInteracting();
 
             ctx.clearRect(0, 0, cw, ch);
             
@@ -344,58 +456,124 @@
             const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
             const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
 
-            const frontImg = state.isAFront ? getLayerSource('A', useBakedLayers) : getLayerSource('B', useBakedLayers);
-            const backImg = state.isAFront ? getLayerSource('B', useBakedLayers) : getLayerSource('A', useBakedLayers);
+            const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
+            const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
+            const frontImg = frontLayer.img;
+            const backImg = backLayer.img;
 
-            // 1. Draw Back
-            const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+            const shouldUseDownscaledComposite = preferPreview && (frontImg || backImg);
+            if (shouldUseDownscaledComposite) {
+                const fastScale = Math.min(1, 1080 / Math.max(sW, sH));
+                const pw = Math.max(1, Math.round(sW * fastScale));
+                const ph = Math.max(1, Math.round(sH * fastScale));
+                if (!state.previewComposite) state.previewComposite = document.createElement('canvas');
+                if (state.previewComposite.width !== pw || state.previewComposite.height !== ph) {
+                    state.previewComposite.width = pw;
+                    state.previewComposite.height = ph;
+                }
+                const pCtx = state.previewComposite.getContext('2d');
+                pCtx.clearRect(0, 0, pw, ph);
 
-            if (shouldRenderBack) {
-                ctx.globalAlpha = 1.0;
-                ctx.globalCompositeOperation = 'source-over';
-                
-                const scale = state.fullDims.h / backImg.height;
-                const backW = backImg.width * scale;
-                const backH = state.fullDims.h;
-                const backX = (state.fullDims.w - backW) / 2;
-                
-                // Mapping crop rect to back image source rect
-                const bSrcX = (sX - backX) / scale;
-                const bSrcY = sY / scale;
-                const bSrcW = sW / scale;
-                const bSrcH = sH / scale;
-                
-                ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
-            }
+                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+                if (shouldRenderBack) {
+                    pCtx.globalAlpha = 1.0;
+                    pCtx.globalCompositeOperation = 'source-over';
 
-            // 2. Prepare Front Layer
-            if (frontImg) {
-                frontLayerCtx.clearRect(0, 0, cw, ch);
-                frontLayerCtx.globalCompositeOperation = 'source-over';
-                // Draw clipped portion of front image
-                frontLayerCtx.drawImage(frontImg, sX, sY, sW, sH, 0, 0, cw, ch);
+                    const scale = state.fullDims.h / backImg.height;
+                    const backW = backImg.width * scale;
+                    const backH = state.fullDims.h;
+                    const backX = (state.fullDims.w - backW) / 2;
 
-                let maskSource = maskCanvas;
-                if (state.isPreviewing && state.previewMaskCanvas) {
-                    maskSource = state.previewMaskCanvas;
+                    const bSrcX = (sX - backX) / scale;
+                    const bSrcY = sY / scale;
+                    const bSrcW = sW / scale;
+                    const bSrcH = sH / scale;
+
+                    pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pw, ph);
                 }
 
-                if (state.maskVisible) {
-                    frontLayerCtx.globalCompositeOperation = 'destination-out';
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                         // Scale logic for preview mask not needed here since we render 1:1 on main canvas usually
-                         // But we need to clip the mask too
-                         frontLayerCtx.drawImage(maskSource, sX, sY, sW, sH, 0, 0, cw, ch);
-                    } else {
-                         frontLayerCtx.drawImage(maskSource, sX, sY, sW, sH, 0, 0, cw, ch);
+                if (frontImg) {
+                    if (frontLayerCanvas.width !== pw || frontLayerCanvas.height !== ph) {
+                        frontLayerCanvas.width = pw;
+                        frontLayerCanvas.height = ph;
                     }
+                    frontLayerCtx.clearRect(0, 0, pw, ph);
+                    frontLayerCtx.globalCompositeOperation = 'source-over';
+                    const frontScale = frontLayer.scale || 1;
+                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pw, ph);
+
+                    let maskSource = maskCanvas;
+                    if (state.isPreviewing && state.previewMaskCanvas) {
+                        maskSource = state.previewMaskCanvas;
+                    }
+
+                    if (state.maskVisible) {
+                        frontLayerCtx.globalCompositeOperation = 'destination-out';
+                        const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
+                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
+                    }
+
+                    frontLayerCtx.globalCompositeOperation = 'source-over';
+                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                    pCtx.globalAlpha = effectiveOpacity;
+                    pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
-                
-                // 3. Composite Front to Main
-                frontLayerCtx.globalCompositeOperation = 'source-over';
-                const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
-                ctx.globalAlpha = effectiveOpacity;
-                ctx.drawImage(frontLayerCanvas, 0, 0);
+
+                ctx.clearRect(0, 0, cw, ch);
+                ctx.imageSmoothingEnabled = true;
+                ctx.globalAlpha = 1.0;
+                ctx.drawImage(state.previewComposite, 0, 0, cw, ch);
+            } else {
+                // 1. Draw Back
+                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+
+                if (shouldRenderBack) {
+                    ctx.globalAlpha = 1.0;
+                    ctx.globalCompositeOperation = 'source-over';
+
+                    const scale = state.fullDims.h / backImg.height;
+                    const backW = backImg.width * scale;
+                    const backH = state.fullDims.h;
+                    const backX = (state.fullDims.w - backW) / 2;
+
+                    // Mapping crop rect to back image source rect
+                    const bSrcX = (sX - backX) / scale;
+                    const bSrcY = sY / scale;
+                    const bSrcW = sW / scale;
+                    const bSrcH = sH / scale;
+
+                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
+                }
+
+                // 2. Prepare Front Layer
+                if (frontImg) {
+                    if (frontLayerCanvas.width !== cw || frontLayerCanvas.height !== ch) {
+                        frontLayerCanvas.width = cw;
+                        frontLayerCanvas.height = ch;
+                    }
+                    frontLayerCtx.clearRect(0, 0, cw, ch);
+                    frontLayerCtx.globalCompositeOperation = 'source-over';
+                    // Draw clipped portion of front image
+                    const frontScale = frontLayer.scale || 1;
+                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, cw, ch);
+
+                    let maskSource = maskCanvas;
+                    if (state.isPreviewing && state.previewMaskCanvas) {
+                        maskSource = state.previewMaskCanvas;
+                    }
+
+                    if (state.maskVisible) {
+                        frontLayerCtx.globalCompositeOperation = 'destination-out';
+                        const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.fastMaskScale || 1) : 1;
+                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
+                    }
+
+                    // 3. Composite Front to Main
+                    frontLayerCtx.globalCompositeOperation = 'source-over';
+                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                    ctx.globalAlpha = effectiveOpacity;
+                    ctx.drawImage(frontLayerCanvas, 0, 0);
+                }
             }
             
             // 4. Update Crop DOM Overlay
@@ -468,12 +646,14 @@
                  els.brushSize.disabled = false;
             }
 
-            if(state.isAFront) {
-                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
-            } else {
+            const swapEnabled = state.imgA && state.imgB;
+            els.swapBtn.disabled = !swapEnabled;
+            if (swapEnabled) {
                 els.swapBtn.classList.add('bg-accent-dark', 'border-accent-strong');
                 els.swapBtn.classList.remove('bg-gray-800', 'border-gray-600');
+            } else {
+                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
+                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
             }
             
             if (enable) {
@@ -510,17 +690,18 @@
                 const img = new Image();
                 img.onload = () => {
                     if (slot === 'A') {
-                        state.imgA = img;
+                        setLayerSource('A', img);
                         state.nameA = file.name;
                         els.btnA.textContent = truncate(file.name);
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
-                        state.imgB = img;
+                        setLayerSource('B', img);
                         state.nameB = file.name;
                         els.btnB.textContent = truncate(file.name);
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
-                    rebuildWorkingCopyForSlot(slot);
+                    markAdjustmentsDirty();
+                    rebuildWorkingCopies();
                     updateCanvasDimensions(); // Re-inits cropRect
                     render();
                     updateUI();
@@ -576,9 +757,9 @@
                     const baseData = els.mainCanvas.toDataURL('image/png');
                     const imgBase = new Image();
                     imgBase.onload = () => {
-                        state.imgA = imgBase; state.nameA = "Base Layer";
+                        setLayerSource('A', imgBase); state.nameA = "Base Layer";
                         const w = imgBase.width; const h = imgBase.height;
-                        const blurRadius = Math.max(1, h * 0.01); 
+                        const blurRadius = Math.max(1, h * 0.01);
                         const pad = Math.ceil(blurRadius * 3);
                         const paddedCanvas = document.createElement('canvas');
                         paddedCanvas.width = w + pad * 2; paddedCanvas.height = h + pad * 2;
@@ -607,8 +788,8 @@
                         tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
                         const imgCensored = new Image();
                         imgCensored.onload = () => {
-                            state.imgB = imgCensored; state.nameB = "Censored Layer";
-                            
+                            setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
+
                             // Re-init full dims
                             const newW = imgCensored.width;
                             const newH = imgCensored.height;
@@ -635,7 +816,7 @@
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');
                             els.btnB.textContent = "Censored"; els.btnB.classList.add('border-accent-strong', 'text-accent');
 
-                            rebuildWorkingCopies();
+                            rebuildWorkingCopies(true);
 
                             render(); updateUI();
                             log("Censor setup complete", "info");
@@ -661,7 +842,7 @@
                     const dataURL = els.mainCanvas.toDataURL('image/png');
                     const newImg = new Image();
                     newImg.onload = () => {
-                        state.imgA = newImg; state.imgB = null;
+                        setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
                         state.nameA = "Merged Layer"; state.nameB = "";
                         
                         // Update dims
@@ -685,7 +866,7 @@
                         frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
                         maskCtx.clearRect(0, 0, newW, newH);
 
-                        rebuildWorkingCopies();
+                        rebuildWorkingCopies(true);
 
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";

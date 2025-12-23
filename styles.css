@@ -34,10 +34,10 @@
         #canvas-container {
             position: relative;
             --workspace-label-padding: 18px;
-            --workspace-label-color: rgba(255, 255, 255, 0.025);
+            --workspace-label-color: rgba(255, 255, 255, 0.04);
             --workspace-label-font-family: 'BBH Bogle', 'Inter', system-ui, -apple-system, sans-serif;
             --workspace-label-font-weight: 800;
-            --workspace-label-letter-spacing: -0.02em;
+            --workspace-label-letter-spacing: 0.00em;
             --workspace-label-okazu-size: 200px;
             --workspace-label-okazu-line-height: 0.8;
             --workspace-label-studio-size: 140px;

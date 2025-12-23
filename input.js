@@ -5,6 +5,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function canDraw() { return (state.imgA || state.imgB) && state.cropRect; }
 
+    function getActiveBrushKey() {
+        return state.isErasing ? 'erase' : 'repair';
+    }
+
     function getBrushPixelSize() {
         if (state.fullDims.h === 0) return 20;
         return (state.brushPercent / 100) * state.fullDims.h;
@@ -63,6 +67,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function setBrushPercent(newPercent) {
         const clamped = clampBrushPercent(newPercent);
         state.brushPercent = clamped;
+        const activeKey = getActiveBrushKey();
+        if (state.brushSettings && state.brushSettings[activeKey]) {
+            state.brushSettings[activeKey].brushPercent = clamped;
+        }
         els.brushSize.value = brushPercentToSliderValue(clamped);
         els.brushSizeVal.textContent = formatBrushPercent(clamped);
         updateCursorSize();
@@ -72,6 +80,18 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const numericVal = parseInt(sliderVal, 10) || 0;
         const percent = sliderValueToBrushPercent(numericVal);
         setBrushPercent(percent);
+    }
+
+    function setFeather(val) {
+        const clamped = Math.max(0, Math.min(20, val));
+        state.feather = clamped;
+        const activeKey = getActiveBrushKey();
+        if (state.brushSettings && state.brushSettings[activeKey]) {
+            state.brushSettings[activeKey].feather = clamped;
+        }
+        const hardness = Math.round(100 - (clamped / 20 * 100));
+        els.feather.value = clamped;
+        els.featherVal.textContent = hardness + '%';
     }
 
     function updateCursorSize() {
@@ -628,5 +648,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         attachCropHandlers();
     }
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, brushPercentToSliderValue };
+    function syncBrushUIToActive() {
+        const activeKey = getActiveBrushKey();
+        const activeSettings = state.brushSettings && state.brushSettings[activeKey];
+        if (!activeSettings) return;
+        setBrushPercent(activeSettings.brushPercent);
+        setFeather(activeSettings.feather);
+    }
+
+    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, syncBrushUIToActive, brushPercentToSliderValue };
 }

@@ -324,33 +324,22 @@
             border-radius: 3px;
         }
 
-        /* Adjustment Drawer */
-        #adj-drawer {
+        /* Adjustment Drawers */
+        .side-drawer {
             position: fixed;
             right: 0;
             top: 50%;
-            /* 32px is tab width */
-            transform: translateY(-50%) translateX(calc(100% - 32px));
+            transform: translateY(-50%) translateX(calc(100% - 24px));
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 60;
+            /* z-index set inline to manage stacking order */
+            pointer-events: none; /* Allow clicking through empty space */
         }
-        #adj-drawer.open {
+        .side-drawer > * {
+            pointer-events: auto; /* Re-enable pointer events for lip and content */
+        }
+        .side-drawer:hover {
             transform: translateY(-50%) translateX(0);
-        }
-
-        .drawer-tab {
-            /* Tabs need to look clickable */
-            transition: all 0.2s;
-        }
-        .drawer-tab:hover {
-            background-color: #252525;
-            color: #fff;
-        }
-        .drawer-tab.active {
-            background-color: var(--panel);
-            border-right-color: transparent;
-            width: 34px; /* Slightly wider to cover border */
-            z-index: 60;
+            z-index: 70 !important; /* Bring hovered drawer to top */
         }
         
         /* Drawer Styling */

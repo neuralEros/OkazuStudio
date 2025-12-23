@@ -238,6 +238,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
         state.fastMaskScale = scale;
         state.fastMaskCtx.clearRect(0, 0, w, h);
+        state.fastMaskCtx.globalCompositeOperation = 'source-over';
         state.fastMaskCtx.drawImage(maskCanvas, 0, 0, w, h);
     }
 

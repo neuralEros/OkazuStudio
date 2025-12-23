@@ -17,6 +17,10 @@
             --accent-dark: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 32%));
             --accent-glow: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.5);
 
+            --panel: #0f0f0f;
+            --panel-strong: #161616;
+            --panel-border: hsla(var(--accent-h), 22%, 30%, 0.85);
+            --panel-divider: hsla(var(--accent-h), 24%, 36%, 0.9);
             --panel-900: #0f0f0f;
             --panel-800: #151515;
             --panel-border-700: #2a2a2a;
@@ -48,6 +52,13 @@
             background-color: var(--accent-strong);
             border-color: var(--accent-strong);
         }
+
+        /* Panels */
+        .bg-panel { background-color: var(--panel); }
+        .bg-panel-strong { background-color: var(--panel-strong); }
+        .border-panel { border-color: var(--panel-border); }
+        .border-panel-divider { border-color: var(--panel-divider); }
+        .bg-panel-divider { background-color: var(--panel-divider); }
 
         /* Neutralize panel surfaces previously tinted blue */
         .bg-gray-900 { background-color: var(--panel-900) !important; }
@@ -328,7 +339,7 @@
         }
         .drawer-divider {
             height: 1px;
-            background-color: #333333;
+            background-color: var(--panel-divider);
             margin: 12px 0;
         }
         .section-header {

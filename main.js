@@ -748,13 +748,23 @@
              log("Generating Censor layer...", "info");
              setTimeout(() => {
                 try {
-                    // Temporarily reset crop to full size for processing
+                    // Temporarily render full, uncropped frame for processing
                     const wasCropping = state.isCropping;
-                    state.isCropping = false;
-                    resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-                    
+                    const prevCropRect = state.cropRect ? { ...state.cropRect } : null;
+                    const fullFrame = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
+
+                    state.isCropping = true;
+                    state.cropRect = fullFrame;
+                    resizeMainCanvas(fullFrame.w, fullFrame.h);
+
                     render(true, true); // Final, Skip Adjustments
                     const baseData = els.mainCanvas.toDataURL('image/png');
+
+                    // Restore crop state before building layers
+                    state.isCropping = wasCropping;
+                    state.cropRect = prevCropRect;
+                    if (wasCropping) resizeMainCanvas(state.fullDims.w, state.fullDims.h);
+                    else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
                     const imgBase = new Image();
                     imgBase.onload = () => {
                         setLayerSource('A', imgBase); state.nameA = "Base Layer";
@@ -810,7 +820,7 @@
                             els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
                             state.backVisible = true;
                             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
-                            state.feather = 2; els.feather.value = 2; els.featherVal.textContent = "90%";
+                            state.feather = 1; els.feather.value = 1; els.featherVal.textContent = "95%";
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
                             els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');

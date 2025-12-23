@@ -44,6 +44,7 @@
             fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
             mainCanvas: document.getElementById('mainCanvas'), viewport: document.getElementById('viewport'),
+            previewCanvas: document.getElementById('previewCanvas'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
             opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
@@ -64,6 +65,7 @@
         };
 
         const ctx = els.mainCanvas.getContext('2d', { willReadFrequently: true });
+        const previewCtx = els.previewCanvas.getContext('2d');
         const maskCanvas = document.createElement('canvas');
         const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
         const frontLayerCanvas = document.createElement('canvas');
@@ -377,6 +379,29 @@
             els.workspaceResolution.style.display = '';
         }
 
+        function showPreviewCanvas(displayW, displayH, bufferW, bufferH) {
+            if (els.previewCanvas.width !== bufferW || els.previewCanvas.height !== bufferH) {
+                els.previewCanvas.width = bufferW;
+                els.previewCanvas.height = bufferH;
+            }
+
+            const displayWidth = `${displayW}px`;
+            const displayHeight = `${displayH}px`;
+            if (els.previewCanvas.style.width !== displayWidth) els.previewCanvas.style.width = displayWidth;
+            if (els.previewCanvas.style.height !== displayHeight) els.previewCanvas.style.height = displayHeight;
+
+            els.previewCanvas.classList.remove('hidden');
+            els.mainCanvas.classList.add('hidden');
+        }
+
+        function hidePreviewCanvas() {
+            if (!els.previewCanvas.classList.contains('hidden')) {
+                previewCtx.clearRect(0, 0, els.previewCanvas.width, els.previewCanvas.height);
+            }
+            els.previewCanvas.classList.add('hidden');
+            els.mainCanvas.classList.remove('hidden');
+        }
+
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
@@ -429,8 +454,26 @@
                 targetCtx.globalCompositeOperation = 'source-over';
                 // Use forceOpacity for adjustments preview (so we see true pixels)
                 const effectiveOpacity = (!state.backVisible || forceOpacity) ? 1.0 : state.opacity;
-                targetCtx.globalAlpha = effectiveOpacity; 
+                targetCtx.globalAlpha = effectiveOpacity;
                 targetCtx.drawImage(state.previewFrontLayer, 0, 0);
+            }
+        }
+
+        function updateCropOverlay() {
+            if (state.isCropping) {
+                els.cropOverlayDom.style.display = 'block';
+                const r = state.cropRect;
+                els.cropBox.style.left = r.x + 'px';
+                els.cropBox.style.top = r.y + 'px';
+                els.cropBox.style.width = r.w + 'px';
+                els.cropBox.style.height = r.h + 'px';
+
+                const invScale = 1 / state.view.scale;
+                document.querySelectorAll('.crop-handle').forEach(el => {
+                    el.style.setProperty('--inv-scale', invScale);
+                });
+            } else {
+                els.cropOverlayDom.style.display = 'none';
             }
         }
         
@@ -447,8 +490,6 @@
             const preferPreview = state.useFastPreview && !finalOutput;
             const allowRebuild = !isUserInteracting();
 
-            ctx.clearRect(0, 0, cw, ch);
-            
             // If cropping, draw full source image, then overlay
             // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
             const sX = state.isCropping ? 0 : state.cropRect.x;
@@ -520,82 +561,71 @@
                     pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
 
-                ctx.clearRect(0, 0, cw, ch);
-                ctx.imageSmoothingEnabled = true;
+                showPreviewCanvas(cw, ch, pw, ph);
+                previewCtx.clearRect(0, 0, pw, ph);
+                previewCtx.imageSmoothingEnabled = true;
+                previewCtx.globalAlpha = 1.0;
+                previewCtx.drawImage(state.previewComposite, 0, 0);
+
+                updateCropOverlay();
+                return;
+            }
+
+            hidePreviewCanvas();
+            ctx.clearRect(0, 0, cw, ch);
+
+            // 1. Draw Back
+            const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+
+            if (shouldRenderBack) {
                 ctx.globalAlpha = 1.0;
-                ctx.drawImage(state.previewComposite, 0, 0, cw, ch);
-            } else {
-                // 1. Draw Back
-                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+                ctx.globalCompositeOperation = 'source-over';
 
-                if (shouldRenderBack) {
-                    ctx.globalAlpha = 1.0;
-                    ctx.globalCompositeOperation = 'source-over';
+                const scale = state.fullDims.h / backImg.height;
+                const backW = backImg.width * scale;
+                const backH = state.fullDims.h;
+                const backX = (state.fullDims.w - backW) / 2;
 
-                    const scale = state.fullDims.h / backImg.height;
-                    const backW = backImg.width * scale;
-                    const backH = state.fullDims.h;
-                    const backX = (state.fullDims.w - backW) / 2;
+                // Mapping crop rect to back image source rect
+                const bSrcX = (sX - backX) / scale;
+                const bSrcY = sY / scale;
+                const bSrcW = sW / scale;
+                const bSrcH = sH / scale;
 
-                    // Mapping crop rect to back image source rect
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
+                ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
+            }
 
-                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
+            // 2. Prepare Front Layer
+            if (frontImg) {
+                if (frontLayerCanvas.width !== cw || frontLayerCanvas.height !== ch) {
+                    frontLayerCanvas.width = cw;
+                    frontLayerCanvas.height = ch;
+                }
+                frontLayerCtx.clearRect(0, 0, cw, ch);
+                frontLayerCtx.globalCompositeOperation = 'source-over';
+                // Draw clipped portion of front image
+                const frontScale = frontLayer.scale || 1;
+                frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, cw, ch);
+
+                let maskSource = maskCanvas;
+                if (state.isPreviewing && state.previewMaskCanvas) {
+                    maskSource = state.previewMaskCanvas;
                 }
 
-                // 2. Prepare Front Layer
-                if (frontImg) {
-                    if (frontLayerCanvas.width !== cw || frontLayerCanvas.height !== ch) {
-                        frontLayerCanvas.width = cw;
-                        frontLayerCanvas.height = ch;
-                    }
-                    frontLayerCtx.clearRect(0, 0, cw, ch);
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    // Draw clipped portion of front image
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, cw, ch);
-
-                    let maskSource = maskCanvas;
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                        maskSource = state.previewMaskCanvas;
-                    }
-
-                    if (state.maskVisible) {
-                        frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
-                    }
-
-                    // 3. Composite Front to Main
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
-                    ctx.globalAlpha = effectiveOpacity;
-                    ctx.drawImage(frontLayerCanvas, 0, 0);
+                if (state.maskVisible) {
+                    frontLayerCtx.globalCompositeOperation = 'destination-out';
+                    frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
                 }
-            }
-            
-            // 4. Update Crop DOM Overlay
-            if (state.isCropping) {
-                els.cropOverlayDom.style.display = 'block';
-                const r = state.cropRect;
-                els.cropBox.style.left = r.x + 'px';
-                els.cropBox.style.top = r.y + 'px';
-                els.cropBox.style.width = r.w + 'px';
-                els.cropBox.style.height = r.h + 'px';
-                
-                const invScale = 1 / state.view.scale;
-                document.querySelectorAll('.crop-handle').forEach(el => {
-                    el.style.setProperty('--inv-scale', invScale);
-                });
-            } else {
-                els.cropOverlayDom.style.display = 'none';
-            }
-            
-        }
 
-        // --- Crop Logic ---
+                // 3. Composite Front to Main
+                frontLayerCtx.globalCompositeOperation = 'source-over';
+                const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                ctx.globalAlpha = effectiveOpacity;
+                ctx.drawImage(frontLayerCanvas, 0, 0);
+            }
+
+            updateCropOverlay();
+// --- Crop Logic ---
         function toggleCropMode() {
             if (!canDraw()) return;
             state.isCropping = !state.isCropping;

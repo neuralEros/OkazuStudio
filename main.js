@@ -61,6 +61,18 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
 
+        const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
+            state,
+            maskCtx,
+            maskCanvas,
+            updateSlider,
+            resizeMainCanvas,
+            render,
+            resetAllAdjustments,
+            log,
+            updateUI
+        });
+
         function setupDragAndDrop() {
             const body = document.body;
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => body.addEventListener(eventName, preventDefaults, false));
@@ -684,105 +696,6 @@
             els.mainCanvas.height = h;
             frontLayerCanvas.width = w;
             frontLayerCanvas.height = h;
-        }
-
-        // --- History Logic Updated ---
-        function saveSnapshot(actionType = 'generic') {
-            const snap = {
-                mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
-                adjustments: JSON.parse(JSON.stringify(state.adjustments)),
-                cropRect: { ...state.cropRect } // Add crop to history
-            };
-
-            const canCoalesce = actionType !== 'draw' && actionType !== 'generic';
-            const isSameAction = canCoalesce
-                && actionType === state.lastActionType
-                && state.historyIndex === state.history.length - 1;
-
-            if (isSameAction) {
-                state.history[state.historyIndex] = snap;
-            } else {
-                if (state.historyIndex < state.history.length - 1) {
-                    state.history = state.history.slice(0, state.historyIndex + 1);
-                }
-                if (state.history.length > 30) state.history.shift();
-                state.history.push(snap);
-                state.historyIndex = state.history.length - 1;
-            }
-            state.lastActionType = actionType;
-            updateUI(); 
-        }
-
-        function resetMaskAndHistory() {
-             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-             state.history = [];
-             state.historyIndex = -1;
-             resetAllAdjustments();
-             state.lastActionType = null;
-             // Reset Crop
-             if (state.fullDims.w > 0) {
-                 state.cropRect = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
-             }
-             saveSnapshot('init');
-        }
-        
-        function resetMaskOnly() {
-             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-             state.history = [];
-             state.historyIndex = -1;
-             state.lastActionType = null;
-             // Don't reset crop rect unless image size changed significantly? 
-             // Merge re-inits image data, so it resets state.fullDims.
-             saveSnapshot('merge_init');
-        }
-
-        function restoreState(snapshot) {
-            maskCtx.putImageData(snapshot.mask, 0, 0);
-            state.adjustments = JSON.parse(JSON.stringify(snapshot.adjustments));
-            state.cropRect = { ...snapshot.cropRect };
-            
-            updateSlider('adj-gamma', state.adjustments.gamma);
-            updateSlider('adj-l-black', state.adjustments.levels.black);
-            updateSlider('adj-l-mid', state.adjustments.levels.mid);
-            updateSlider('adj-l-white', state.adjustments.levels.white);
-            updateSlider('adj-sat', state.adjustments.saturation);
-            updateSlider('adj-vib', state.adjustments.vibrance);
-            updateSlider('adj-wb', state.adjustments.wb);
-            updateSlider('adj-cb-r', state.adjustments.colorBal.r);
-            updateSlider('adj-cb-g', state.adjustments.colorBal.g);
-            updateSlider('adj-cb-b', state.adjustments.colorBal.b);
-            updateSlider('adj-shadows', state.adjustments.shadows);
-            updateSlider('adj-highlights', state.adjustments.highlights);
-            
-            // Restore View context based on crop mode
-            if (!state.isCropping) {
-                resizeMainCanvas(state.cropRect.w, state.cropRect.h);
-                // resetView(); // optional to force fit? maybe jarring.
-            } else {
-                resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-            }
-
-            render();
-        }
-
-        function undo() {
-            if (state.historyIndex > 0) {
-                state.historyIndex--;
-                restoreState(state.history[state.historyIndex]);
-                state.lastActionType = null;
-                updateUI();
-                log("Undo", "info");
-            }
-        }
-
-        function redo() {
-            if (state.historyIndex < state.history.length - 1) {
-                state.historyIndex++;
-                restoreState(state.history[state.historyIndex]);
-                state.lastActionType = null;
-                updateUI();
-                log("Redo", "info");
-            }
         }
 
         // --- Standard App Functions ---

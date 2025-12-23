@@ -244,6 +244,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function beginFastStrokeSession() {
         ensureFastMaskCanvas();
         state.previewMaskCanvas = state.fastMaskCanvas;
+        state.previewMaskScale = state.fastMaskScale;
         state.isPreviewing = true;
         state.useFastPreview = true;
         state.activeStroke = {
@@ -444,6 +445,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.isDrawing) {
             replayStrokeToFullMask();
             state.previewMaskCanvas = null;
+            state.previewMaskScale = 1;
             state.isPreviewing = false;
             state.useFastPreview = false;
             state.fastPreviewLastPoint = null;
@@ -500,6 +502,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
         drawStrokeDistance(state.currentPointerX, state.currentPointerY, pCtx, true);
         pCtx.restore();
+        state.previewMaskScale = scale;
         state.isPreviewing = true;
         render();
     }
@@ -609,6 +612,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 }
                 state.isCtrlPressed = false;
                 state.currentPolylineAction = null;
+                state.previewMaskCanvas = null;
+                state.previewMaskScale = 1;
                 state.isPreviewing = false;
                 state.isPolylineStart = false;
                 state.lastDrawX = null;

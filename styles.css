@@ -6,12 +6,42 @@
             font-display: swap;
         }
 
+        :root {
+            --accent-h: 28;
+            --accent-s: 96%;
+            --accent-l: 56%;
+            --accent: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
+            --accent-strong: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 6%));
+            --accent-soft: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) + 8%));
+            --accent-border: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 14%));
+            --accent-dark: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 32%));
+            --accent-glow: hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.5);
+        }
+
         body {
             background-color: #1a1a1a;
             color: #e5e5e5;
             overflow: hidden;
             touch-action: none;
             user-select: none;
+        }
+
+        /* Accent Utilities */
+        .text-accent { color: var(--accent-soft) !important; }
+        .text-accent-strong { color: var(--accent-strong) !important; }
+        .border-accent { border: 1px solid var(--accent-border) !important; }
+        .border-accent-strong { border: 1px solid var(--accent-strong) !important; }
+        .bg-accent { background-color: var(--accent-strong); color: white; }
+        .bg-accent-dark { background-color: var(--accent-dark); color: white; }
+        .accent-action {
+            background-color: var(--accent-dark);
+            border: 1px solid var(--accent-border);
+            color: white;
+            transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+        }
+        .accent-action:hover {
+            background-color: var(--accent-strong);
+            border-color: var(--accent-strong);
         }
 
         /* Custom Scrollbar */
@@ -96,8 +126,8 @@
         /* Drag Overlay */
         #drag-overlay {
             display: none;
-            background: rgba(59, 130, 246, 0.5);
-            border: 4px dashed #60a5fa;
+            background: var(--accent-glow);
+            border: 4px dashed var(--accent-soft);
         }
         body.dragging #drag-overlay {
             display: flex;
@@ -224,7 +254,7 @@
             max-width: 300px;
             word-wrap: break-word;
         }
-        .console-msg.info { border-left-color: #3b82f6; }
+        .console-msg.info { border-left-color: var(--accent-strong); }
 
         /* Hint Legend */
         #hint-legend {
@@ -280,7 +310,7 @@
             justify-content: space-between;
         }
         .val-display {
-            color: #60a5fa;
+            color: var(--accent-soft);
             font-family: monospace;
         }
         .drawer-divider {
@@ -302,7 +332,7 @@
         }
         .section-reset {
             font-size: 9px;
-            color: #3b82f6;
+            color: var(--accent-strong);
             cursor: pointer;
             text-transform: uppercase;
             font-weight: bold;
@@ -315,7 +345,7 @@
         input[type=range] { -webkit-appearance: none; background: transparent; }
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none; height: 16px; width: 16px;
-            border-radius: 50%; background: #3b82f6; margin-top: -6px; cursor: pointer;
+            border-radius: 50%; background: var(--accent-strong); margin-top: -6px; cursor: pointer;
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%; height: 4px; cursor: pointer; background: #4b5563; border-radius: 2px;
@@ -323,7 +353,7 @@
 
         .tool-btn { transition: all 0.2s; }
         .tool-btn:active { transform: scale(0.95); }
-        .tool-btn.active { background-color: #3b82f6; color: white; border-color: #3b82f6; }
+        .tool-btn.active { background-color: var(--accent-strong); color: white; border-color: var(--accent-strong); }
         .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
         
         .icon-btn {
@@ -340,6 +370,6 @@
         .icon-btn:hover { background-color: #4b5563; color: white; }
         .icon-btn:active { transform: scale(0.95); }
         .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #4b5563; background-color: #1f2937; }
-        .icon-btn.active { background-color: #d97706; color: white; border: 1px solid #f59e0b; }
+        .icon-btn.active { background-color: var(--accent-strong); color: white; border: 1px solid var(--accent-soft); }
 
     

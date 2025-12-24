@@ -4,12 +4,13 @@
  * @param {Blob|HTMLImageElement|ImageBitmap|HTMLCanvasElement} inputImage - The source image.
  * @param {object} options - Configuration options.
  * @param {string} options.token - Replicate API Token.
+ * @param {string} [options.baseUrl] - Optional Proxy URL.
  * @param {number} [options.tileSize=256] - The size of the square tiles to send to the scaler.
  * @param {number} [options.overlap=32] - The size of the overlapping feather area.
  * @returns {Promise<Blob>} - The upscaled image as a Blob.
  */
 async function tileAndUpscale(inputImage, options) {
-    const { token, tileSize = 256, overlap = 32 } = options;
+    const { token, baseUrl, tileSize = 256, overlap = 32 } = options;
     if (!token) throw new Error("API Token is required for tiling.");
 
     // 1. Prepare Input Canvas
@@ -63,9 +64,9 @@ async function tileAndUpscale(inputImage, options) {
 
         const blob = await new Promise(r => tileCanvas.toBlob(r));
 
-        // Upscale
+        // Upscale using the new Scaler namespace
         try {
-            const upscaledBlob = await upscaleChunk(blob, token);
+            const upscaledBlob = await Scaler.upscaleChunk(blob, { token, baseUrl });
             const bmp = await createImageBitmap(upscaledBlob);
             return { index, bmp };
         } catch (e) {

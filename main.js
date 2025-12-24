@@ -77,7 +77,6 @@
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
             workspaceResolution: document.getElementById('workspace-resolution'),
-            testUpscaleBtn: document.getElementById('testUpscaleBtn')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -481,10 +480,6 @@
             els.redoBtn.addEventListener('click', redo);
             
             els.cropBtn.addEventListener('click', toggleCropMode);
-
-            if (els.testUpscaleBtn) {
-                els.testUpscaleBtn.addEventListener('click', handleUpscale);
-            }
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
@@ -1122,37 +1117,6 @@
                 render();
                 log("Image saved", "info");
             } catch (e) { log("Save failed"); }
-        }
-
-        async function handleUpscale() {
-            if (!state.imgA) {
-                log("No rear image (Slot A) loaded.", "warning");
-                return;
-            }
-            if (!state.settings.apiKey) {
-                log("Replicate API Key missing in Settings.", "error");
-                return;
-            }
-
-            log("Starting upscale...", "info");
-            scheduleHeavyTask(async () => {
-                try {
-                    const blob = await tileAndUpscale(state.imgA, {
-                        token: state.settings.apiKey
-                    });
-
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = "upscaled_output.png";
-                    link.click();
-                    URL.revokeObjectURL(url);
-                    log("Upscale complete! Downloading...", "info");
-                } catch (e) {
-                    console.error("Upscale process error:", e);
-                    log(`Upscale failed: ${e.message}`, "error");
-                }
-            });
         }
 
         init();

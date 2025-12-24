@@ -23,6 +23,13 @@ class ProxyRequestHandler(http.server.SimpleHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        self.end_headers()
+
     def handle_proxy(self, method):
         # Construct target URL
         target_path = self.path[len(PROXY_PREFIX):]
@@ -42,9 +49,14 @@ class ProxyRequestHandler(http.server.SimpleHTTPRequestHandler):
             req = urllib.request.Request(target_url, data=body, headers=headers, method=method)
             with urllib.request.urlopen(req) as response:
                 self.send_response(response.status)
+
+                # Add CORS header to proxied response
+                self.send_header('Access-Control-Allow-Origin', '*')
+
                 for key, value in response.headers.items():
                     # Filter out hop-by-hop headers if strictly needed, but usually fine
-                    if key.lower() not in ['transfer-encoding', 'content-encoding', 'content-length']:
+                    # Also filter Access-Control-Allow-Origin to avoid duplicates
+                    if key.lower() not in ['transfer-encoding', 'content-encoding', 'content-length', 'access-control-allow-origin']:
                         self.send_header(key, value)
 
                 # Forward Content-Length specifically to be safe
@@ -56,6 +68,7 @@ class ProxyRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(e.read())
         except Exception as e:

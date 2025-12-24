@@ -3,7 +3,10 @@
 // Implements Option D: Upload via Replicate Files API, then pass the returned file URL
 
 // Constants
-const BASE_URL = 'https://api.replicate.com';
+// If running via HTTP/S, assume we are using the proxy.py or compatible server to avoid CORS.
+// If running via file://, we try direct access (which likely fails due to CORS, but is the only option).
+const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
+const BASE_URL = IS_FILE_PROTOCOL ? 'https://api.replicate.com' : '/replicate-api';
 const MODEL_VERSION = '660d922d33153019e8c263a3bba265de882e7f4f70396546b6c9c8f9d47a021a';
 
 /**
@@ -155,6 +158,10 @@ async function upscaleChunk(imageChunk, token, options = {}) {
 
     } catch (error) {
         console.error("Upscale error:", error);
+        if (IS_FILE_PROTOCOL && error.message.includes('NetworkError')) {
+            console.warn("Hint: You are running via file:// which blocks API calls due to CORS. Please run 'python3 proxy.py' and access via localhost.");
+            throw new Error(`CORS Error (file:// protocol). Please run 'python3 proxy.py'. Original: ${error.message}`);
+        }
         throw error;
     }
 }

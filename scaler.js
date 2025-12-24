@@ -3,10 +3,7 @@
 // Implements Option D: Upload via Replicate Files API, then pass the returned file URL
 
 // Constants
-// If running via HTTP/S, assume we are using the proxy.py or compatible server to avoid CORS.
-// If running via file://, we direct traffic to the local proxy (http://localhost:8000).
-const IS_FILE_PROTOCOL = window.location.protocol === 'file:';
-const BASE_URL = IS_FILE_PROTOCOL ? 'http://localhost:8000/replicate-api' : '/replicate-api';
+const BASE_URL = 'https://api.replicate.com';
 const MODEL_VERSION = '660d922d33153019e8c263a3bba265de882e7f4f70396546b6c9c8f9d47a021a';
 
 /**
@@ -196,10 +193,6 @@ async function upscaleChunk(imageChunk, token, options = {}) {
 
     } catch (error) {
         console.error("Upscale error:", error);
-        if (IS_FILE_PROTOCOL && error.message.includes('NetworkError')) {
-            console.warn("Hint: You are running via file:// protocol. We attempted to reach the local proxy at http://localhost:8000 but failed. Please ensure you are running 'python3 proxy.py' in the background.");
-            throw new Error(`Connection to local proxy failed. Please ensure 'python3 proxy.py' is running on port 8000. Original: ${error.message}`);
-        }
         throw error;
     }
 }

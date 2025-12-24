@@ -22,6 +22,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 const parsed = JSON.parse(stored);
                 // Merge with defaults to ensure all keys exist
                 state.settings = { ...defaults, ...parsed };
+
+                // Force default proxy if empty (fixes migration for existing users)
+                if (!state.settings.proxyUrl) {
+                    state.settings.proxyUrl = defaults.proxyUrl;
+                }
+
                 // Decode API Key if present
                 if (state.settings.apiKey) {
                     state.settings.apiKey = decodeApiKey(state.settings.apiKey);

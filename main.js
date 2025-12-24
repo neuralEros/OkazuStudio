@@ -1137,12 +1137,15 @@
             log("Starting upscale...", "info");
             scheduleHeavyTask(async () => {
                 try {
+                    // Use configured proxy or fallback to default public proxy
+                    const proxyUrl = state.settings.proxyUrl || 'https://corsproxy.io/?https://api.replicate.com';
+
+                    log(`Using proxy: ${proxyUrl}`, "info");
+
                     const config = {
-                        token: state.settings.apiKey
+                        token: state.settings.apiKey,
+                        baseUrl: proxyUrl
                     };
-                    if (state.settings.proxyUrl) {
-                        config.baseUrl = state.settings.proxyUrl;
-                    }
 
                     const blob = await tileAndUpscale(state.imgA, config);
 

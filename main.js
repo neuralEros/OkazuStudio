@@ -1149,7 +1149,7 @@
                     URL.revokeObjectURL(url);
                     log("Upscale complete! Downloading...", "info");
                 } catch (e) {
-                    console.error(e);
+                    console.error("Upscale process error:", e);
                     log(`Upscale failed: ${e.message}`, "error");
                 }
             });

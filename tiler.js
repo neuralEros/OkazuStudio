@@ -64,10 +64,13 @@ async function tileAndUpscale(inputImage, options) {
         const blob = await new Promise(r => tileCanvas.toBlob(r));
 
         // Upscale
-        const upscaledBlob = await upscaleChunk(blob, token);
-        const bmp = await createImageBitmap(upscaledBlob);
-
-        return { index, bmp };
+        try {
+            const upscaledBlob = await upscaleChunk(blob, token);
+            const bmp = await createImageBitmap(upscaledBlob);
+            return { index, bmp };
+        } catch (e) {
+            throw new Error(`Failed to process tile ${index} (x=${tile.x}, y=${tile.y}): ${e.message}`);
+        }
     };
 
     // Helper to draw a processed tile to the final canvas

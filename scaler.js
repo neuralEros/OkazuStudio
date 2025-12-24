@@ -23,28 +23,42 @@ async function uploadFile(file, token) {
     // Try Bearer first as it is the standard for Replicate API v1.
     // Fallback to Token if needed.
 
-    let response = await fetch(`${BASE_URL}/v1/files`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData
-    });
-
-    if (response.status === 401) {
-        // Retry with Token
+    let response;
+    try {
         response = await fetch(`${BASE_URL}/v1/files`, {
             method: 'POST',
             headers: {
-                'Authorization': `Token ${token}`
+                'Authorization': `Bearer ${token}`
             },
             body: formData
         });
+
+        if (response.status === 401) {
+            console.warn(`Upload via Bearer failed (401), retrying with Token...`);
+            // Retry with Token
+            response = await fetch(`${BASE_URL}/v1/files`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Token ${token}`
+                },
+                body: formData
+            });
+        }
+    } catch (e) {
+        throw new Error(`Network error during upload to ${BASE_URL}/v1/files: ${e.message}`);
     }
 
     if (!response.ok) {
-        const err = await response.json();
-        throw new Error(`Upload failed: ${err.detail || response.statusText}`);
+        let errorDetail = response.statusText;
+        try {
+            const err = await response.json();
+            if (err.detail) errorDetail = err.detail;
+            else if (err.error) errorDetail = err.error;
+            else errorDetail = JSON.stringify(err);
+        } catch (e) {
+            try { errorDetail = await response.text(); } catch(e2) {}
+        }
+        throw new Error(`Upload failed (${response.status} ${response.statusText}): ${errorDetail}`);
     }
 
     const data = await response.json();
@@ -66,21 +80,34 @@ async function createPrediction(imageUrl, token, options = {}) {
         jpeg: options.jpeg !== undefined ? options.jpeg : 40
     };
 
-    const response = await fetch(`${BASE_URL}/v1/predictions`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            version: MODEL_VERSION,
-            input: input
-        })
-    });
+    let response;
+    try {
+        response = await fetch(`${BASE_URL}/v1/predictions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                version: MODEL_VERSION,
+                input: input
+            })
+        });
+    } catch (e) {
+        throw new Error(`Network error during prediction creation at ${BASE_URL}/v1/predictions: ${e.message}`);
+    }
 
     if (!response.ok) {
-        const err = await response.json();
-        throw new Error(`Prediction creation failed: ${err.detail || response.statusText}`);
+        let errorDetail = response.statusText;
+        try {
+            const err = await response.json();
+            if (err.detail) errorDetail = err.detail;
+            else if (err.error) errorDetail = err.error;
+            else errorDetail = JSON.stringify(err);
+        } catch (e) {
+            try { errorDetail = await response.text(); } catch(e2) {}
+        }
+        throw new Error(`Prediction creation failed (${response.status}): ${errorDetail}`);
     }
 
     return await response.json();
@@ -96,15 +123,26 @@ async function pollPrediction(predictionId, token) {
     const pollUrl = `${BASE_URL}/v1/predictions/${predictionId}`;
 
     while (true) {
-        const response = await fetch(pollUrl, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
+        let response;
+        try {
+            response = await fetch(pollUrl, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        } catch(e) {
+             throw new Error(`Network error during polling ${pollUrl}: ${e.message}`);
+        }
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(`Polling failed: ${err.detail || response.statusText}`);
+            let errorDetail = response.statusText;
+            try {
+                const err = await response.json();
+                if (err.detail) errorDetail = err.detail;
+            } catch (e) {
+                try { errorDetail = await response.text(); } catch(e2) {}
+            }
+            throw new Error(`Polling failed (${response.status}): ${errorDetail}`);
         }
 
         const prediction = await response.json();

@@ -45,75 +45,77 @@
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
         </div>
         <!-- Drawer Content -->
-        <div class="drawer-content w-72 bg-panel border border-panel p-4 shadow-2xl rounded-bl-lg overflow-y-auto max-h-[85vh]">
-             <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
-                <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
-            </div>
-            <!-- Sliders -->
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Gamma</span> <span id="val-gamma" class="val-display">1.00</span></div>
-                <input id="adj-gamma" type="range" min="0.0" max="2.0" step="0.01" value="1.0" class="w-full" data-default="1.0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Shadows</span> <span id="val-shadows" class="val-display">0</span></div>
-                <input id="adj-shadows" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Highlights</span> <span id="val-highlights" class="val-display">0</span></div>
-                <input id="adj-highlights" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-divider"></div>
-            <div class="section-header">
-                <span class="section-title">Levels</span>
-                <button id="resetLevelsBtn" class="section-reset">Reset</button>
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Black Point</span> <span id="val-l-black" class="val-display">0</span></div>
-                <input id="adj-l-black" type="range" min="0" max="255" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Mid Point</span> <span id="val-l-mid" class="val-display">1.00</span></div>
-                <input id="adj-l-mid" type="range" min="0.0" max="2.0" step="0.01" value="1.0" class="w-full" data-default="1.0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>White Point</span> <span id="val-l-white" class="val-display">255</span></div>
-                <input id="adj-l-white" type="range" min="0" max="255" value="255" class="w-full" data-default="255">
-            </div>
-            <div class="drawer-divider"></div>
-             <div class="section-header">
-                <span class="section-title">Color</span>
-                <button id="resetSatBtn" class="section-reset">Reset</button>
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Saturation</span> <span id="val-sat" class="val-display">0</span></div>
-                <input id="adj-sat" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
-            </div>
-             <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Vibrance</span> <span id="val-vib" class="val-display">0</span></div>
-                <input id="adj-vib" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-divider"></div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>White Balance</span> <span id="val-wb" class="val-display">6500K</span></div>
-                <input id="adj-wb" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-divider"></div>
-            <div class="section-header">
-                <span class="section-title">Color Balance</span>
-                <button id="resetColorBtn" class="section-reset">Reset</button>
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Cyan - Red</span> <span id="val-cb-r" class="val-display">0</span></div>
-                <input id="adj-cb-r" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Magenta - Green</span> <span id="val-cb-g" class="val-display">0</span></div>
-                <input id="adj-cb-g" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
-            </div>
-            <div class="drawer-slider-group">
-                <div class="drawer-label"><span>Yellow - Blue</span> <span id="val-cb-b" class="val-display">0</span></div>
-                <input id="adj-cb-b" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
+        <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-bl-lg overflow-y-auto max-h-[85vh]">
+            <div class="drawer-inner p-4">
+                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
+                    <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
+                </div>
+                <!-- Sliders -->
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Gamma</span> <span id="val-gamma" class="val-display">1.00</span></div>
+                    <input id="adj-gamma" type="range" min="0.0" max="2.0" step="0.01" value="1.0" class="w-full" data-default="1.0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Shadows</span> <span id="val-shadows" class="val-display">0</span></div>
+                    <input id="adj-shadows" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Highlights</span> <span id="val-highlights" class="val-display">0</span></div>
+                    <input id="adj-highlights" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-divider"></div>
+                <div class="section-header">
+                    <span class="section-title">Levels</span>
+                    <button id="resetLevelsBtn" class="section-reset">Reset</button>
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Black Point</span> <span id="val-l-black" class="val-display">0</span></div>
+                    <input id="adj-l-black" type="range" min="0" max="255" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Mid Point</span> <span id="val-l-mid" class="val-display">1.00</span></div>
+                    <input id="adj-l-mid" type="range" min="0.0" max="2.0" step="0.01" value="1.0" class="w-full" data-default="1.0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>White Point</span> <span id="val-l-white" class="val-display">255</span></div>
+                    <input id="adj-l-white" type="range" min="0" max="255" value="255" class="w-full" data-default="255">
+                </div>
+                <div class="drawer-divider"></div>
+                 <div class="section-header">
+                    <span class="section-title">Color</span>
+                    <button id="resetSatBtn" class="section-reset">Reset</button>
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Saturation</span> <span id="val-sat" class="val-display">0</span></div>
+                    <input id="adj-sat" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                 <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Vibrance</span> <span id="val-vib" class="val-display">0</span></div>
+                    <input id="adj-vib" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-divider"></div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>White Balance</span> <span id="val-wb" class="val-display">6500K</span></div>
+                    <input id="adj-wb" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-divider"></div>
+                <div class="section-header">
+                    <span class="section-title">Color Balance</span>
+                    <button id="resetColorBtn" class="section-reset">Reset</button>
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Cyan - Red</span> <span id="val-cb-r" class="val-display">0</span></div>
+                    <input id="adj-cb-r" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Magenta - Green</span> <span id="val-cb-g" class="val-display">0</span></div>
+                    <input id="adj-cb-g" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Yellow - Blue</span> <span id="val-cb-b" class="val-display">0</span></div>
+                    <input id="adj-cb-b" type="range" min="-100" max="100" step="0.4" value="0" class="w-full" data-default="0">
+                </div>
             </div>
         </div>
     </div>
@@ -125,11 +127,13 @@
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
         </div>
         <!-- Drawer Content -->
-        <div class="drawer-content w-72 bg-panel border border-panel p-4 shadow-2xl rounded-bl-lg overflow-y-auto">
-            <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Color Tuning</h3>
+        <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-bl-lg overflow-y-auto max-h-[85vh]">
+            <div class="drawer-inner p-4">
+                <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Color Tuning</h3>
+                </div>
+                <p class="text-xs text-gray-500">More tools coming soon.</p>
             </div>
-            <p class="text-xs text-gray-500">More tools coming soon.</p>
         </div>
     </div>
 
@@ -140,11 +144,13 @@
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
         </div>
         <!-- Drawer Content -->
-        <div class="drawer-content w-72 bg-panel border border-panel p-4 shadow-2xl rounded-tl-lg overflow-y-auto">
-             <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Advanced Tools</h3>
+        <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-tl-lg overflow-y-auto max-h-[85vh]">
+            <div class="drawer-inner p-4">
+                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Advanced Tools</h3>
+                </div>
+                <p class="text-xs text-gray-500">Layer management coming soon.</p>
             </div>
-            <p class="text-xs text-gray-500">Layer management coming soon.</p>
         </div>
     </div>
 

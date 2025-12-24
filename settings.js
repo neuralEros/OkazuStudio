@@ -7,7 +7,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         rgbMode: false,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
-        apiKey: ''
+        apiKey: '',
+        proxyUrl: ''
     };
 
     let lastStaticHue = defaults.hue;
@@ -148,10 +149,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     </div>
 
                     <!-- API Key -->
-                    <div class="mb-2">
+                    <div class="mb-4">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Replicate AI API Key</label>
                         <input id="setting-api-key" type="password" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="r8_...">
                         <p class="text-[10px] text-gray-500 mt-1">Stored locally in your browser.</p>
+                    </div>
+
+                    <!-- Proxy URL -->
+                    <div class="mb-2">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">CORS Proxy URL (Optional)</label>
+                        <input id="setting-proxy-url" type="text" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="https://my-proxy.com">
+                        <p class="text-[10px] text-gray-500 mt-1">Required if running in a browser without a backend.</p>
                     </div>
 
                 </div>
@@ -256,6 +264,14 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         keyInput.value = state.settings.apiKey;
         keyInput.addEventListener('input', (e) => {
             state.settings.apiKey = e.target.value;
+            saveDebounced();
+        });
+
+        // Proxy URL
+        const proxyInput = document.getElementById('setting-proxy-url');
+        proxyInput.value = state.settings.proxyUrl || '';
+        proxyInput.addEventListener('input', (e) => {
+            state.settings.proxyUrl = e.target.value;
             saveDebounced();
         });
 

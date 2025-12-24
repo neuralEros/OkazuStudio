@@ -331,8 +331,8 @@
         #hint-legend {
             position: absolute;
             top: 60px; 
-            right: 10px;
-            z-index: 90;
+            right: 50px;
+            z-index: 20;
             background: rgba(0, 0, 0, 0.7);
             padding: 8px 12px;
             border-radius: 6px;
@@ -352,17 +352,22 @@
             border-radius: 3px;
         }
 
-        /* Adjustment Drawer */
-        #adj-drawer {
+        /* Adjustment Drawers */
+        .side-drawer {
             position: fixed;
             right: 0;
             top: 50%;
-            transform: translateY(-50%) translateX(calc(100% - 24px)); 
+            transform: translateY(-50%) translateX(calc(100% - 24px));
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 60;
+            /* z-index set inline to manage stacking order */
+            pointer-events: none; /* Allow clicking through empty space */
         }
-        #adj-drawer:hover {
+        .side-drawer > * {
+            pointer-events: auto; /* Re-enable pointer events for lip and content */
+        }
+        .side-drawer:hover {
             transform: translateY(-50%) translateX(0);
+            z-index: 70 !important; /* Bring hovered drawer to top */
         }
         
         /* Drawer Styling */

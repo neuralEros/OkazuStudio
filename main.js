@@ -48,7 +48,8 @@
             isCropping: false, cropRect: null, cropRectSnapshot: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
-            pendingAdjustmentCommit: false, drawerCloseTimer: null
+            pendingAdjustmentCommit: false, drawerCloseTimer: null,
+            activeDrawerTab: null
         };
 
         const els = {
@@ -56,7 +57,7 @@
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
             mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
             loadingOverlay: document.getElementById('loading-overlay'),
-            adjDrawer: document.getElementById('adj-drawer'),
+            adjDrawer: document.getElementById('drawer-adj'),
             viewport: document.getElementById('viewport'),
             canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
             swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
@@ -330,9 +331,41 @@
              });
         }
 
+        function syncDrawerHeights() {
+             const inners = document.querySelectorAll('.drawer-inner');
+             let maxH = 0;
+             inners.forEach(el => {
+                 maxH = Math.max(maxH, el.offsetHeight);
+             });
+
+             // Add 2px for borders to prevent unnecessary scrollbars
+             const finalH = maxH + 2;
+
+             const outers = document.querySelectorAll('.drawer-content');
+             outers.forEach(el => {
+                 if (maxH > 0) el.style.height = finalH + 'px';
+             });
+        }
+
+        function initDrawerSync() {
+            const inners = document.querySelectorAll('.drawer-inner');
+            const ro = new ResizeObserver(() => {
+                requestAnimationFrame(syncDrawerHeights);
+            });
+            inners.forEach(el => ro.observe(el));
+            window.addEventListener('resize', () => requestAnimationFrame(syncDrawerHeights));
+
+            // Initial sync
+            setTimeout(syncDrawerHeights, 100);
+        }
+
         function init() {
             initAdjustments();
+            initDrawerSync();
 
+            // Check if drawer is being hovered to commit changes on exit
+            // We check all drawers now, or just adjustments? Logic implies adjust commit on drawer close.
+            // Since we split into tabs, let's just check the adjustments drawer for now.
             setInterval(() => {
                 if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
                     if (!state.drawerCloseTimer) {
@@ -345,6 +378,7 @@
                     }
                 }
             }, 200);
+
             els.fileA.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'A'));
             els.fileB.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'B'));
             setupDragAndDrop();

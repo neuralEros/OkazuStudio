@@ -342,6 +342,52 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: currentX, y: currentY };
     }
 
+    function commitPolyline(shouldFill = false) {
+        if (state.polylinePoints.length === 0) return;
+
+        const pts = state.polylinePoints;
+
+        // Fill first if requested
+        if (shouldFill) {
+             maskCtx.save();
+             maskCtx.beginPath();
+             maskCtx.moveTo(pts[0].x, pts[0].y);
+             for (let i = 1; i < pts.length; i++) {
+                 maskCtx.lineTo(pts[i].x, pts[i].y);
+             }
+             maskCtx.closePath();
+
+             if (state.isErasing) {
+                 maskCtx.globalCompositeOperation = 'source-over';
+                 maskCtx.fillStyle = 'white';
+             } else {
+                 maskCtx.globalCompositeOperation = 'destination-out';
+                 maskCtx.fillStyle = 'black';
+             }
+             maskCtx.fill();
+             maskCtx.restore();
+        }
+
+        // Draw Strokes
+         // Node-based spacing logic:
+         // 1. Draw Start
+         drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
+
+         // 2. Draw Segments
+         for (let i = 0; i < pts.length - 1; i++) {
+             const p1 = pts[i];
+             const p2 = pts[i+1];
+             // Walk from p1 to p2, resetting spacing at p1
+             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             // Draw Node p2
+             drawBrushStamp(p2.x, p2.y, maskCtx);
+         }
+
+         const actionType = state.currentPolylineAction || 'mask';
+         saveSnapshot(actionType);
+         state.polylineDirty = false;
+    }
+
     function ensureFastMaskCanvas() {
         if (!state.fastMaskCanvas) {
             state.fastMaskCanvas = document.createElement('canvas');
@@ -439,15 +485,20 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     const startPt = state.polylinePoints[0];
                     const dist = Math.hypot(coords.x - startPt.x, coords.y - startPt.y);
 
-                    if (state.polylinePoints.length > 2 && dist < threshold) {
-                         // Loop closed - commit now? Or just add the closing point and wait for release?
-                         // User said "full res only updates upon ctrl being released".
-                         // So we just add the closing point (which is the start point) to the list.
+                    if (state.polylinePoints.length > 1 && dist < threshold) {
+                         // Loop closed
+                         // 1. Add current point (the one near start)
+                         state.polylinePoints.push({ x: coords.x, y: coords.y });
+                         // 2. Add start point to close the loop perfectly
                          state.polylinePoints.push({ x: startPt.x, y: startPt.y });
-                         state.lastDrawX = startPt.x;
-                         state.lastDrawY = startPt.y;
 
-                         // We might want to visually indicate closure, but for now just continue
+                         // 3. Commit with fill
+                         commitPolyline(true);
+
+                         // 4. Reset for next polyline
+                         state.isPolylineStart = true;
+                         state.polylinePoints = [];
+                         state.lastDrawX = null;
                     } else {
                         state.lastDrawX = coords.x;
                         state.lastDrawY = coords.y;
@@ -795,28 +846,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             }
             if (e.key === 'Control' || e.key === 'Meta') {
                 if (state.polylineDirty || state.polylinePoints.length > 0) {
-                    // Commit Deferred Polyline
-                    if (state.polylinePoints.length > 0) {
-                         // Draw full sequence to maskCtx
-                         const pts = state.polylinePoints;
-                         // Node-based spacing logic:
-                         // 1. Draw Start
-                         drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
-
-                         // 2. Draw Segments
-                         for (let i = 0; i < pts.length - 1; i++) {
-                             const p1 = pts[i];
-                             const p2 = pts[i+1];
-                             // Walk from p1 to p2, resetting spacing at p1
-                             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
-                             // Draw Node p2
-                             drawBrushStamp(p2.x, p2.y, maskCtx);
-                         }
-                    }
-
-                    const actionType = state.currentPolylineAction || 'mask';
-                    saveSnapshot(actionType);
-                    state.polylineDirty = false;
+                    commitPolyline(false);
                 }
                 state.isCtrlPressed = false;
                 state.currentPolylineAction = null;

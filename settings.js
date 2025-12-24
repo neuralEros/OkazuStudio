@@ -8,7 +8,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: '',
-        proxyUrl: ''
+        proxyUrl: 'https://corsproxy.io/?https://api.replicate.com'
     };
 
     let lastStaticHue = defaults.hue;
@@ -158,7 +158,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <!-- Proxy URL -->
                     <div class="mb-2">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">CORS Proxy URL (Optional)</label>
-                        <input id="setting-proxy-url" type="text" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="https://my-proxy.com">
+                        <input id="setting-proxy-url" type="text" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="https://corsproxy.io/?https://api.replicate.com">
                         <p class="text-[10px] text-gray-500 mt-1">Required if running in a browser without a backend.</p>
                     </div>
 

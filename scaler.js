@@ -17,24 +17,23 @@ async function uploadFile(file, token) {
     formData.append('content', file);
     // Optional: Add metadata if needed, but not required for simple usage.
 
-    // Try Token first as per instructions for Files API, fallback to Bearer if needed?
-    // Instructions say: "Replicate HTTP reference examples use Authorization: Token <REPLICATE_API_TOKEN>. If Bearer fails (401) on /v1/files, switch to Token."
-    // We will start with Token.
+    // Try Bearer first as it is the standard for Replicate API v1.
+    // Fallback to Token if needed.
 
     let response = await fetch(`${BASE_URL}/v1/files`, {
         method: 'POST',
         headers: {
-            'Authorization': `Token ${token}`
+            'Authorization': `Bearer ${token}`
         },
         body: formData
     });
 
     if (response.status === 401) {
-        // Retry with Bearer
+        // Retry with Token
         response = await fetch(`${BASE_URL}/v1/files`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Token ${token}`
             },
             body: formData
         });
@@ -126,7 +125,7 @@ async function pollPrediction(predictionId, token) {
  * @param {object} options - Model options.
  * @returns {Promise<Blob>} - The upscaled image as a Blob.
  */
-export async function upscaleChunk(imageChunk, token, options = {}) {
+async function upscaleChunk(imageChunk, token, options = {}) {
     if (!token) {
         throw new Error("Replicate API token is required.");
     }

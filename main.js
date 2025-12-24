@@ -1137,7 +1137,6 @@
             log("Starting upscale...", "info");
             scheduleHeavyTask(async () => {
                 try {
-                    const { tileAndUpscale } = await import('./tiler.js');
                     const blob = await tileAndUpscale(state.imgA, {
                         token: state.settings.apiKey
                     });

@@ -1,6 +1,4 @@
 
-import { upscaleChunk } from './scaler.js';
-
 /**
  * Splits an image into tiles, upscales them using the Replicate API, and stitches them back together.
  * @param {Blob|HTMLImageElement|ImageBitmap|HTMLCanvasElement} inputImage - The source image.
@@ -10,7 +8,7 @@ import { upscaleChunk } from './scaler.js';
  * @param {number} [options.overlap=32] - The size of the overlapping feather area.
  * @returns {Promise<Blob>} - The upscaled image as a Blob.
  */
-export async function tileAndUpscale(inputImage, options) {
+async function tileAndUpscale(inputImage, options) {
     const { token, tileSize = 256, overlap = 32 } = options;
     if (!token) throw new Error("API Token is required for tiling.");
 
@@ -159,11 +157,30 @@ export async function tileAndUpscale(inputImage, options) {
 async function toCanvas(source) {
     if (source instanceof HTMLCanvasElement) return source;
     const canvas = document.createElement('canvas');
-    const bmp = (source instanceof Blob) ? await createImageBitmap(source) : source;
-    canvas.width = bmp.width; // bmp has width/height
-    canvas.height = bmp.height;
+    let width, height, drawable;
+
+    if (source instanceof Blob) {
+        drawable = await createImageBitmap(source);
+        width = drawable.width;
+        height = drawable.height;
+    } else if (source instanceof HTMLImageElement) {
+        drawable = source;
+        width = source.naturalWidth || source.width;
+        height = source.naturalHeight || source.height;
+    } else if (source instanceof ImageBitmap) {
+        drawable = source;
+        width = source.width;
+        height = source.height;
+    } else {
+        drawable = source;
+        width = source.width;
+        height = source.height;
+    }
+
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(bmp, 0, 0);
+    ctx.drawImage(drawable, 0, 0);
     return canvas;
 }
 

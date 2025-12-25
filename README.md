@@ -8,25 +8,16 @@ OkazuStudio is a specialized, client-side web application designed to streamline
 
 *   **Variant Merging**: Create the perfect composite from multiple imperfect generations. For example, if you have a "Smile with red dress" variant and a "Frown with black dress" variant, you can easily paint the smiling face onto the black dress body to create a "Smile with black dress" final image.
 *   **Removal of Watermarks**: If you have two variants where one is watermarked and the other is clean (but perhaps has other defects), use the clean sections of one to paint over the watermark on the other.
-*   **Rapid Censoring**: The masking workflow is optimized for privacy edits; simply "poke holes" in the image to reveal a blurred or mosaicked version of itself below. This setup is automatic, saving time compared to manual filter layers.
-*   **Finishing Touches**: Because compositing often requires matching tones or final polish, a full suite of color balance, levels, and exposure tools is built right in. Tweak your final output without leaving the browser.
+*   **Rapid Censoring**: The masking workflow is optimized for privacy edits; simply "poke holes" in the image to reveal an obfuscated version of itself below. This setup is automatic, saving time compared to manual filter layers.
+*   **Finishing Touches**: Because compositing often requires tweaking tones or final polish, a full suite of color balance, levels, and exposure tools is built right in. Tweak your final output without leaving the browser.
 
 ## Features
 
 *   **Dual-Image Compositing**: Drag-and-drop workflow to blend two source images (Slots A and B).
 *   **Advanced Masking**:
     *   **Erase & Repair**: Paint with additive or subtractive brushes to reveal or hide layers.
-    *   **Precision Control**: Adjustable brush size, hardness, and Polyline drawing (Ctrl + Click).
-*   **Integrated Adjustments**: comprehensive tools to unify your composite:
-    *   **Exposure**: Gamma, Shadows, Highlights.
-    *   **Levels**: Black point, Mid point, White point.
-    *   **Color**: Saturation, Vibrance, White Balance.
-    *   **Channels**: Fine-tune Cyan/Red, Magenta/Green, and Yellow/Blue balance.
-*   **Productivity Tools**:
-    *   **History**: Robust Undo/Redo stack.
-    *   **Navigation**: Smooth Pan (Space + Drag) and Zoom (Scroll).
-    *   **Overlay**: Crop tool with dimmer overlay.
-    *   **Merge**: Flatten the current view into the front layer to continue editing.
+    *   **Precision Control**: Adjustable brush size, hardness, and polyline drawing.
+*   **Integrated Adjustments**: A comprehensive toolset to unify your composite, offering exposure control (gamma, shadows, highlights), levels, color balance (saturation, vibrance, white balance), and channel-specific fine-tuning.
 *   **Privacy First**: Zero data upload. All processing occurs locally in your browser using HTML5 Canvas.
 
 ---

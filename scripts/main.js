@@ -544,6 +544,7 @@
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
+            if (!state.cropRect && !state.isCropping) return;
 
             const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
             const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
@@ -603,6 +604,8 @@
                  if (Date.now() - state.previewThrottle > 500) state.isAdjusting = false;
                  else return;
             }
+
+            if (!state.cropRect && !state.isCropping) return;
 
             const cw = els.mainCanvas.width;
             const ch = els.mainCanvas.height;

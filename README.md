@@ -1,26 +1,30 @@
 # OkazuStudio
 
-OkazuStudio is a powerful, client-side web application designed for compositing and editing images directly in your browser. It enables users to seamlessly blend two images (Slots A and B) using advanced masking tools and pixel-level adjustments without uploading data to external servers.
+OkazuStudio is a specialized, client-side web application designed to streamline the workflow of combining and polishing image variants. It removes the friction of heavy image editors, allowing you to rapidly resolve differences between versions of an artwork—such as swapping facial expressions, mixing outfit elements, or adjusting watermark placement—without the overhead of setting up layers and project files.
+
+## Use Cases
+
+*   **Variant Merging**: Instantly load two versions of an image (e.g., "Smile" vs. "Frown") and paint the preferred details from one onto the other using a fast, intuitive masking system.
+*   **Rapid Censoring**: The masking workflow is optimized for privacy edits; simply "poke holes" in the image to reveal a blurred or mosaicked version of itself below. This setup is automatic, saving time compared to manual filter layers.
+*   **Finishing Touches**: Because compositing often requires matching tones or final polish, a full suite of color balance, levels, and exposure tools is built right in. Tweak your final output without leaving the browser.
 
 ## Features
 
-*   **Dual-Image Compositing**: Load two images and blend them using a versatile masking system.
-*   **Advanced Masking**: Use "Erase" and "Repair" brush modes to reveal or hide layers.
-    *   Adjustable brush size and hardness/feathering.
-    *   Polyline drawing support (Ctrl + Click).
-*   **Detailed Adjustments**: Fine-tune your images with a comprehensive suite of tools:
+*   **Dual-Image Compositing**: Drag-and-drop workflow to blend two source images (Slots A and B).
+*   **Advanced Masking**:
+    *   **Erase & Repair**: Paint with additive or subtractive brushes to reveal or hide layers.
+    *   **Precision Control**: Adjustable brush size, hardness, and Polyline drawing (Ctrl + Click).
+*   **Integrated Adjustments**: comprehensive tools to unify your composite:
     *   **Exposure**: Gamma, Shadows, Highlights.
     *   **Levels**: Black point, Mid point, White point.
     *   **Color**: Saturation, Vibrance, White Balance.
-    *   **Color Balance**: Cyan/Red, Magenta/Green, Yellow/Blue channels.
+    *   **Channels**: Fine-tune Cyan/Red, Magenta/Green, and Yellow/Blue balance.
 *   **Productivity Tools**:
-    *   Robust **Undo/Redo** system.
-    *   **Pan & Zoom** navigation (Space to pan, Scroll to zoom).
-    *   **Cropping** workflow with dimmer overlay.
-    *   **Censor** tools (Blur/Mosaic) for privacy or creative effects.
-    *   **Merge** functionality to flatten the current view into the front layer.
-*   **Privacy First**: All processing happens locally in your browser. Your images are never uploaded to a server.
-*   **High Performance**: Utilizes a "fast preview" system and offscreen canvases to ensure smooth interactions even at high resolutions.
+    *   **History**: Robust Undo/Redo stack.
+    *   **Navigation**: Smooth Pan (Space + Drag) and Zoom (Scroll).
+    *   **Overlay**: Crop tool with dimmer overlay.
+    *   **Merge**: Flatten the current view into the front layer to continue editing.
+*   **Privacy First**: Zero data upload. All processing occurs locally in your browser using HTML5 Canvas.
 
 ## Getting Started
 
@@ -28,7 +32,7 @@ OkazuStudio is a static web application with no build steps or complex installat
 
 1.  **Clone or Download** this repository.
 2.  **Open** `index.html` in any modern web browser (Chrome, Firefox, Edge, Safari).
-3.  **Drag and Drop** images onto the canvas or use the "Load Img A" / "Load Img B" buttons to start editing.
+3.  **Drag and Drop** your base image and variant onto the canvas to begin.
 
 ## Architecture
 

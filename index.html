@@ -131,10 +131,6 @@
             <div class="drawer-inner p-4">
                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Color Tuning</h3>
-                    <div class="flex gap-2">
-                        <button id="resetBandBtn" class="text-[10px] text-gray-400 hover:text-white uppercase tracking-wider font-bold">Band</button>
-                        <button id="resetTuningBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
-                    </div>
                 </div>
 
                 <!-- Band Selector Grid -->
@@ -176,6 +172,17 @@
                 <div class="drawer-slider-group">
                     <div class="drawer-label"><span>Highlights</span> <span id="val-tune-highlights" class="val-display">0</span></div>
                     <input id="tune-highlights" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+
+                <div class="drawer-divider"></div>
+
+                <div class="flex gap-2 mt-4">
+                     <button id="resetBandBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn hover:text-white">
+                        Reset Band
+                    </button>
+                    <button id="resetTuningBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn text-accent hover:text-white">
+                        Reset All
+                    </button>
                 </div>
             </div>
         </div>

@@ -515,6 +515,6 @@
 }
 
 .active-band {
-    border-color: #5bbcd1 !important; /* accent */
+    border-color: var(--accent-strong) !important;
     transform: scale(1.1);
 }

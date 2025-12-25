@@ -23,3 +23,4 @@
 ## Contribution expectations
 - Keep this file up to date as you modify architecture, state shape, rendering flow, or major features—future agents rely on it as the shared scratch-pad.
 - Prefer adding brief notes about new canvases, modules, or workflows when you touch them.
+- Under no condition should you ever commit screenshots, test images, logs, or other cruft to the repository.

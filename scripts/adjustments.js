@@ -119,8 +119,27 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         const h = imageData.height;
 
         for (let i = 0; i < data.length; i += 4) {
-            const r = data[i], g = data[i+1], b = data[i+2];
-            const [hVal, sVal, lVal] = rgbToHsl(r, g, b); // h: 0-360, s: 0-1, l: 0-1
+            const rRaw = data[i], gRaw = data[i+1], bRaw = data[i+2];
+
+            // Inline RGB -> HSL (avoid array allocation)
+            const r = rRaw / 255;
+            const g = gRaw / 255;
+            const b = bRaw / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let hVal, sVal, lVal = (max + min) / 2;
+
+            if (max === min) {
+                hVal = sVal = 0; // achromatic
+            } else {
+                const d = max - min;
+                sVal = lVal > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) {
+                    case r: hVal = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: hVal = (b - r) / d + 2; break;
+                    case b: hVal = (r - g) / d + 4; break;
+                }
+                hVal *= 60;
+            }
 
             const hueInt = Math.round(hVal) % 360;
             const idx = hueInt < 0 ? hueInt + 360 : hueInt;
@@ -151,29 +170,16 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             if (newS > 1) newS = 1;
 
             // 3. Luminance
-            // L is 0-1. adj.lum is +/- 100. Map to +/- 0.5 or similar range?
-            // Lightroom luminance is quite strong. +/- 100 usually maps to full black/white shift potential?
-            // Let's scale it gently: +/- 0.5 luminance shift for full slider
             let newL = lVal + (adj.lum / 200);
 
             // 4. Shadows / Highlights
-            // These depend on the PIXEL'S luminance.
-            // If pixel is dark, shadows slider affects it.
-            // If pixel is bright, highlights slider affects it.
             if (adj.shad !== 0 || adj.high !== 0) {
-                 // Shadows target lVal < 0.5 mostly
                  if (adj.shad !== 0) {
                      const sFactor = (1.0 - lVal) * (1.0 - lVal); // stronger on blacks
-                     // shadows usually brightens them, so +val -> lighter
-                     // adj.shad is +/- 100.
-                     // Let's say +100 adds up to 0.3 luminance to blacks
                      newL += (adj.shad / 300) * sFactor;
                  }
                  if (adj.high !== 0) {
                      const hFactor = lVal * lVal; // stronger on whites
-                     // highlights usually darkens them to recover detail? Or boosts them?
-                     // In standard EQ, slider moves value up/down.
-                     // Usually highlights slider: -100 (recover) to +100 (blow out).
                      newL += (adj.high / 300) * hFactor;
                  }
             }

@@ -127,6 +127,7 @@
         const {
             applyMasterLUT,
             applyColorOps,
+            applySelectiveColor,
             updateAdjustmentPreview,
             initAdjustments,
             resetAllAdjustments,
@@ -309,6 +310,7 @@
                 const imgData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
                 applyMasterLUT(imgData);
                 applyColorOps(imgData);
+                applySelectiveColor(imgData);
                 layerCtx.putImageData(imgData, 0, 0);
             }
 

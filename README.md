@@ -1,10 +1,13 @@
 # OkazuStudio
 
-OkazuStudio is a specialized, client-side web application designed to streamline the workflow of combining and polishing image variants. It removes the friction of heavy image editors, allowing you to rapidly resolve differences between versions of an artwork—such as swapping facial expressions, mixing outfit elements, or adjusting watermark placement—without the overhead of setting up layers and project files.
+OkazuStudio is a specialized, client-side web application designed to streamline the workflow of combining and polishing image variants. It removes the friction of heavy image editors, allowing you to rapidly resolve differences between versions of an artwork—such as swapping facial expressions, mixing outfit elements, or removing watermarks—without the overhead of setting up layers and project files.
+
+[**Launch OkazuStudio**](https://neuralEros.github.io/OkazuStudio)
 
 ## Use Cases
 
-*   **Variant Merging**: Instantly load two versions of an image (e.g., "Smile" vs. "Frown") and paint the preferred details from one onto the other using a fast, intuitive masking system.
+*   **Variant Merging**: Create the perfect composite from multiple imperfect generations. For example, if you have a "Smile with red dress" variant and a "Frown with black dress" variant, you can easily paint the smiling face onto the black dress body to create a "Smile with black dress" final image.
+*   **Removal of Watermarks**: If you have two variants where one is watermarked and the other is clean (but perhaps has other defects), use the clean sections of one to paint over the watermark on the other.
 *   **Rapid Censoring**: The masking workflow is optimized for privacy edits; simply "poke holes" in the image to reveal a blurred or mosaicked version of itself below. This setup is automatic, saving time compared to manual filter layers.
 *   **Finishing Touches**: Because compositing often requires matching tones or final polish, a full suite of color balance, levels, and exposure tools is built right in. Tweak your final output without leaving the browser.
 
@@ -25,23 +28,6 @@ OkazuStudio is a specialized, client-side web application designed to streamline
     *   **Overlay**: Crop tool with dimmer overlay.
     *   **Merge**: Flatten the current view into the front layer to continue editing.
 *   **Privacy First**: Zero data upload. All processing occurs locally in your browser using HTML5 Canvas.
-
-## Getting Started
-
-OkazuStudio is a static web application with no build steps or complex installation required.
-
-1.  **Clone or Download** this repository.
-2.  **Open** `index.html` in any modern web browser (Chrome, Firefox, Edge, Safari).
-3.  **Drag and Drop** your base image and variant onto the canvas to begin.
-
-## Architecture
-
-The project is built with vanilla JavaScript and HTML5 Canvas, using Tailwind CSS for styling. It features a modular architecture:
-*   `scripts/main.js`: Core application logic and wiring.
-*   `scripts/input.js`: Handles user input (mouse, keyboard, touch) and brush mechanics.
-*   `scripts/adjustments.js`: Manages image processing filters and LUTs.
-*   `scripts/undo.js`: Manages the history stack for non-destructive editing.
-*   `scripts/settings.js`: Handles user preferences and persistence.
 
 ---
 <sub>Produced by Google Jules with Gemini 3.0</sub>

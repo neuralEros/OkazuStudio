@@ -38,7 +38,25 @@
                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
                 repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
             },
-            adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
+            adjustments: {
+                gamma: 1.0,
+                levels: { black: 0, mid: 1.0, white: 255 },
+                shadows: 0, highlights: 0,
+                saturation: 0, vibrance: 0,
+                wb: 0,
+                colorBal: { r: 0, g: 0, b: 0 },
+                colorTuning: {
+                    red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                }
+            },
+            activeColorBand: 'red',
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             workingA: null, workingB: null, sourceA: null, sourceB: null,
             previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
@@ -168,10 +186,18 @@
 
         function hasActiveAdjustments() {
             const a = state.adjustments;
+            let hasTuning = false;
+            for(let key in a.colorTuning) {
+                const b = a.colorTuning[key];
+                if (b.hue!==0 || b.saturation!==0 || b.vibrance!==0 || b.luminance!==0 || b.shadows!==0 || b.highlights!==0) {
+                    hasTuning = true;
+                    break;
+                }
+            }
             return a.gamma !== 1.0 || a.levels.black !== 0 || a.levels.mid !== 1.0 || a.levels.white !== 255 ||
                              a.saturation !== 0 || a.vibrance !== 0 || a.wb !== 0 ||
                              a.colorBal.r !== 0 || a.colorBal.g !== 0 || a.colorBal.b !== 0 ||
-                             a.shadows !== 0 || a.highlights !== 0;
+                             a.shadows !== 0 || a.highlights !== 0 || hasTuning;
         }
 
         function markAdjustmentsDirty() {

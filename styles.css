@@ -513,3 +513,8 @@
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+.active-band {
+    border-color: #5bbcd1 !important; /* accent */
+    transform: scale(1.1);
+}

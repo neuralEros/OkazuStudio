@@ -8,10 +8,10 @@
 
 ## High-level architecture
 - **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
-- **undo.js** encapsulates history/undo helpers while `main.js` wires them to state, rendering, and UI controls.
-- **adjustments.js** holds LUT/color adjustment logic and UI wiring, with `main.js` delegating slider handling and image filtering to it.
-- **input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `main.js` consuming the exported hooks.
-- **kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.
+- **scripts/undo.js** encapsulates history/undo helpers while `scripts/main.js` wires them to state, rendering, and UI controls.
+- **scripts/adjustments.js** holds LUT/color adjustment logic and UI wiring, with `scripts/main.js` delegating slider handling and image filtering to it.
+- **scripts/input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `scripts/main.js` consuming the exported hooks.
+- **scripts/kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings (including per-mode hardness + fixed-feather px values and the global feather mode toggle), adjustment values, history, and cropping data. `els` caches DOM references for fast event wiring.
 - **Brush presets**: `state.brushSettings` keeps per-mode brush size/hardness (erase defaults to 10% size, repair defaults to 5% with shared hardness) so swapping modes restores each brush's last settings.
 - **Canvas stack**: main display canvas (`#mainCanvas`) sits inside a transformable wrapper (`#canvas-wrapper`) controlled by the viewport for pan/zoom. A `#previewCanvas` overlays the main canvas to display low-resolution composites during high-performance interactions (drawing). Offscreen canvases include `maskCanvas` (brush strokes), `frontLayerCanvas` (front image after mask), and preview canvases for throttled adjustment previews.

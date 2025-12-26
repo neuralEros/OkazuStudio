@@ -351,17 +351,64 @@
             function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
             body.addEventListener('dragenter', () => body.classList.add('dragging'));
             body.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) body.classList.remove('dragging'); });
-            body.addEventListener('drop', (e) => {
+
+            body.addEventListener('drop', async (e) => {
                 body.classList.remove('dragging');
-                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-                if (files.length === 1) {
-                    if (!state.imgA) handleFileLoad(files[0], 'A');
-                    else handleFileLoad(files[0], 'B');
-                } else if (files.length === 2) {
-                    handleFileLoad(files[0], 'A');
-                    handleFileLoad(files[1], 'B');
+
+                // Strategy 1: Check standard files
+                let files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+
+                // Filter out 0-byte files which often indicate drag-drop metadata issues (e.g. from Hydrus/Electron apps)
+                const validFiles = files.filter(f => f.size > 0);
+
+                if (validFiles.length > 0) {
+                    // Standard Path
+                    if (validFiles.length === 1) {
+                        if (!state.imgA) handleFileLoad(validFiles[0], 'A');
+                        else handleFileLoad(validFiles[0], 'B');
+                    } else if (validFiles.length >= 2) {
+                        handleFileLoad(validFiles[0], 'A');
+                        handleFileLoad(validFiles[1], 'B');
+                    }
+                } else {
+                    // Strategy 2: Fallback for 0-byte files or no files (look for URLs)
+                    Logger.warn("No valid files found in drop (0 bytes or empty). Checking for URLs...");
+
+                    // Check getData synchronously (handles text/uri-list and text/plain)
+                    // This avoids race conditions with async getAsString items loop
+                    const uri = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+                    if (uri && (uri.startsWith('http') || uri.startsWith('data:'))) {
+                        attemptUrlLoad(uri);
+                    }
                 }
             });
+
+            async function attemptUrlLoad(url) {
+                log("Attempting to load image from URL...", "info");
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+                    const blob = await res.blob();
+                    if (!blob.type.startsWith('image/')) throw new Error("URL is not an image");
+
+                    // Create a file from blob
+                    let filename = "downloaded_image.png";
+                    if (url.startsWith('http')) {
+                         filename = url.split('/').pop().split('?')[0] || "downloaded_image.png";
+                    } else if (url.startsWith('data:')) {
+                         filename = "pasted_image_" + Date.now() + ".png";
+                    }
+
+                    const file = new File([blob], filename, { type: blob.type });
+
+                    if (!state.imgA) handleFileLoad(file, 'A');
+                    else handleFileLoad(file, 'B');
+
+                } catch(err) {
+                    Logger.error("URL Load Failed", err);
+                    log("Failed to load image from URL. (CORS or Network Error)", "error");
+                }
+            }
         }
 
         function commitAdjustments() {
@@ -1010,9 +1057,29 @@
             if (!file) return;
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
+
+            if (file.size === 0) {
+                const msg = `File content is empty (0 bytes). If dragging from an external app, try dragging to desktop first or use the Load button.`;
+                log(msg, "error");
+                Logger.error(msg);
+                return;
+            }
+
             const reader = new FileReader();
+
+            reader.onerror = (e) => {
+                log(`Failed to read file: ${file.name}`, "error");
+                Logger.error("FileReader Error", e);
+            };
+
             reader.onload = (event) => {
                 const img = new Image();
+
+                img.onerror = (e) => {
+                    log(`Failed to decode image: ${file.name}`, "error");
+                    Logger.error("Image Decode Error", e);
+                };
+
                 img.onload = () => {
                     Logger.info(`Image Loaded: ${img.width}x${img.height}`);
                     if (slot === 'A') {

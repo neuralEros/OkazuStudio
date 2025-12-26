@@ -706,15 +706,19 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             const el = document.getElementById(param.id);
             const label = document.getElementById('val-' + param.id);
             if(!el) {
-                console.warn(`Tuning param element ${param.id} not found`);
+                Logger.warn(`Tuning param element ${param.id} not found`);
                 return;
             }
+
+            el.addEventListener('pointerdown', () => {
+                el.dataset.startVal = el.value;
+            });
 
             el.addEventListener('input', (e) => {
                 try {
                     const val = parseFloat(e.target.value);
                     if (!state.activeColorBand || !state.adjustments.colorTuning[state.activeColorBand]) {
-                         console.error("Missing activeColorBand or tuning data");
+                         Logger.error("Missing activeColorBand or tuning data");
                          return;
                     }
                     state.adjustments.colorTuning[state.activeColorBand][param.key] = val;
@@ -729,7 +733,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 }
             });
 
-            el.addEventListener('change', () => {
+            el.addEventListener('change', (e) => {
+                const val = e.target.value;
+                const oldVal = el.dataset.startVal || "unknown";
+                Logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
                 saveSnapshot(`tuning-${state.activeColorBand}-${param.key}`);

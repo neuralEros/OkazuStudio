@@ -482,6 +482,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     state.lastDrawY = coords.y;
                     state.isPolylineStart = false;
                     state.polylinePoints = [{ x: coords.x, y: coords.y }];
+                    Logger.interaction("Polyline", "Started", `(${Math.round(coords.x)}, ${Math.round(coords.y)})`);
                 } else {
                     // Deferred Drawing Mode: Store points, do not draw to maskCtx yet
                     // Check close loop
@@ -490,6 +491,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     const dist = Math.hypot(coords.x - startPt.x, coords.y - startPt.y);
 
                     if (state.polylinePoints.length > 1 && dist < threshold) {
+                         Logger.interaction("Polyline", "Loop Closed");
                          // Loop closed
                          // 1. Add current point (the one near start)
                          state.polylinePoints.push({ x: coords.x, y: coords.y });
@@ -507,6 +509,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                         state.lastDrawX = coords.x;
                         state.lastDrawY = coords.y;
                         state.polylinePoints.push({ x: coords.x, y: coords.y });
+                        Logger.interaction("Polyline", "Point Added", `(${Math.round(coords.x)}, ${Math.round(coords.y)})`);
                     }
                     state.polylineDirty = true;
                 }

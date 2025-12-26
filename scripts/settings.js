@@ -147,13 +147,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         </div>
                     </div>
 
-                    <!-- API Key -->
-                    <div class="mb-2">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Replicate AI API Key</label>
-                        <input id="setting-api-key" type="password" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="r8_...">
-                        <p class="text-[10px] text-gray-500 mt-1">Stored locally in your browser.</p>
-                    </div>
-
                     <!-- Logs -->
                     <div class="mt-4 pt-4 border-t border-panel-divider text-right">
                         <button id="copy-logs-btn" class="text-[10px] font-bold text-gray-500 hover:text-accent uppercase tracking-wider cursor-pointer bg-transparent border-none p-0 transition-colors">
@@ -258,13 +251,30 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         setupResSwitch('.res-btn-brush', 'brushPreviewResolution');
         setupResSwitch('.res-btn-adj', 'adjustmentPreviewResolution');
 
-        // API Key
-        const keyInput = document.getElementById('setting-api-key');
-        keyInput.value = state.settings.apiKey;
-        keyInput.addEventListener('input', (e) => {
-            state.settings.apiKey = e.target.value;
-            saveDebounced();
-        });
+        // Copy Logs
+        const copyLogsBtn = document.getElementById('copy-logs-btn');
+        if (copyLogsBtn) {
+            copyLogsBtn.addEventListener('click', () => {
+                const logger = window.Logger;
+                if (logger && logger.getLogs) {
+                    const logs = logger.getLogs();
+                    navigator.clipboard.writeText(logs).then(() => {
+                        const originalText = copyLogsBtn.textContent;
+                        copyLogsBtn.textContent = "COPIED!";
+                        copyLogsBtn.classList.add('text-accent');
+                        setTimeout(() => {
+                            copyLogsBtn.textContent = originalText;
+                            copyLogsBtn.classList.remove('text-accent');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy logs', err);
+                        copyLogsBtn.textContent = "ERROR";
+                    });
+                } else {
+                    console.error("Logger not found or getLogs missing");
+                }
+            });
+        }
 
         // Modal Logic
         function openSettings() {

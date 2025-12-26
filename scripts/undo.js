@@ -69,7 +69,9 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
     function undo() {
         if (state.historyIndex > 0) {
             state.historyIndex--;
-            Logger.undo(state.historyIndex, state.history.length, "Undo");
+            const undos = state.historyIndex;
+            const redos = state.history.length - 1 - state.historyIndex;
+            Logger.info(`Undo cursor position: ${state.historyIndex} | Undo steps: ${undos} | Redo steps: ${redos}`);
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();
@@ -82,7 +84,9 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
     function redo() {
         if (state.historyIndex < state.history.length - 1) {
             state.historyIndex++;
-            Logger.undo(state.historyIndex, state.history.length, "Redo");
+            const undos = state.historyIndex;
+            const redos = state.history.length - 1 - state.historyIndex;
+            Logger.info(`Undo cursor position: ${state.historyIndex} | Undo steps: ${undos} | Redo steps: ${redos}`);
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();

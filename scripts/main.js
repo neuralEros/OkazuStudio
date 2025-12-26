@@ -79,6 +79,7 @@
         const els = {
             fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
             btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
+            btnTrashA: document.getElementById('btnTrashA'), btnTrashB: document.getElementById('btnTrashB'),
             mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
             loadingOverlay: document.getElementById('loading-overlay'),
             adjDrawer: document.getElementById('drawer-adj'),
@@ -345,6 +346,44 @@
             rebuildWorkingCopies();
         }
 
+        async function loadLayerWithSmartSlotting(source, name) {
+             log(`Loading ${name}...`, "info");
+             try {
+                 const img = await loadImageSource(source);
+
+                 // 0 loaded -> Slot A (Front)
+                 if (!state.imgA && !state.imgB) {
+                     assignLayer(img, 'A', name);
+                     return;
+                 }
+
+                 // 1 Loaded
+                 // If A is loaded, we want New to be A. So move A to B, then New to A.
+                 if (state.imgA) {
+                     // Swap A to B
+                     state.imgB = state.imgA; state.sourceB = state.sourceA; state.nameB = state.nameA;
+                     state.workingB = state.workingA; state.workingVersionB = state.workingVersionA;
+                     // Clear A state before assigning new
+                     state.imgA = null; state.sourceA = null; state.workingA = null; state.nameA = "";
+
+                     // Update buttons for the move
+                     updateLoadButton(els.btnB, truncate(state.nameB), "back");
+                     els.btnB.classList.add('border-accent-strong', 'text-accent');
+                     updateLoadButton(els.btnA, "Load", "front"); // Temp clear visual
+                     els.btnA.classList.remove('border-accent-strong', 'text-accent');
+
+                     // Now Load New into A
+                     assignLayer(img, 'A', name);
+                 } else {
+                     // B is loaded. A is empty. Load into A.
+                     assignLayer(img, 'A', name);
+                 }
+             } catch(e) {
+                 log("Failed to load image: " + e.message);
+                 Logger.error("Smart load failed", e);
+             }
+        }
+
         function setupDragAndDrop() {
             const body = document.body;
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => body.addEventListener(eventName, preventDefaults, false));
@@ -353,13 +392,34 @@
             body.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) body.classList.remove('dragging'); });
             body.addEventListener('drop', (e) => {
                 body.classList.remove('dragging');
+
+                // Check for URI list first (fallback for browsers/apps that drag URLs as files/text)
+                const uriList = e.dataTransfer.getData('text/uri-list');
+                const text = e.dataTransfer.getData('text/plain');
+
+                const processUrl = async (url) => {
+                    try {
+                        const blob = await fetchImage(url);
+                        loadLayerWithSmartSlotting(blob, "Dropped Image");
+                    } catch(err) {
+                        Logger.error("Failed to load dropped URL", err);
+                    }
+                };
+
                 const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
-                if (files.length === 1) {
-                    if (!state.imgA) handleFileLoad(files[0], 'A');
-                    else handleFileLoad(files[0], 'B');
-                } else if (files.length === 2) {
-                    handleFileLoad(files[0], 'A');
-                    handleFileLoad(files[1], 'B');
+                if (files.length > 0) {
+                    if (files.length === 1) {
+                        loadLayerWithSmartSlotting(files[0], files[0].name);
+                    } else if (files.length >= 2) {
+                        // Standard load 2
+                        handleFileLoad(files[0], 'A');
+                        handleFileLoad(files[1], 'B');
+                    }
+                } else if (uriList) {
+                    const lines = uriList.split(/\r?\n/);
+                    if(lines[0] && !lines[0].startsWith('#')) processUrl(lines[0]);
+                } else if (text && (text.startsWith('http') || text.startsWith('file'))) {
+                    processUrl(text);
                 }
             });
         }
@@ -389,6 +449,39 @@
              btn.appendChild(span);
 
              btn.style.overflow = 'visible';
+        }
+
+        function clearLayer(slot) {
+             if (slot === 'A') {
+                 state.imgA = null; state.sourceA = null; state.workingA = null;
+                 state.nameA = "";
+                 updateLoadButton(els.btnA, "Load", "front");
+                 els.btnA.classList.remove('border-accent-strong', 'text-accent');
+             } else {
+                 state.imgB = null; state.sourceB = null; state.workingB = null;
+                 state.nameB = "";
+                 updateLoadButton(els.btnB, "Load", "back");
+                 els.btnB.classList.remove('border-accent-strong', 'text-accent');
+             }
+
+             if (!state.imgA && !state.imgB) {
+                 // Full Reset
+                 resetAllAdjustments();
+                 saveSnapshot('clear_all');
+                 resetView();
+                 els.mainCanvas.classList.add('hidden');
+                 els.emptyState.style.display = '';
+                 els.viewport.classList.add('disabled');
+                 state.cropRect = null;
+                 updateUI();
+             } else {
+                 // One remains
+                 markAdjustmentsDirty();
+                 rebuildWorkingCopies();
+                 updateCanvasDimensions(true); // Preserve view
+                 render();
+                 updateUI();
+             }
         }
 
         function syncDrawerHeights() {
@@ -463,6 +556,13 @@
                 Logger.interaction("File Input B", "selected file");
                 handleFileLoad(e.target.files[0], 'B');
             });
+
+            els.btnTrashA.addEventListener('click', () => clearLayer('A'));
+            els.btnTrashB.addEventListener('click', () => clearLayer('B'));
+
+            // Paste Handler
+            window.addEventListener('paste', handlePaste);
+
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
@@ -911,6 +1011,14 @@
             els.undoBtn.disabled = state.historyIndex <= 0;
             els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
             
+            // Trash Buttons
+            els.btnTrashA.disabled = !state.imgA;
+            els.btnTrashB.disabled = !state.imgB;
+            // Visual dimming handled by disabled attribute CSS,
+            // but ensuring opacity if global CSS isn't covering all cases
+            els.btnTrashA.style.opacity = state.imgA ? '1' : '0.5';
+            els.btnTrashB.style.opacity = state.imgB ? '1' : '0.5';
+
             // Disable drawers if no image
             const drawerInputs = document.querySelectorAll('.side-drawer input, .side-drawer button');
             drawerInputs.forEach(el => {
@@ -1006,35 +1114,178 @@
             });
         }
 
+        function loadImageSource(source) {
+            return new Promise((resolve, reject) => {
+                const finalizeLoad = (srcStr) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = (e) => reject(e);
+                    img.src = srcStr;
+                };
+
+                if (source instanceof Blob) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => finalizeLoad(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(source);
+                } else if (typeof source === 'string') {
+                    finalizeLoad(source);
+                } else if (source instanceof Image) {
+                    // Check if already loaded
+                    if (source.complete) resolve(source);
+                    else {
+                        source.onload = () => resolve(source);
+                        source.onerror = (e) => reject(e);
+                    }
+                } else {
+                    reject(new Error("Unknown source type"));
+                }
+            });
+        }
+
+        function assignLayer(img, slot, name) {
+             Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height}`);
+             if (slot === 'A') {
+                setLayerSource('A', img);
+                state.nameA = name;
+                updateLoadButton(els.btnA, truncate(name), "front");
+                els.btnA.classList.add('border-accent-strong', 'text-accent');
+             } else {
+                setLayerSource('B', img);
+                state.nameB = name;
+                updateLoadButton(els.btnB, truncate(name), "back");
+                els.btnB.classList.add('border-accent-strong', 'text-accent');
+             }
+             markAdjustmentsDirty();
+             rebuildWorkingCopies();
+             updateCanvasDimensions();
+             render();
+             updateUI();
+        }
+
         function handleFileLoad(file, slot) {
             if (!file) return;
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    Logger.info(`Image Loaded: ${img.width}x${img.height}`);
-                    if (slot === 'A') {
-                        setLayerSource('A', img);
-                        state.nameA = file.name;
-                        updateLoadButton(els.btnA, truncate(file.name), "front");
-                        els.btnA.classList.add('border-accent-strong', 'text-accent');
-                    } else {
-                        setLayerSource('B', img);
-                        state.nameB = file.name;
-                        updateLoadButton(els.btnB, truncate(file.name), "back");
-                        els.btnB.classList.add('border-accent-strong', 'text-accent');
-                    }
-                    markAdjustmentsDirty();
-                    rebuildWorkingCopies();
-                    updateCanvasDimensions(); // Re-inits cropRect
-                    render();
-                    updateUI();
-                };
-                img.src = event.target.result;
+
+            loadImageSource(file)
+                .then(img => assignLayer(img, slot, file.name))
+                .catch(e => {
+                    log("Failed to load image: " + e.message);
+                    Logger.error("Image load failed", e);
+                });
+        }
+
+        function fetchImage(url) {
+            const tryFetch = (targetUrl) => {
+                return fetch(targetUrl)
+                    .then(res => {
+                        if (!res.ok) throw new Error("Status " + res.status);
+                        return res.blob();
+                    })
+                    .then(blob => {
+                        if (!blob.type.startsWith('image/')) throw new Error("Not an image");
+                        return blob;
+                    });
             };
-            reader.readAsDataURL(file);
+
+            // 1. Try Direct
+            return tryFetch(url)
+                .catch(err => {
+                    Logger.info("Direct fetch failed, trying proxy if available...", err);
+                    if (state.settings.proxyUrl) {
+                        const proxy = state.settings.proxyUrl.replace('{url}', encodeURIComponent(url));
+                        // Some proxies like corsproxy.io simply append the URL
+                        const target = proxy.includes('?url=') || proxy.includes('?http') || proxy.includes('/?')
+                                       ? proxy
+                                       : (proxy.endsWith('/') ? proxy + url : proxy + '/?' + url);
+
+                        // We will rely on user provided proxy URL structure mostly, but fallback to simple concatenation
+                        // The default is https://corsproxy.io/?https://...
+                        // If user hasn't changed it:
+                        let finalUrl = state.settings.proxyUrl;
+                        if (finalUrl === "https://corsproxy.io/?https://api.replicate.com") {
+                            // Default is for Replicate, let's just use corsproxy.io generic
+                             finalUrl = "https://corsproxy.io/?" + url;
+                        } else {
+                             // Naive substitution if they have {url}, else append
+                             if (finalUrl.includes('{url}')) finalUrl = finalUrl.replace('{url}', encodeURIComponent(url));
+                             else finalUrl = finalUrl + url;
+                        }
+                        return tryFetch(finalUrl);
+                    }
+                    throw err;
+                });
+        }
+
+        function handlePaste(e) {
+            // Ignore if pasting into an input field
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            const items = e.clipboardData.items;
+            const files = e.clipboardData.files;
+            const blobPromises = [];
+            const stringPromises = [];
+
+            // 1. Check direct files list (most robust for OS file copy/paste)
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].type.startsWith('image/')) {
+                    blobPromises.push(Promise.resolve(files[i]));
+                }
+            }
+
+            // 2. Check items (fallback for screenshots or specific browser behaviors)
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file') {
+                    const blob = items[i].getAsFile();
+                    if (blob && blob.type.startsWith('image/')) {
+                        blobPromises.push(Promise.resolve(blob));
+                    }
+                } else if (items[i].type === 'text/uri-list' || items[i].type === 'text/plain') {
+                     const p = new Promise(resolve => {
+                         items[i].getAsString(s => resolve(s));
+                     });
+                     stringPromises.push(p);
+                }
+            }
+
+            Promise.all([Promise.all(blobPromises), Promise.all(stringPromises)]).then(async ([blobs, strings]) => {
+                // Deduplicate blobs (files might appear in both lists)
+                const uniqueBlobs = [...new Set(blobs)];
+
+                if (uniqueBlobs.length > 0) {
+                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
+                    return; // Prioritize binary data over text
+                }
+
+                const urls = [];
+                strings.forEach(s => {
+                     if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
+                         urls.push(s);
+                     } else {
+                         // Try to interpret as file path
+                         if (s.match(/^[a-zA-Z]:\\/) || s.startsWith('/')) {
+                              urls.push('file://' + s);
+                         }
+                     }
+                });
+
+                // Determine target
+                const hasA = !!state.imgA;
+                const hasB = !!state.imgB;
+
+                if (hasA && hasB) return;
+
+                if (urls.length > 0) {
+                     // Try fetch
+                     try {
+                         const blob = await fetchImage(urls[0]);
+                         loadLayerWithSmartSlotting(blob, "Pasted URL");
+                     } catch(e) {
+                         Logger.error("Failed to fetch pasted URL", e);
+                     }
+                }
+            });
         }
 
         function updateCanvasDimensions(preserveView = false) {

@@ -20,5 +20,6 @@ OkazuStudio is a specialized, client-side web application designed to streamline
 *   **Integrated Adjustments**: A comprehensive toolset to unify your composite, offering exposure control (gamma, shadows, highlights), levels, color balance (saturation, vibrance, white balance), and channel-specific fine-tuning.
 *   **Privacy First**: Zero data upload. All processing occurs locally in your browser using HTML5 Canvas.
 
----
-<sub>Produced by Google Jules with Gemini 3.0</sub>
+## License
+
+Licensed under the Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0), which lets you share and adapt this project as long as you provide attribution and license derivatives under the same terms. See [LICENSE](LICENSE).

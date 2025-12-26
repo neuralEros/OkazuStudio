@@ -421,6 +421,10 @@
 
         function init() {
             Logger.info("OkazuStudio Initializing...");
+            Logger.info(`System Info: User Agent: ${navigator.userAgent}`);
+            Logger.info(`System Info: Platform: ${navigator.platform} | Language: ${navigator.language}`);
+            Logger.info(`System Info: Screen: ${window.screen.width}x${window.screen.height} @ ${window.devicePixelRatio}x`);
+            Logger.info(`System Info: Viewport: ${window.innerWidth}x${window.innerHeight} | Touch: ${'ontouchstart' in window ? 'yes' : 'no'} | Cores: ${navigator.hardwareConcurrency || 'n/a'} | Memory: ${navigator.deviceMemory || 'n/a'}GB`);
             initAdjustments();
             initDrawerSync();
 

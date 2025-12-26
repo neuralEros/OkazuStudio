@@ -383,7 +383,7 @@
 
              // Label (Hanging out)
              const span = document.createElement('span');
-             span.className = "absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-500 font-normal leading-none pointer-events-none";
+             span.className = "absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none";
              span.textContent = label;
              btn.appendChild(span);
 
@@ -464,8 +464,8 @@
                 [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
                 [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
-                updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "Front");
-                updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "Back");
+                updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "front");
+                updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "back");
                 if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
                 else els.btnA.classList.remove('border-accent-strong', 'text-accent');
                 if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
@@ -984,12 +984,12 @@
                     if (slot === 'A') {
                         setLayerSource('A', img);
                         state.nameA = file.name;
-                        updateLoadButton(els.btnA, truncate(file.name), "Front");
+                        updateLoadButton(els.btnA, truncate(file.name), "front");
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
                         setLayerSource('B', img);
                         state.nameB = file.name;
-                        updateLoadButton(els.btnB, truncate(file.name), "Back");
+                        updateLoadButton(els.btnB, truncate(file.name), "back");
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
                     markAdjustmentsDirty();
@@ -1128,9 +1128,9 @@
                             syncBrushUIToActive();
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
-                            updateLoadButton(els.btnA, "Base", "Front");
+                            updateLoadButton(els.btnA, "Base", "front");
                             els.btnA.classList.add('border-accent-strong', 'text-accent');
-                            updateLoadButton(els.btnB, "Censored", "Back");
+                            updateLoadButton(els.btnB, "Censored", "back");
                             els.btnB.classList.add('border-accent-strong', 'text-accent');
 
                             rebuildWorkingCopies(true);
@@ -1187,9 +1187,9 @@
 
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
-                        updateLoadButton(els.btnA, "Merged", "Front");
+                        updateLoadButton(els.btnA, "Merged", "front");
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
-                        updateLoadButton(els.btnB, "Load", "Back");
+                        updateLoadButton(els.btnB, "Load", "back");
                         els.btnB.classList.remove('border-accent-strong', 'text-accent');
                         
                         render(); updateUI();

@@ -841,7 +841,6 @@
             const drawers = document.querySelectorAll('.drawer-content');
             drawers.forEach(d => {
                 d.style.opacity = enable ? '1' : '0.5';
-                d.style.pointerEvents = enable ? 'auto' : 'none';
             });
 
             // Disable tools while cropping

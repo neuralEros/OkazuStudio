@@ -545,7 +545,7 @@
     flex: 1;
     height: 16px;
     border: 2px solid transparent;
-    border-radius: 0.25rem;
+    border-radius: 0.125rem;
     transition: all 0.2s;
 }
 .tuning-lum-row button:hover {

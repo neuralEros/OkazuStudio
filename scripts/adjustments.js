@@ -116,8 +116,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                          dSat += t.saturation * w;
                          dVib += t.vibrance * w;
                          dLum += t.luminance * w;
-                         dShadows += t.shadows * w;
-                         dHighlights += t.highlights * w;
+                         // Ignore shadows/highlights for luminance bands, but process them for color bands
+                         if (!['lights', 'mids', 'darks'].includes(band)) {
+                             dShadows += t.shadows * w;
+                             dHighlights += t.highlights * w;
+                         }
                     }
                 }
             });
@@ -596,16 +599,26 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         });
     }
 
-    function updateTuningSliderUI(id, val) {
+    function updateTuningSliderUI(id, val, disabled = false) {
         const el = document.getElementById(id);
         if(!el) {
             console.warn(`[Tuning UI] Element not found: ${id}`);
             return;
         }
-        console.log(`[Tuning UI] Update ${id}: DOM value (${el.value}) -> New value (${val})`);
-        el.value = val;
+
+        el.disabled = disabled;
+        if (disabled) {
+            el.value = 0;
+            if(el.parentElement) el.parentElement.style.opacity = '0.5';
+        } else {
+            el.value = val;
+            if(el.parentElement) el.parentElement.style.opacity = '1';
+        }
+
+        // console.log(`[Tuning UI] Update ${id}: DOM value (${el.value}) -> New value (${val})`);
+
         const label = document.getElementById('val-' + id);
-        if(label) label.textContent = val;
+        if(label) label.textContent = disabled ? 0 : val;
     }
 
     function refreshTuningSliders() {
@@ -615,14 +628,16 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             return;
         }
         const vals = state.adjustments.colorTuning[band];
-        console.log(`[Tuning UI] Refreshing ${band} sliders with values:`, JSON.stringify(vals));
+        // console.log(`[Tuning UI] Refreshing ${band} sliders with values:`, JSON.stringify(vals));
+
+        const isLumBand = ['lights', 'mids', 'darks'].includes(band);
 
         updateTuningSliderUI('tune-hue', vals.hue);
         updateTuningSliderUI('tune-sat', vals.saturation);
         updateTuningSliderUI('tune-vib', vals.vibrance);
         updateTuningSliderUI('tune-lum', vals.luminance);
-        updateTuningSliderUI('tune-shadows', vals.shadows);
-        updateTuningSliderUI('tune-highlights', vals.highlights);
+        updateTuningSliderUI('tune-shadows', vals.shadows, isLumBand);
+        updateTuningSliderUI('tune-highlights', vals.highlights, isLumBand);
     }
 
     function refreshColorTuningUI() {

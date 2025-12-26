@@ -1,38 +1,47 @@
-
-from playwright.sync_api import sync_playwright, expect
 import os
+from playwright.sync_api import sync_playwright
 
-def run():
+def verify_ui():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Determine absolute path to index.html
+        # Load the local index.html directly
         cwd = os.getcwd()
-        file_path = f"file://{cwd}/index.html"
+        page.goto(f"file://{cwd}/index.html")
 
-        print(f"Loading {file_path}")
-        page.goto(file_path)
+        # 1. Verify Load Button Text and Labels
+        btnA = page.locator("#btnA")
+        btnB = page.locator("#btnB")
 
-        # Wait for app to load (checking for drawer-tools)
-        expect(page.locator("#drawer-tools")).to_be_visible()
+        # Screenshot the top toolbar area to verify buttons and labels
+        page.locator(".h-12").screenshot(path="verification/toolbar.png")
+        print("Captured toolbar screenshot")
 
-        # Verify the presence of new luminance buttons
-        expect(page.locator("#band-lights")).to_be_visible()
-        expect(page.locator("#band-mids")).to_be_visible()
-        expect(page.locator("#band-darks")).to_be_visible()
+        # 2. Verify Color Tuning Bands (Swap Darks/Lights)
+        # Open the Color Tuning Drawer (#drawer-tools)
+        # We need to hover or force open it to take a screenshot?
+        # The drawers are side-drawers.
+        # We can take a screenshot of the #drawer-tools contents even if hidden offscreen,
+        # or we can force its transform to 0 to make it visible.
 
-        # Hover over the tools drawer to open it
-        page.locator("#drawer-tools").hover()
+        # Temporarily make drawer visible for screenshot
+        page.evaluate("document.querySelector('#drawer-tools').style.transform = 'translateY(-50%) translateX(0)'")
+        page.wait_for_timeout(500) # Wait for transition
 
-        # Wait for drawer content to be visible (transition)
-        page.wait_for_timeout(500)
+        # Screenshot the luminance row
+        page.locator(".tuning-lum-row").screenshot(path="verification/lum_row.png")
+        print("Captured luminance row screenshot")
 
-        # Take a screenshot of the drawer
-        page.screenshot(path="verification/drawer_check.png")
-        print("Screenshot saved to verification/drawer_check.png")
+        # 3. Verify Opacity Slider State (Should be disabled as no images loaded)
+        opacity_slider = page.locator("#opacitySlider")
+        is_disabled = opacity_slider.is_disabled()
+        print(f"Opacity Slider Disabled: {is_disabled}")
+
+        # Screenshot the opacity slider area
+        opacity_slider.locator("..").screenshot(path="verification/opacity_area.png")
 
         browser.close()
 
 if __name__ == "__main__":
-    run()
+    verify_ui()

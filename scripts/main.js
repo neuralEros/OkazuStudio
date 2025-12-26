@@ -372,6 +372,14 @@
              });
         }
 
+        function updateLoadButton(btn, text, label) {
+             btn.textContent = text;
+             const span = document.createElement('span');
+             span.className = "absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-500 font-normal leading-none pointer-events-none";
+             span.textContent = label;
+             btn.appendChild(span);
+        }
+
         function syncDrawerHeights() {
              const inners = document.querySelectorAll('.drawer-inner');
              let maxH = 0;
@@ -446,8 +454,8 @@
                 [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
                 [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
-                els.btnA.textContent = truncate(state.nameA || "Load Img A");
-                els.btnB.textContent = truncate(state.nameB || "Load Img B");
+                updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "Front");
+                updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "Back");
                 if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
                 else els.btnA.classList.remove('border-accent-strong', 'text-accent');
                 if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
@@ -625,7 +633,9 @@
                 
                 targetCtx.globalCompositeOperation = 'source-over';
                 // Use forceOpacity for adjustments preview (so we see true pixels)
-                const effectiveOpacity = (!state.backVisible || forceOpacity) ? 1.0 : state.opacity;
+                // Also force opacity if only one layer is present
+                const singleLayer = !state.imgA || !state.imgB;
+                const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
                 targetCtx.globalAlpha = effectiveOpacity; 
                 targetCtx.drawImage(state.previewFrontLayer, 0, 0);
             }
@@ -682,7 +692,8 @@
                 }
                 pCtx.clearRect(0, 0, pw, ph);
 
-                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+                // Modified export logic: Only render back if state.backVisible is true
+                const shouldRenderBack = backImg && state.backVisible;
                 if (shouldRenderBack) {
                     pCtx.globalAlpha = 1.0;
                     pCtx.globalCompositeOperation = 'source-over';
@@ -721,7 +732,9 @@
                     }
 
                     frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                    // Force opacity if only one layer
+                    const singleLayer = !state.imgA || !state.imgB;
+                    const effectiveOpacity = (finalOutput || !state.backVisible || singleLayer) ? 1.0 : state.opacity;
                     pCtx.globalAlpha = effectiveOpacity;
                     pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
@@ -732,7 +745,8 @@
                 ctx.clearRect(0, 0, cw, ch);
 
                 // 1. Draw Back
-                const shouldRenderBack = backImg && (state.backVisible || finalOutput);
+                // Modified export logic: Only render back if state.backVisible is true
+                const shouldRenderBack = backImg && state.backVisible;
 
                 if (shouldRenderBack) {
                     ctx.globalAlpha = 1.0;
@@ -776,7 +790,9 @@
 
                     // 3. Composite Front to Main
                     frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const effectiveOpacity = (finalOutput || !state.backVisible) ? 1.0 : state.opacity;
+                    // Force opacity if only one layer
+                    const singleLayer = !state.imgA || !state.imgB;
+                    const effectiveOpacity = (finalOutput || !state.backVisible || singleLayer) ? 1.0 : state.opacity;
                     ctx.globalAlpha = effectiveOpacity;
                     ctx.drawImage(frontLayerCanvas, 0, 0);
                 }
@@ -899,6 +915,13 @@
                 els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
             }
             
+            // Opacity slider logic
+            const bothLoaded = state.imgA && state.imgB;
+            els.opacitySlider.disabled = !bothLoaded;
+            if(els.opacitySlider.parentElement) {
+                els.opacitySlider.parentElement.style.opacity = bothLoaded ? '1' : '0.5';
+            }
+
             if (enable) {
                 els.viewport.classList.remove('disabled');
             } else {
@@ -951,12 +974,12 @@
                     if (slot === 'A') {
                         setLayerSource('A', img);
                         state.nameA = file.name;
-                        els.btnA.textContent = truncate(file.name);
+                        updateLoadButton(els.btnA, truncate(file.name), "Front");
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
                         setLayerSource('B', img);
                         state.nameB = file.name;
-                        els.btnB.textContent = truncate(file.name);
+                        updateLoadButton(els.btnB, truncate(file.name), "Back");
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
                     markAdjustmentsDirty();
@@ -1095,8 +1118,10 @@
                             syncBrushUIToActive();
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                             state.isAFront = true;
-                            els.btnA.textContent = "Base"; els.btnA.classList.add('border-accent-strong', 'text-accent');
-                            els.btnB.textContent = "Censored"; els.btnB.classList.add('border-accent-strong', 'text-accent');
+                            updateLoadButton(els.btnA, "Base", "Front");
+                            els.btnA.classList.add('border-accent-strong', 'text-accent');
+                            updateLoadButton(els.btnB, "Censored", "Back");
+                            els.btnB.classList.add('border-accent-strong', 'text-accent');
 
                             rebuildWorkingCopies(true);
 
@@ -1152,8 +1177,10 @@
 
                         state.isAFront = true; state.opacity = 1.0;
                         els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
-                        els.btnA.textContent = "Merged"; els.btnA.classList.add('border-accent-strong', 'text-accent');
-                        els.btnB.textContent = "Load Img B"; els.btnB.classList.remove('border-accent-strong', 'text-accent');
+                        updateLoadButton(els.btnA, "Merged", "Front");
+                        els.btnA.classList.add('border-accent-strong', 'text-accent');
+                        updateLoadButton(els.btnB, "Load", "Back");
+                        els.btnB.classList.remove('border-accent-strong', 'text-accent');
                         
                         render(); updateUI();
                         log("Merge successful", "info");

@@ -606,6 +606,23 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         refreshTuningSliders();
     }
 
+    function updateAllAdjustmentUI() {
+        updateSlider('adj-gamma', state.adjustments.gamma);
+        updateSlider('adj-l-black', state.adjustments.levels.black);
+        updateSlider('adj-l-mid', state.adjustments.levels.mid);
+        updateSlider('adj-l-white', state.adjustments.levels.white);
+        updateSlider('adj-sat', state.adjustments.saturation);
+        updateSlider('adj-vib', state.adjustments.vibrance);
+        updateSlider('adj-wb', state.adjustments.wb);
+        updateSlider('adj-cb-r', state.adjustments.colorBal.r);
+        updateSlider('adj-cb-g', state.adjustments.colorBal.g);
+        updateSlider('adj-cb-b', state.adjustments.colorBal.b);
+        updateSlider('adj-shadows', state.adjustments.shadows);
+        updateSlider('adj-highlights', state.adjustments.highlights);
+
+        refreshColorTuningUI();
+    }
+
     function initColorTuning() {
         const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
@@ -721,6 +738,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         setSaveSnapshotHandler,
         setUpdateWorkingCopiesHandler,
         recalculateColorTuning: updateColorTuningLUT,
-        refreshColorTuningUI
+        refreshColorTuningUI,
+        updateAllAdjustmentUI
     };
 }

@@ -25,10 +25,11 @@
         const DEFAULT_FEATHER = 1;
         const DEFAULT_FEATHER_PX = 5;
         const DEFAULT_REPAIR_BRUSH = DEFAULT_ERASE_BRUSH / 2;
+        const DEFAULT_PATCH_FEATHER = 10;
 
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
-            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, isErasing: true, isDrawing: false,
+            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
@@ -36,7 +37,8 @@
             activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
             brushSettings: {
                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
+                patch: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_PATCH_FEATHER, featherPx: DEFAULT_FEATHER_PX }
             },
             adjustments: {
                 gamma: 1.0,
@@ -83,7 +85,7 @@
             brushSizeVal: document.getElementById('brushSizeVal'), feather: document.getElementById('feather'),
             featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
             featherModeBtn: document.getElementById('featherModeBtn'), eraseMode: document.getElementById('eraseMode'),
-            repairMode: document.getElementById('repairMode'), clearMask: document.getElementById('clearMask'),
+            repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
@@ -187,7 +189,7 @@
             scheduleHeavyTask,
             acceptCrop,
             cancelCrop,
-            Logger
+            setBrushMode: setMode
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -510,8 +512,9 @@
             els.featherModeBtn.addEventListener('click', () => {
                 setFeatherMode(!state.featherMode);
             });
-            els.eraseMode.addEventListener('click', () => setMode(true));
-            els.repairMode.addEventListener('click', () => setMode(false));
+            els.eraseMode.addEventListener('click', () => setMode('erase'));
+            els.repairMode.addEventListener('click', () => setMode('repair'));
+            els.patchMode.addEventListener('click', () => setMode('patch'));
             
             els.clearMask.addEventListener('click', () => {
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
@@ -870,6 +873,7 @@
             if (state.isCropping) {
                  els.eraseMode.disabled = true;
                  els.repairMode.disabled = true;
+                 els.patchMode.disabled = true;
                  els.brushSize.disabled = true;
                  els.censorBtn.disabled = true;
                  els.mergeBtn.disabled = true;
@@ -877,6 +881,7 @@
             } else {
                  els.eraseMode.disabled = false;
                  els.repairMode.disabled = false;
+                 els.patchMode.disabled = false;
                  els.brushSize.disabled = false;
                  els.featherModeBtn.disabled = false;
             }
@@ -923,15 +928,11 @@
             return str;
         }
 
-        function setMode(isErasing) {
-            state.isErasing = isErasing;
-            if(isErasing) {
-                els.eraseMode.classList.add('active');
-                els.repairMode.classList.remove('active');
-            } else {
-                els.eraseMode.classList.remove('active');
-                els.repairMode.classList.add('active');
-            }
+        function setMode(mode) {
+            state.brushMode = mode;
+            els.eraseMode.classList.toggle('active', mode === 'erase');
+            els.repairMode.classList.toggle('active', mode === 'repair');
+            els.patchMode.classList.toggle('active', mode === 'patch');
             syncBrushUIToActive();
         }
 

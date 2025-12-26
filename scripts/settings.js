@@ -251,13 +251,30 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         setupResSwitch('.res-btn-brush', 'brushPreviewResolution');
         setupResSwitch('.res-btn-adj', 'adjustmentPreviewResolution');
 
-        // API Key
-        const keyInput = document.getElementById('setting-api-key');
-        keyInput.value = state.settings.apiKey;
-        keyInput.addEventListener('input', (e) => {
-            state.settings.apiKey = e.target.value;
-            saveDebounced();
-        });
+        // Copy Logs
+        const copyLogsBtn = document.getElementById('copy-logs-btn');
+        if (copyLogsBtn) {
+            copyLogsBtn.addEventListener('click', () => {
+                const logger = window.Logger;
+                if (logger && logger.getLogs) {
+                    const logs = logger.getLogs();
+                    navigator.clipboard.writeText(logs).then(() => {
+                        const originalText = copyLogsBtn.textContent;
+                        copyLogsBtn.textContent = "COPIED!";
+                        copyLogsBtn.classList.add('text-accent');
+                        setTimeout(() => {
+                            copyLogsBtn.textContent = originalText;
+                            copyLogsBtn.classList.remove('text-accent');
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy logs', err);
+                        copyLogsBtn.textContent = "ERROR";
+                    });
+                } else {
+                    console.error("Logger not found or getLogs missing");
+                }
+            });
+        }
 
         // Modal Logic
         function openSettings() {

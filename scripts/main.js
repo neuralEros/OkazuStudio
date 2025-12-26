@@ -1219,71 +1219,122 @@
         }
 
         function handlePaste(e) {
-            // Ignore if pasting into an input field
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+            // --- 1. Snapshot Clipboard for Debugging (Lossless) ---
+            const clipboardDump = {
+                timestamp: new Date().toISOString(),
+                types: [...(e.clipboardData.types || [])],
+                files: [],
+                items: []
+            };
+
+            // Files Metadata
+            if (e.clipboardData.files) {
+                for (let i = 0; i < e.clipboardData.files.length; i++) {
+                    const f = e.clipboardData.files[i];
+                    clipboardDump.files.push({
+                        name: f.name,
+                        type: f.type,
+                        size: f.size,
+                        lastModified: f.lastModified
+                    });
+                }
+            }
+
+            // Items Processing
             const items = e.clipboardData.items;
-            const files = e.clipboardData.files;
-            const blobPromises = [];
-            const stringPromises = [];
+            const blobPromises = []; // For App Logic
+            const stringPromises = []; // For App Logic
+            const debugStringPromises = []; // For Debug Dump
 
-            // 1. Check direct files list (most robust for OS file copy/paste)
-            for (let i = 0; i < files.length; i++) {
-                if (files[i].type.startsWith('image/')) {
-                    blobPromises.push(Promise.resolve(files[i]));
+            // Add direct files to blob promises (Permissive: Try ALL files)
+            if (e.clipboardData.files) {
+                for (let i = 0; i < e.clipboardData.files.length; i++) {
+                    blobPromises.push(Promise.resolve(e.clipboardData.files[i]));
                 }
             }
 
-            // 2. Check items (fallback for screenshots or specific browser behaviors)
             for (let i = 0; i < items.length; i++) {
-                if (items[i].kind === 'file') {
-                    const blob = items[i].getAsFile();
-                    if (blob && blob.type.startsWith('image/')) {
+                const item = items[i];
+                const itemDump = { kind: item.kind, type: item.type, content: "<pending>" };
+                clipboardDump.items.push(itemDump);
+
+                if (item.kind === 'file') {
+                    // Logic for App: Get file, don't filter by image type (permissive)
+                    const blob = item.getAsFile();
+                    if (blob) {
                         blobPromises.push(Promise.resolve(blob));
+                        itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                    } else {
+                        itemDump.content = "null blob";
                     }
-                } else if (items[i].type === 'text/uri-list' || items[i].type === 'text/plain') {
-                     const p = new Promise(resolve => {
-                         items[i].getAsString(s => resolve(s));
-                     });
-                     stringPromises.push(p);
+                } else if (item.kind === 'string') {
+                    // Logic for App + Debug
+                    const p = new Promise(resolve => {
+                        item.getAsString(s => {
+                            itemDump.content = s; // Update dump
+                            resolve(s);
+                        });
+                    });
+                    debugStringPromises.push(p); // Wait for this for debug
+
+                    // Only process as potential URL if text/plain or uri-list
+                    if (item.type === 'text/plain' || item.type === 'text/uri-list') {
+                        stringPromises.push(p);
+                    }
                 }
             }
 
-            Promise.all([Promise.all(blobPromises), Promise.all(stringPromises)]).then(async ([blobs, strings]) => {
-                // Deduplicate blobs (files might appear in both lists)
+            // --- 2. Process ---
+            Promise.all([
+                Promise.all(blobPromises),
+                Promise.all(stringPromises),
+                Promise.all(debugStringPromises) // Ensure dump is populated
+            ]).then(async ([blobs, strings, _]) => {
                 const uniqueBlobs = [...new Set(blobs)];
 
-                if (uniqueBlobs.length > 0) {
-                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
-                    return; // Prioritize binary data over text
+                // Determine target state
+                const hasA = !!state.imgA;
+                const hasB = !!state.imgB;
+                if (hasA && hasB) {
+                    Logger.info("Paste ignored: Both slots full.", clipboardDump);
+                    return;
                 }
 
+                // Priority 1: Binaries (Files)
+                if (uniqueBlobs.length > 0) {
+                    Logger.info(`Paste: Found ${uniqueBlobs.length} blob(s)`, clipboardDump);
+                    // Try the first one
+                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
+                    return;
+                }
+
+                // Priority 2: URLs
                 const urls = [];
                 strings.forEach(s => {
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
                          urls.push(s);
                      } else {
-                         // Try to interpret as file path
+                         // Try to interpret as file path (Windows or Unix)
                          if (s.match(/^[a-zA-Z]:\\/) || s.startsWith('/')) {
                               urls.push('file://' + s);
                          }
                      }
                 });
 
-                // Determine target
-                const hasA = !!state.imgA;
-                const hasB = !!state.imgB;
-
-                if (hasA && hasB) return;
-
                 if (urls.length > 0) {
-                     // Try fetch
+                     Logger.info("Paste: Found URL(s)", clipboardDump);
                      try {
                          const blob = await fetchImage(urls[0]);
                          loadLayerWithSmartSlotting(blob, "Pasted URL");
                      } catch(e) {
-                         Logger.error("Failed to fetch pasted URL", e);
+                         // Detailed failure log
+                         Logger.error("Failed to fetch pasted URL", { error: e.message, stack: e.stack, clipboard: clipboardDump });
                      }
+                } else {
+                    // Failure: No usable data found
+                    Logger.warn("Paste ignored: No valid image data found.", clipboardDump);
                 }
             });
         }

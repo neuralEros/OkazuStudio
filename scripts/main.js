@@ -346,30 +346,41 @@
             rebuildWorkingCopies();
         }
 
-        function loadLayerWithSmartSlotting(source, name) {
-             // 0 loaded -> Slot A (Front)
-             if (!state.imgA && !state.imgB) {
-                 loadLayerFromSource(source, 'A', name);
-                 return;
-             }
+        async function loadLayerWithSmartSlotting(source, name) {
+             log(`Loading ${name}...`, "info");
+             try {
+                 const img = await loadImageSource(source);
 
-             // 1 Loaded
-             // If A is loaded, we want New to be A. So move A to B, then New to A.
-             if (state.imgA) {
-                 // Swap A to B
-                 state.imgB = state.imgA; state.sourceB = state.sourceA; state.nameB = state.nameA;
-                 state.workingB = state.workingA; state.workingVersionB = state.workingVersionA;
-                 state.imgA = null; state.sourceA = null; state.workingA = null;
+                 // 0 loaded -> Slot A (Front)
+                 if (!state.imgA && !state.imgB) {
+                     assignLayer(img, 'A', name);
+                     return;
+                 }
 
-                 // Update buttons for the move
-                 updateLoadButton(els.btnB, truncate(state.nameB), "back");
-                 els.btnB.classList.add('border-accent-strong', 'text-accent');
+                 // 1 Loaded
+                 // If A is loaded, we want New to be A. So move A to B, then New to A.
+                 if (state.imgA) {
+                     // Swap A to B
+                     state.imgB = state.imgA; state.sourceB = state.sourceA; state.nameB = state.nameA;
+                     state.workingB = state.workingA; state.workingVersionB = state.workingVersionA;
+                     // Clear A state before assigning new
+                     state.imgA = null; state.sourceA = null; state.workingA = null; state.nameA = "";
 
-                 // Now Load New into A
-                 loadLayerFromSource(source, 'A', name);
-             } else {
-                 // B is loaded. A is empty. Load into A.
-                 loadLayerFromSource(source, 'A', name);
+                     // Update buttons for the move
+                     updateLoadButton(els.btnB, truncate(state.nameB), "back");
+                     els.btnB.classList.add('border-accent-strong', 'text-accent');
+                     updateLoadButton(els.btnA, "Load", "front"); // Temp clear visual
+                     els.btnA.classList.remove('border-accent-strong', 'text-accent');
+
+                     // Now Load New into A
+                     assignLayer(img, 'A', name);
+                 } else {
+                     // B is loaded. A is empty. Load into A.
+                     assignLayer(img, 'A', name);
+                 }
+             } catch(e) {
+                 log("Failed to load image: " + e.message);
+                 Logger.error("Smart load failed", e);
              }
         }
 
@@ -1000,6 +1011,14 @@
             els.undoBtn.disabled = state.historyIndex <= 0;
             els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
             
+            // Trash Buttons
+            els.btnTrashA.disabled = !state.imgA;
+            els.btnTrashB.disabled = !state.imgB;
+            // Visual dimming handled by disabled attribute CSS,
+            // but ensuring opacity if global CSS isn't covering all cases
+            els.btnTrashA.style.opacity = state.imgA ? '1' : '0.5';
+            els.btnTrashB.style.opacity = state.imgB ? '1' : '0.5';
+
             // Disable drawers if no image
             const drawerInputs = document.querySelectorAll('.side-drawer input, .side-drawer button');
             drawerInputs.forEach(el => {
@@ -1095,47 +1114,66 @@
             });
         }
 
-        function loadLayerFromSource(source, slot, name = "Imported") {
-             log(`Loading ${name}...`, "info");
-             const finalizeLoad = (srcStr) => {
-                 const img = new Image();
-                 img.onload = () => {
-                     Logger.info(`Image Loaded: ${img.width}x${img.height}`);
-                     if (slot === 'A') {
-                        setLayerSource('A', img);
-                        state.nameA = name;
-                        updateLoadButton(els.btnA, truncate(name), "front");
-                        els.btnA.classList.add('border-accent-strong', 'text-accent');
-                     } else {
-                        setLayerSource('B', img);
-                        state.nameB = name;
-                        updateLoadButton(els.btnB, truncate(name), "back");
-                        els.btnB.classList.add('border-accent-strong', 'text-accent');
-                     }
-                     markAdjustmentsDirty();
-                     rebuildWorkingCopies();
-                     updateCanvasDimensions();
-                     render();
-                     updateUI();
-                 };
-                 img.src = srcStr;
-             };
+        function loadImageSource(source) {
+            return new Promise((resolve, reject) => {
+                const finalizeLoad = (srcStr) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = (e) => reject(e);
+                    img.src = srcStr;
+                };
 
-             if (source instanceof Blob) {
-                 const reader = new FileReader();
-                 reader.onload = (e) => finalizeLoad(e.target.result);
-                 reader.readAsDataURL(source);
-             } else if (typeof source === 'string') {
-                 finalizeLoad(source);
-             } else if (source instanceof Image) {
-                 finalizeLoad(source.src);
+                if (source instanceof Blob) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => finalizeLoad(e.target.result);
+                    reader.onerror = (e) => reject(e);
+                    reader.readAsDataURL(source);
+                } else if (typeof source === 'string') {
+                    finalizeLoad(source);
+                } else if (source instanceof Image) {
+                    // Check if already loaded
+                    if (source.complete) resolve(source);
+                    else {
+                        source.onload = () => resolve(source);
+                        source.onerror = (e) => reject(e);
+                    }
+                } else {
+                    reject(new Error("Unknown source type"));
+                }
+            });
+        }
+
+        function assignLayer(img, slot, name) {
+             Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height}`);
+             if (slot === 'A') {
+                setLayerSource('A', img);
+                state.nameA = name;
+                updateLoadButton(els.btnA, truncate(name), "front");
+                els.btnA.classList.add('border-accent-strong', 'text-accent');
+             } else {
+                setLayerSource('B', img);
+                state.nameB = name;
+                updateLoadButton(els.btnB, truncate(name), "back");
+                els.btnB.classList.add('border-accent-strong', 'text-accent');
              }
+             markAdjustmentsDirty();
+             rebuildWorkingCopies();
+             updateCanvasDimensions();
+             render();
+             updateUI();
         }
 
         function handleFileLoad(file, slot) {
             if (!file) return;
+            log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
-            loadLayerFromSource(file, slot, file.name);
+
+            loadImageSource(file)
+                .then(img => assignLayer(img, slot, file.name))
+                .catch(e => {
+                    log("Failed to load image: " + e.message);
+                    Logger.error("Image load failed", e);
+                });
         }
 
         function fetchImage(url) {

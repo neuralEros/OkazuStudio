@@ -438,7 +438,17 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              levels: { black: 0, mid: 1.0, white: 255 },
              saturation: 0, vibrance: 0,
              wb: 0, colorBal: { r:0, g:0, b:0 },
-             shadows: 0, highlights: 0
+             shadows: 0, highlights: 0,
+             colorTuning: {
+                red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+            }
          };
          updateSlider('adj-gamma', 1.0);
          updateSlider('adj-l-black', 0);
@@ -452,6 +462,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
          updateSlider('adj-cb-b', 0);
          updateSlider('adj-shadows', 0);
          updateSlider('adj-highlights', 0);
+
+         if (typeof refreshTuningSliders === 'function') refreshTuningSliders();
+         updateColorTuningLUT();
+
          updateWorkingCopies();
     }
 
@@ -561,6 +575,37 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         });
     }
 
+    function updateTuningSliderUI(id, val) {
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.value = val;
+        const label = document.getElementById('val-' + id);
+        if(label) label.textContent = val;
+    }
+
+    function refreshTuningSliders() {
+        const band = state.activeColorBand;
+        if(!band || !state.adjustments.colorTuning[band]) return;
+        const vals = state.adjustments.colorTuning[band];
+
+        updateTuningSliderUI('tune-hue', vals.hue);
+        updateTuningSliderUI('tune-sat', vals.saturation);
+        updateTuningSliderUI('tune-vib', vals.vibrance);
+        updateTuningSliderUI('tune-lum', vals.luminance);
+        updateTuningSliderUI('tune-shadows', vals.shadows);
+        updateTuningSliderUI('tune-highlights', vals.highlights);
+    }
+
+    function refreshColorTuningUI() {
+        // Update the active band visual state (border)
+        if (state.activeColorBand) {
+             document.querySelectorAll('.active-band').forEach(el => el.classList.remove('active-band'));
+             const btn = document.getElementById(`band-${state.activeColorBand}`);
+             if (btn) btn.classList.add('active-band');
+        }
+        refreshTuningSliders();
+    }
+
     function initColorTuning() {
         const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
 
@@ -582,27 +627,6 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             });
         });
 
-        function refreshTuningSliders() {
-            const band = state.activeColorBand;
-            if(!band || !state.adjustments.colorTuning[band]) return;
-            const vals = state.adjustments.colorTuning[band];
-
-            updateTuningSliderUI('tune-hue', vals.hue);
-            updateTuningSliderUI('tune-sat', vals.saturation);
-            updateTuningSliderUI('tune-vib', vals.vibrance);
-            updateTuningSliderUI('tune-lum', vals.luminance);
-            updateTuningSliderUI('tune-shadows', vals.shadows);
-            updateTuningSliderUI('tune-highlights', vals.highlights);
-        }
-
-        function updateTuningSliderUI(id, val) {
-            const el = document.getElementById(id);
-            if(!el) return;
-            el.value = val;
-            const label = document.getElementById('val-' + id);
-            if(label) label.textContent = val;
-        }
-
         // 2. Slider Inputs
         const tuningParams = [
             { id: 'tune-hue', key: 'hue' },
@@ -622,26 +646,33 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             }
 
             el.addEventListener('input', (e) => {
-                const val = parseFloat(e.target.value);
-                state.adjustments.colorTuning[state.activeColorBand][param.key] = val;
-                if(label) label.textContent = val;
+                try {
+                    const val = parseFloat(e.target.value);
+                    if (!state.activeColorBand || !state.adjustments.colorTuning[state.activeColorBand]) {
+                         console.error("Missing activeColorBand or tuning data");
+                         return;
+                    }
+                    state.adjustments.colorTuning[state.activeColorBand][param.key] = val;
+                    if(label) label.textContent = val;
 
-                updateColorTuningLUT(); // Rebuild LUT
+                    updateColorTuningLUT(); // Rebuild LUT
 
-                state.isAdjusting = true;
-                updateAdjustmentPreview();
+                    state.isAdjusting = true;
+                    updateAdjustmentPreview();
+                } catch(err) {
+                    console.error("Color Tuning Input Error:", err);
+                }
             });
 
             el.addEventListener('change', () => {
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                // Coalesce logic: unique action key per band + param
-                // e.g. "tuning-red-hue"
                 saveSnapshot(`tuning-${state.activeColorBand}-${param.key}`);
             });
         });
 
         console.log("Color Tuning Initialized");
+        updateColorTuningLUT(); // Ensure LUT is primed
 
         // 3. Resets
         const resetBandBtn = document.getElementById('resetBandBtn');
@@ -679,5 +710,17 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         initColorTuning();
     };
 
-    return { applyMasterLUT, applyColorOps, applySelectiveColor, updateAdjustmentPreview, initAdjustments, resetAllAdjustments, updateSlider, setSaveSnapshotHandler, setUpdateWorkingCopiesHandler };
+    return {
+        applyMasterLUT,
+        applyColorOps,
+        applySelectiveColor,
+        updateAdjustmentPreview,
+        initAdjustments,
+        resetAllAdjustments,
+        updateSlider,
+        setSaveSnapshotHandler,
+        setUpdateWorkingCopiesHandler,
+        recalculateColorTuning: updateColorTuningLUT,
+        refreshColorTuningUI
+    };
 }

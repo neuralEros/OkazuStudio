@@ -1,4 +1,4 @@
-const Logger = (function() {
+window.Logger = (function() {
     const logs = [];
 
     function timestamp() {

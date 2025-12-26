@@ -828,6 +828,22 @@
             els.undoBtn.disabled = state.historyIndex <= 0;
             els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
             
+            // Disable drawers if no image
+            const drawerInputs = document.querySelectorAll('.side-drawer input, .side-drawer button');
+            drawerInputs.forEach(el => {
+                if (el.classList.contains('section-reset')) {
+                    // Reset buttons logic is handled internally, but we should disable them if no image
+                    el.disabled = !enable;
+                } else {
+                    el.disabled = !enable;
+                }
+            });
+            const drawers = document.querySelectorAll('.drawer-content');
+            drawers.forEach(d => {
+                d.style.opacity = enable ? '1' : '0.5';
+                d.style.pointerEvents = enable ? 'auto' : 'none';
+            });
+
             // Disable tools while cropping
             if (state.isCropping) {
                  els.eraseMode.disabled = true;

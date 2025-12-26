@@ -577,7 +577,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
     function updateTuningSliderUI(id, val) {
         const el = document.getElementById(id);
-        if(!el) return;
+        if(!el) {
+            console.warn(`[Tuning UI] Element not found: ${id}`);
+            return;
+        }
         el.value = val;
         const label = document.getElementById('val-' + id);
         if(label) label.textContent = val;
@@ -585,8 +588,13 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
     function refreshTuningSliders() {
         const band = state.activeColorBand;
-        if(!band || !state.adjustments.colorTuning[band]) return;
+        console.log(`[Tuning UI] Refreshing sliders for band: ${band}`);
+        if(!band || !state.adjustments.colorTuning[band]) {
+            console.warn(`[Tuning UI] Invalid band or data missing for: ${band}`);
+            return;
+        }
         const vals = state.adjustments.colorTuning[band];
+        console.log(`[Tuning UI] Values:`, vals);
 
         updateTuningSliderUI('tune-hue', vals.hue);
         updateTuningSliderUI('tune-sat', vals.saturation);
@@ -597,6 +605,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     }
 
     function refreshColorTuningUI() {
+        console.log(`[Tuning UI] Refreshing Full UI. Active Band: ${state.activeColorBand}`);
         // Update the active band visual state (border)
         if (state.activeColorBand) {
              document.querySelectorAll('.active-band').forEach(el => el.classList.remove('active-band'));
@@ -607,6 +616,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     }
 
     function updateAllAdjustmentUI() {
+        console.log("[UI] Updating All Adjustment Sliders");
         updateSlider('adj-gamma', state.adjustments.gamma);
         updateSlider('adj-l-black', state.adjustments.levels.black);
         updateSlider('adj-l-mid', state.adjustments.levels.mid);

@@ -581,6 +581,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             console.warn(`[Tuning UI] Element not found: ${id}`);
             return;
         }
+        console.log(`[Tuning UI] Update ${id}: DOM value (${el.value}) -> New value (${val})`);
         el.value = val;
         const label = document.getElementById('val-' + id);
         if(label) label.textContent = val;
@@ -588,13 +589,12 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
     function refreshTuningSliders() {
         const band = state.activeColorBand;
-        console.log(`[Tuning UI] Refreshing sliders for band: ${band}`);
         if(!band || !state.adjustments.colorTuning[band]) {
             console.warn(`[Tuning UI] Invalid band or data missing for: ${band}`);
             return;
         }
         const vals = state.adjustments.colorTuning[band];
-        console.log(`[Tuning UI] Values:`, vals);
+        console.log(`[Tuning UI] Refreshing ${band} sliders with values:`, JSON.stringify(vals));
 
         updateTuningSliderUI('tune-hue', vals.hue);
         updateTuningSliderUI('tune-sat', vals.saturation);

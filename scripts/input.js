@@ -1,4 +1,4 @@
-function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop }) {
+function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop, setBrushMode }) {
     const BRUSH_MIN = 0.2;
     const BRUSH_MAX = 30;
     const BRUSH_SLIDER_STEPS = 1000;
@@ -10,7 +10,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function canDraw() { return (state.imgA || state.imgB) && state.cropRect; }
 
     function getActiveBrushKey() {
-        return state.isErasing ? 'erase' : 'repair';
+        return state.brushMode || 'erase';
+    }
+
+    function isEraseMode() {
+        return state.brushMode === 'erase';
     }
 
     function getBrushPixelSize() {
@@ -103,17 +107,17 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.featherMode) {
             const clamped = Math.max(FEATHER_PX_MIN, Math.min(FEATHER_PX_MAX, val));
             state.featherPx = clamped;
-            const activeKey = getActiveBrushKey();
-            if (state.brushSettings && state.brushSettings[activeKey]) {
-                state.brushSettings[activeKey].featherPx = clamped;
-            }
+        const activeKey = getActiveBrushKey();
+        if (state.brushSettings && state.brushSettings[activeKey]) {
+            state.brushSettings[activeKey].featherPx = clamped;
+        }
         } else {
             const clamped = Math.max(HARDNESS_MIN, Math.min(HARDNESS_MAX, val));
             state.feather = clamped;
-            const activeKey = getActiveBrushKey();
-            if (state.brushSettings && state.brushSettings[activeKey]) {
-                state.brushSettings[activeKey].feather = clamped;
-            }
+        const activeKey = getActiveBrushKey();
+        if (state.brushSettings && state.brushSettings[activeKey]) {
+            state.brushSettings[activeKey].feather = clamped;
+        }
         }
         updateFeatherUI();
     }
@@ -221,7 +225,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const size = getBrushPixelSize();
         const radius = size / 2;
         const softness = getSoftnessForSize(size, state.featherMode ? state.featherPx : state.feather, state.featherMode);
-        if (state.isErasing) {
+        if (isEraseMode()) {
             context.globalCompositeOperation = 'source-over';
             if (softness === 0) {
                 context.fillStyle = 'white';
@@ -357,7 +361,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              }
              maskCtx.closePath();
 
-             if (state.isErasing) {
+            if (isEraseMode()) {
                  maskCtx.globalCompositeOperation = 'source-over';
                  maskCtx.fillStyle = 'white';
              } else {
@@ -378,7 +382,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              const p1 = pts[i];
              const p2 = pts[i+1];
              // Walk from p1 to p2, resetting spacing at p1
-             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
              // Draw Node p2
              drawBrushStamp(p2.x, p2.y, maskCtx);
          }
@@ -419,7 +423,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             brushSize: getBrushPixelSize(),
             feather: state.featherMode ? state.featherPx : state.feather,
             featherMode: state.featherMode,
-            isErasing: state.isErasing
+            isErasing: isEraseMode()
         };
         state.fastPreviewLastStamp = null;
     }
@@ -713,7 +717,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              for (let i = 0; i < state.polylinePoints.length - 1; i++) {
                  const p1 = state.polylinePoints[i];
                  const p2 = state.polylinePoints[i+1];
-                 paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+                 paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
                  drawBrushStamp(p2.x, p2.y, pCtx);
              }
         }
@@ -722,7 +726,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
              const start = {x: state.lastDrawX, y: state.lastDrawY};
              const end = {x: state.currentPointerX, y: state.currentPointerY};
-             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, state.isErasing);
+             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
              // Draw cursor node
              drawBrushStamp(end.x, end.y, pCtx);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {
@@ -821,6 +825,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const step = e.repeat ? 0.4 : 0.2;
                 const delta = e.key === '[' ? -step : step;
                 setBrushPercent(state.brushPercent + delta);
+            }
+            if (!e.repeat && !state.isCropping && !e.ctrlKey && !e.metaKey) {
+                if (e.key === '1') setBrushMode('erase');
+                if (e.key === '2') setBrushMode('repair');
+                if (e.key === '3') setBrushMode('patch');
             }
             if ((e.ctrlKey || e.metaKey)) {
                 if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }

@@ -567,7 +567,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         // 1. Band Selection
         bands.forEach(band => {
             const btn = document.getElementById(`band-${band}`);
-            if(!btn) return;
+            if(!btn) {
+                console.warn(`Band button band-${band} not found`);
+                return;
+            }
             btn.addEventListener('click', () => {
                 // Update active state
                 document.querySelectorAll('.active-band').forEach(el => el.classList.remove('active-band'));
@@ -613,7 +616,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         tuningParams.forEach(param => {
             const el = document.getElementById(param.id);
             const label = document.getElementById('val-' + param.id);
-            if(!el) return;
+            if(!el) {
+                console.warn(`Tuning param element ${param.id} not found`);
+                return;
+            }
 
             el.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
@@ -634,6 +640,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 saveSnapshot(`tuning-${state.activeColorBand}-${param.key}`);
             });
         });
+
+        console.log("Color Tuning Initialized");
 
         // 3. Resets
         const resetBandBtn = document.getElementById('resetBandBtn');

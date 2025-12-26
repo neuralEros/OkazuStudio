@@ -94,7 +94,8 @@
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
-            workspaceResolution: document.getElementById('workspace-resolution')
+            workspaceResolution: document.getElementById('workspace-resolution'),
+            colorTuningDrawer: document.getElementById('drawer-tools')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -392,13 +393,16 @@
             initDrawerSync();
 
             // Check if drawer is being hovered to commit changes on exit
-            // We check all drawers now, or just adjustments? Logic implies adjust commit on drawer close.
-            // Since we split into tabs, let's just check the adjustments drawer for now.
             setInterval(() => {
-                if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
+                const isHovering = (els.adjDrawer && els.adjDrawer.matches(':hover')) ||
+                                   (els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover'));
+
+                if (state.pendingAdjustmentCommit && !isHovering) {
                     if (!state.drawerCloseTimer) {
                          state.drawerCloseTimer = setTimeout(() => {
-                             if (state.pendingAdjustmentCommit && !els.adjDrawer.matches(':hover')) {
+                             const stillHovering = (els.adjDrawer && els.adjDrawer.matches(':hover')) ||
+                                                   (els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover'));
+                             if (state.pendingAdjustmentCommit && !stillHovering) {
                                  commitAdjustments();
                              }
                              state.drawerCloseTimer = null;
@@ -530,6 +534,7 @@
             showHints();
             updateWorkspaceLabel();
             updateVisibilityToggles();
+            updateUI();
         }
 
         function updateWorkspaceLabel() {
@@ -838,10 +843,9 @@
                     el.disabled = !enable;
                 }
             });
-            const drawers = document.querySelectorAll('.drawer-content');
-            drawers.forEach(d => {
-                d.style.opacity = enable ? '1' : '0.5';
-            });
+
+            // Note: We deliberately do NOT change drawer opacity here as it causes visual glitches/transparency issues.
+            // Rely on disabled inputs to prevent interaction.
 
             // Disable tools while cropping
             if (state.isCropping) {

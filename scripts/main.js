@@ -1,6 +1,7 @@
         const log = (msg, type = 'error') => {
             console.log(`[${type}] ${msg}`);
             const consoleEl = document.getElementById('error-console');
+            if (!consoleEl) return;
             const el = document.createElement('div');
             el.className = `console-msg ${type}`;
             el.textContent = msg;
@@ -14,6 +15,7 @@
         let hintTimer = null;
         function showHints() {
             const legend = document.getElementById('hint-legend');
+            if (!legend) return;
             legend.style.opacity = '1';
             if (hintTimer) clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
@@ -28,7 +30,8 @@
 
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
-            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, isErasing: true, isDrawing: false,
+            imgAId: null, imgBId: null,
+            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, isErasing: true, isPatching: false, isDrawing: false,
             maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
@@ -36,7 +39,8 @@
             activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
             brushSettings: {
                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
+                patch: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: 10, featherPx: DEFAULT_FEATHER_PX }
             },
             adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
@@ -47,7 +51,7 @@
             adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
             isCropping: false, cropRect: null, cropRectSnapshot: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
-            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
+            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080, undoKeyframeInterval: 20, undoHistoryLimit: 5 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null
         };
@@ -124,7 +128,10 @@
             scheduleHeavyTask
         });
 
-        const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
+        // Forward declaration for mutual dependency
+        let inputSys;
+
+        const undoSys = createUndoSystem({
             state,
             maskCtx,
             maskCanvas,
@@ -134,7 +141,39 @@
             resetAllAdjustments,
             log,
             updateUI,
-            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments
+            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments,
+            drawStroke: (ctx, points, settings) => {
+                if (inputSys && inputSys.drawStroke) {
+                    inputSys.drawStroke(ctx, points, settings);
+                }
+            }
+        });
+
+        inputSys = createInputSystem({
+            state,
+            els: {
+                viewport,
+                mainCanvas,
+                canvasWrapper,
+                cursor,
+                brushSize: document.getElementById('brushSize'),
+                brushSizeVal: document.getElementById('brushSizeVal'),
+                feather: document.getElementById('feather'),
+                featherVal: document.getElementById('featherVal'),
+                featherLabel: document.getElementById('featherLabel'),
+                featherModeBtn: document.getElementById('featherModeBtn'),
+                cropBox: document.getElementById('crop-box')
+            },
+            maskCtx,
+            maskCanvas,
+            render,
+            saveSnapshot: undoSys.saveSnapshot,
+            undo: undoSys, // Pass full object to access recordAction
+            redo: undoSys.redo,
+            showHints,
+            scheduleHeavyTask,
+            acceptCrop,
+            cancelCrop
         });
 
         const {
@@ -148,22 +187,9 @@
             setFeatherFromSlider,
             setFeatherMode,
             syncBrushUIToActive
-        } = createInputSystem({
-            state,
-            els,
-            maskCtx,
-            maskCanvas,
-            render,
-            saveSnapshot,
-            undo,
-            redo,
-            showHints,
-            scheduleHeavyTask,
-            acceptCrop,
-            cancelCrop
-        });
+        } = inputSys;
 
-        setSaveSnapshotHandler(saveSnapshot);
+        setSaveSnapshotHandler(undoSys.saveSnapshot);
         setUpdateWorkingCopiesHandler(updateWorkingCopiesAfterAdjustments);
 
         function hasActiveAdjustments() {
@@ -328,6 +354,10 @@
                  updateWorkingCopiesAfterAdjustments();
                  render();
                  state.pendingAdjustmentCommit = false;
+                 // Dispatch Adjust Action
+                 if (undoSys && undoSys.recordAction) {
+                     undoSys.recordAction('ADJUST', { adjustments: JSON.parse(JSON.stringify(state.adjustments)) });
+                 }
              });
         }
 
@@ -364,8 +394,6 @@
             initDrawerSync();
 
             // Check if drawer is being hovered to commit changes on exit
-            // We check all drawers now, or just adjustments? Logic implies adjust commit on drawer close.
-            // Since we split into tabs, let's just check the adjustments drawer for now.
             setInterval(() => {
                 if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
                     if (!state.drawerCloseTimer) {
@@ -392,6 +420,10 @@
                 [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
                 [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
                 [state.nameA, state.nameB] = [state.nameB, state.nameA];
+
+                // Also swap IDs for history tracking
+                [state.imgAId, state.imgBId] = [state.imgBId, state.imgAId];
+
                 els.btnA.textContent = truncate(state.nameA || "Load Img A");
                 els.btnB.textContent = truncate(state.nameB || "Load Img B");
                 if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
@@ -461,13 +493,28 @@
             els.featherModeBtn.addEventListener('click', () => {
                 setFeatherMode(!state.featherMode);
             });
-            els.eraseMode.addEventListener('click', () => setMode(true));
-            els.repairMode.addEventListener('click', () => setMode(false));
             
+            // Mode Toggles
+            document.getElementById('eraseMode').addEventListener('click', () => setMode('erase'));
+            document.getElementById('repairMode').addEventListener('click', () => setMode('repair'));
+            const patchBtn = document.getElementById('patchMode');
+            if(patchBtn) patchBtn.addEventListener('click', () => setMode('patch'));
+
+            // Keyboard Shortcuts 1-2-3
+            window.addEventListener('keydown', (e) => {
+                if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+                    if (e.key === '1') setMode('erase');
+                    if (e.key === '2') setMode('repair');
+                    if (e.key === '3') setMode('patch');
+                }
+            });
+
             els.clearMask.addEventListener('click', () => {
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                 resetAllAdjustments();
-                saveSnapshot('full_reset'); 
+                if (undoSys && undoSys.recordAction) {
+                    undoSys.recordAction('RESET_MASK', {});
+                }
                 resetView(); 
                 render();
                 log("Reset All", "info");
@@ -794,8 +841,10 @@
             const enable = canDraw();
             els.mergeBtn.disabled = !enable;
             els.censorBtn.disabled = !state.imgA && !state.imgB;
-            els.undoBtn.disabled = state.historyIndex <= 0;
-            els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+
+            // UNDO: Check actual capability
+            els.undoBtn.disabled = !(undoSys && undoSys.canUndo);
+            els.redoBtn.disabled = !(undoSys && undoSys.canRedo);
             
             // Disable tools while cropping
             if (state.isCropping) {
@@ -829,6 +878,20 @@
                 els.cursor.style.display = 'none';
             }
 
+            // Patch Mode UI
+            document.getElementById('eraseMode').classList.remove('active');
+            document.getElementById('repairMode').classList.remove('active');
+            const pBtn = document.getElementById('patchMode');
+            if(pBtn) pBtn.classList.remove('active');
+
+            if (state.isPatching) {
+                if(pBtn) pBtn.classList.add('active');
+            } else if (state.isErasing) {
+                document.getElementById('eraseMode').classList.add('active');
+            } else {
+                document.getElementById('repairMode').classList.add('active');
+            }
+
             updateWorkspaceLabel();
             updateVisibilityToggles();
         }
@@ -854,16 +917,19 @@
             return str;
         }
 
-        function setMode(isErasing) {
-            state.isErasing = isErasing;
-            if(isErasing) {
-                els.eraseMode.classList.add('active');
-                els.repairMode.classList.remove('active');
+        function setMode(mode) {
+            if (mode === 'erase') {
+                state.isErasing = true; state.isPatching = false;
+            } else if (mode === 'repair') {
+                state.isErasing = false; state.isPatching = false;
+            } else if (mode === 'patch') {
+                state.isErasing = false; state.isPatching = true;
             } else {
-                els.eraseMode.classList.remove('active');
-                els.repairMode.classList.add('active');
+                // legacy boolean support
+                state.isErasing = !!mode; state.isPatching = false;
             }
-            syncBrushUIToActive();
+            updateUI();
+            if (inputSys && inputSys.syncBrushUIToActive) inputSys.syncBrushUIToActive();
         }
 
         function handleFileLoad(file, slot) {
@@ -873,20 +939,47 @@
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
+                    const assetId = undoSys.registerAsset(img);
+
+                    let initialDims = null;
+                    let initialCrop = null;
+
+                    if (!state.imgA && !state.imgB) {
+                        initialDims = { w: img.naturalWidth, h: img.naturalHeight };
+                        initialCrop = { x: 0, y: 0, w: img.naturalWidth, h: img.naturalHeight };
+                    }
+
                     if (slot === 'A') {
                         setLayerSource('A', img);
+                        state.imgAId = assetId;
                         state.nameA = file.name;
                         els.btnA.textContent = truncate(file.name);
                         els.btnA.classList.add('border-accent-strong', 'text-accent');
                     } else {
                         setLayerSource('B', img);
+                        state.imgBId = assetId;
                         state.nameB = file.name;
                         els.btnB.textContent = truncate(file.name);
                         els.btnB.classList.add('border-accent-strong', 'text-accent');
                     }
+
+                    if (initialDims) {
+                        state.fullDims = initialDims;
+                        state.cropRect = initialCrop;
+                    }
+
+                    undoSys.recordAction('LOAD_IMAGE', {
+                        slot: slot,
+                        assetId: assetId,
+                        fullDims: initialDims,
+                        cropRect: initialCrop
+                    });
+
                     markAdjustmentsDirty();
                     rebuildWorkingCopies();
-                    updateCanvasDimensions(); // Re-inits cropRect
+                    if (initialDims) updateCanvasDimensions(false); // First load
+                    else updateCanvasDimensions(true); // Subsequent load
+
                     render();
                     updateUI();
                 };
@@ -913,7 +1006,7 @@
                 maskCanvas.width = targetW;
                 maskCanvas.height = targetH;
                 maskCtx.clearRect(0,0,targetW,targetH); 
-                resetMaskAndHistory(); 
+                undoSys.resetMaskAndHistory();
             }
 
             resizeMainCanvas(state.cropRect.w, state.cropRect.h);
@@ -958,7 +1051,9 @@
                     else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
                     const imgBase = new Image();
                     imgBase.onload = () => {
-                        setLayerSource('A', imgBase); state.nameA = "Base Layer";
+                        const assetIdBase = undoSys.registerAsset(imgBase);
+                        setLayerSource('A', imgBase); state.imgAId = assetIdBase; state.nameA = "Base Layer";
+
                         const w = imgBase.width; const h = imgBase.height;
                         const blurRadius = Math.max(1, h * 0.01);
                         const pad = Math.ceil(blurRadius * 3);
@@ -989,7 +1084,12 @@
                         tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
                         const imgCensored = new Image();
                         imgCensored.onload = () => {
-                            setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
+                            const assetIdCensored = undoSys.registerAsset(imgCensored);
+                            setLayerSource('B', imgCensored); state.imgBId = assetIdCensored; state.nameB = "Censored Layer";
+
+                            undoSys.recordAction('CENSOR', {
+                                slot: 'B', assetId: assetIdCensored
+                            });
 
                             // Re-init full dims
                             const newW = imgCensored.width;
@@ -1013,9 +1113,10 @@
                             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
                             state.brushSettings = {
                                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
+                                patch: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: 10, featherPx: DEFAULT_FEATHER_PX }
                             };
-                            setMode(true);
+                            setMode('erase');
                             setFeatherMode(true, { value: 5, applyToAll: true });
                             syncBrushUIToActive();
                             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
@@ -1049,8 +1150,14 @@
                     const dataURL = els.mainCanvas.toDataURL('image/png');
                     const newImg = new Image();
                     newImg.onload = () => {
-                        setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
+                        const assetId = undoSys.registerAsset(newImg);
+                        setLayerSource('A', newImg); state.imgAId = assetId;
+                        state.imgB = null; state.sourceB = null; state.workingVersionB = 0; state.imgBId = null;
                         state.nameA = "Merged Layer"; state.nameB = "";
+
+                        undoSys.recordAction('MERGE', {
+                            slot: 'A', assetId: assetId
+                        });
                         
                         // Update dims
                         const newW = newImg.width;
@@ -1120,4 +1227,3 @@
         }
 
         init();
-    

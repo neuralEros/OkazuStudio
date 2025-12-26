@@ -7,7 +7,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         rgbMode: false,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
-        apiKey: ''
+        apiKey: '',
+        undoKeyframeInterval: 20,
+        undoHistoryLimit: 5
     };
 
     let lastStaticHue = defaults.hue;
@@ -148,10 +150,32 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     </div>
 
                     <!-- API Key -->
-                    <div class="mb-2">
+                    <div class="mb-6">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Replicate AI API Key</label>
                         <input id="setting-api-key" type="password" class="w-full bg-panel-strong border border-panel rounded-sm px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-accent transition-colors" placeholder="r8_...">
                         <p class="text-[10px] text-gray-500 mt-1">Stored locally in your browser.</p>
+                    </div>
+
+                    <!-- Undo Settings -->
+                    <div class="mb-2">
+                         <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 border-b border-panel-divider pb-1">Undo History</h3>
+
+                         <div class="mb-4">
+                            <label class="flex justify-between text-[10px] text-gray-400 mb-1">
+                                <span>Keyframe Interval (Actions)</span>
+                                <span id="val-undo-interval">20</span>
+                            </label>
+                            <input id="setting-undo-interval" type="range" min="5" max="100" step="5" class="w-full accent-accent">
+                         </div>
+
+                         <div class="mb-2">
+                            <label class="flex justify-between text-[10px] text-gray-400 mb-1">
+                                <span>Max Keyframes Kept</span>
+                                <span id="val-undo-limit">5</span>
+                            </label>
+                            <input id="setting-undo-limit" type="range" min="1" max="50" step="1" class="w-full accent-accent">
+                            <p class="text-[10px] text-gray-500 mt-1">More keyframes = Faster undo, More RAM.</p>
+                         </div>
                     </div>
 
                 </div>
@@ -257,6 +281,32 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         keyInput.addEventListener('input', (e) => {
             state.settings.apiKey = e.target.value;
             saveDebounced();
+        });
+
+        // Undo Settings
+        const undoIntervalInput = document.getElementById('setting-undo-interval');
+        const undoIntervalVal = document.getElementById('val-undo-interval');
+        const undoLimitInput = document.getElementById('setting-undo-limit');
+        const undoLimitVal = document.getElementById('val-undo-limit');
+
+        undoIntervalInput.value = state.settings.undoKeyframeInterval || 20;
+        undoIntervalVal.textContent = undoIntervalInput.value;
+
+        undoLimitInput.value = state.settings.undoHistoryLimit || 5;
+        undoLimitVal.textContent = undoLimitInput.value;
+
+        undoIntervalInput.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.settings.undoKeyframeInterval = val;
+            undoIntervalVal.textContent = val;
+            saveSettings();
+        });
+
+        undoLimitInput.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.settings.undoHistoryLimit = val;
+            undoLimitVal.textContent = val;
+            saveSettings();
         });
 
         // Modal Logic

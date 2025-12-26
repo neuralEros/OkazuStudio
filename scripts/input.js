@@ -619,10 +619,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             // Fixed Hardness Single Click Double-Hit Check
             if (state.featherMode && state.pointerDownTime && state.pointerDownCoords) {
                 const duration = Date.now() - state.pointerDownTime;
-                // If event is missing (pointerup sometimes doesn't have coords same way), use last known
-                // But we used pointerDownCoords.
-                // We need current coords to check distance.
-                // handlePointerUp might be triggered by window, so e.clientX might be available
                 let dist = 999;
                 if (e && e.clientX !== undefined) {
                      const rect = els.viewport.getBoundingClientRect();
@@ -630,18 +626,17 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                      const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
                      dist = Math.hypot(mx - state.pointerDownCoords.x, my - state.pointerDownCoords.y);
                 } else {
-                     // Fallback if we can't get coords, assume 0 moved if lastDrawX is close?
-                     // Use state.currentPointerX
                      if (state.currentPointerX !== null) {
                         dist = Math.hypot(state.currentPointerX - state.pointerDownCoords.x, state.currentPointerY - state.pointerDownCoords.y);
                      }
                 }
 
                 if (duration < 500 && dist <= 2) {
-                    // Double hit!
-                    // The first hit was done by replayStrokeToFullMask (it replays all points, for a single click it replays 1 point)
-                    // We just draw it again.
                     drawBrushStamp(state.pointerDownCoords.x, state.pointerDownCoords.y, maskCtx);
+                    // Add point to active stroke so it is recorded in history
+                    if (state.activeStroke) {
+                        state.activeStroke.points.push({ x: state.pointerDownCoords.x, y: state.pointerDownCoords.y });
+                    }
                 }
             }
 
@@ -650,13 +645,24 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.isPreviewing = false;
             state.useFastPreview = false;
             state.fastPreviewLastPoint = null;
+
+            // Dispatch Action
+            if (state.activeStroke && state.activeStroke.points.length > 0) {
+                 if (undo && undo.recordAction) {
+                     undo.recordAction('STROKE', {
+                         ...state.activeStroke
+                     });
+                 }
+            }
+
             state.activeStroke = null;
             render();
-            saveSnapshot('draw');
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;
-            saveSnapshot('crop');
+            if (undo && undo.recordAction) {
+                undo.recordAction('CROP', { cropRect: { ...state.cropRect } });
+            }
         }
         state.isPanning = false;
         state.isDrawing = false;
@@ -886,5 +892,60 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return Math.max(0, Math.min(1, featherValue / HARDNESS_MAX));
     }
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue };
+    // Publicly Exposed function for ReplayEngine
+    function drawStroke(context, points, settings) {
+        if (!points || points.length === 0) return;
+        const { brushSize, feather, featherMode, isErasing, shouldFill, isPolyline } = settings;
+
+        if (shouldFill && isPolyline) {
+             context.save();
+             context.beginPath();
+             context.moveTo(points[0].x, points[0].y);
+             for (let i = 1; i < points.length; i++) {
+                 context.lineTo(points[i].x, points[i].y);
+             }
+             context.closePath();
+             context.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
+             context.fillStyle = isErasing ? 'white' : 'black';
+             context.fill();
+             context.restore();
+        }
+
+        // Helper to call paintStampAt with explicit settings instead of global state
+        const stamp = (x, y) => paintStampAt(context, x, y, brushSize, feather, featherMode, isErasing);
+
+        // 1. Draw Start
+        stamp(points[0].x, points[0].y);
+
+        // 2. Draw Segments
+        for (let i = 0; i < points.length - 1; i++) {
+             const p1 = points[i];
+             const p2 = points[i+1];
+
+             // Interpolation logic replicated from paintStrokeSegment
+             const spacing = Math.max(1, brushSize * 0.15);
+             const dx = p2.x - p1.x;
+             const dy = p2.y - p1.y;
+             const dist = Math.hypot(dx, dy);
+
+             if (dist >= spacing) {
+                 const steps = Math.floor(dist / spacing);
+                 const stepX = (dx / dist) * spacing;
+                 const stepY = (dy / dist) * spacing;
+
+                 let currentX = p1.x;
+                 let currentY = p1.y;
+
+                 for (let j = 1; j <= steps; j++) {
+                     currentX += stepX;
+                     currentY += stepY;
+                     stamp(currentX, currentY);
+                 }
+             }
+             // Draw Node
+             stamp(p2.x, p2.y);
+        }
+    }
+
+    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue, drawStroke };
 }

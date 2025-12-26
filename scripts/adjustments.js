@@ -3,7 +3,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     let currentGammaLUTValue = -1;
     let masterLUT = new Uint8Array(256);
     let currentLUTHash = "";
-    let saveSnapshot = () => {};
+    let saveSnapshot = () => {}; // Legacy (or Action Dispatcher)
     let updateWorkingCopies = () => {};
 
     function setSaveSnapshotHandler(handler) {
@@ -261,7 +261,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             el.addEventListener('change', (e) => {
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                saveSnapshot(actionKey);
+                // Don't save snapshot here. Adjustments are committed when the drawer closes
+                // or after a delay. See main.js commitAdjustments().
+                // However, for compatibility if saveSnapshot IS recordAction, we might want to?
+                // No, main.js handles the commitAdjustments logic which calls recordAction('ADJUST', ...).
+                // So we do nothing here except flag pending.
             });
         }
 
@@ -288,7 +292,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             resetAllAdjustments();
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            saveSnapshot('adjustments_reset');
+            // Snapshot will be saved by commit logic
         });
 
         els.resetLevelsBtn.addEventListener('click', () => {
@@ -300,7 +304,6 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             updateSlider('adj-l-white', 255);
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            saveSnapshot('levels_reset');
         });
 
         document.getElementById('resetSatBtn').addEventListener('click', () => {
@@ -311,7 +314,6 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-vib', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             saveSnapshot('sat_reset');
         });
 
         els.resetColorBtn.addEventListener('click', () => {
@@ -325,7 +327,6 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-cb-b', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             saveSnapshot('color_reset');
         });
     }
 

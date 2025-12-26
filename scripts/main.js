@@ -400,6 +400,10 @@
             initAdjustments();
             initDrawerSync();
 
+            // Drawer Logging
+            if (els.adjDrawer) els.adjDrawer.addEventListener('mouseenter', () => Logger.info("Drawer Opened: Adjustments"));
+            if (els.colorTuningDrawer) els.colorTuningDrawer.addEventListener('mouseenter', () => Logger.info("Drawer Opened: Color Tuning"));
+
             // Check if drawer is being hovered to commit changes on exit
             setInterval(() => {
                 const isHoveringAdj = els.adjDrawer && els.adjDrawer.matches(':hover');
@@ -1161,6 +1165,7 @@
 
         function saveImage() {
             if (!state.imgA && !state.imgB) return;
+            Logger.info("Exporting image...");
             try {
                 // Render CROP area for export
                 const wasCropping = state.isCropping;
@@ -1187,7 +1192,11 @@
                 
                 render();
                 log("Image saved", "info");
-            } catch (e) { log("Save failed"); }
+                Logger.info(`Export Complete: ${filename}`);
+            } catch (e) {
+                log("Save failed");
+                Logger.error("Export Failed", e);
+            }
         }
 
         init();

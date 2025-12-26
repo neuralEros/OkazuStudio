@@ -4,7 +4,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     // Default Settings
     const defaults = {
         hue: 28,
-        saturation: 96,
         rgbMode: false,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
@@ -72,7 +71,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function applySettings() {
         // Apply Hue
         document.documentElement.style.setProperty('--accent-h', state.settings.hue);
-        document.documentElement.style.setProperty('--accent-s', `${state.settings.saturation}%`);
 
         // Handle RGB Mode
         if (state.settings.rgbMode) {
@@ -121,12 +119,11 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- UI Hue -->
                     <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue/Saturation</label>
-                        <div class="grid grid-cols-[1fr_auto] grid-rows-2 gap-x-4 gap-y-3 items-center">
-                            <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
-                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">RGB</button>
-                            <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue</label>
+                        <div class="flex items-center gap-4">
+                            <input id="setting-hue" type="range" min="0" max="360" class="flex-grow accent-accent">
                             <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">Default</button>
+                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">RGB</button>
                         </div>
                     </div>
 
@@ -175,12 +172,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         // Hue Controls
         const hueSlider = document.getElementById('setting-hue');
-        const saturationSlider = document.getElementById('setting-saturation');
         const hueReset = document.getElementById('setting-hue-reset');
         const rgbToggle = document.getElementById('setting-rgb-toggle');
 
         hueSlider.value = state.settings.hue;
-        saturationSlider.value = state.settings.saturation;
         hueSlider.addEventListener('input', (e) => {
             state.settings.hue = parseInt(e.target.value);
             // If dragging slider, disable RGB mode
@@ -194,23 +189,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             saveDebounced();
         });
 
-        saturationSlider.addEventListener('input', (e) => {
-            state.settings.saturation = parseInt(e.target.value);
-            applySettings();
-            saveDebounced();
-        });
-
         hueReset.addEventListener('click', () => {
-            state.settings.hue = defaults.hue; // Default orange
-            state.settings.saturation = defaults.saturation;
-            hueSlider.value = defaults.hue;
-            saturationSlider.value = defaults.saturation;
+            state.settings.hue = 28; // Default orange
+            hueSlider.value = 28;
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
                 stopRgbMode();
             }
-            lastStaticHue = defaults.hue;
+            lastStaticHue = 28;
             applySettings();
             saveSettings();
         });

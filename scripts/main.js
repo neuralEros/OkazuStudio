@@ -1223,13 +1223,24 @@
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             const items = e.clipboardData.items;
+            const files = e.clipboardData.files;
             const blobPromises = [];
             const stringPromises = [];
 
+            // 1. Check direct files list (most robust for OS file copy/paste)
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].type.startsWith('image/')) {
+                    blobPromises.push(Promise.resolve(files[i]));
+                }
+            }
+
+            // 2. Check items (fallback for screenshots or specific browser behaviors)
             for (let i = 0; i < items.length; i++) {
-                if (items[i].type.startsWith('image/')) {
+                if (items[i].kind === 'file') {
                     const blob = items[i].getAsFile();
-                    if (blob) blobPromises.push(Promise.resolve(blob));
+                    if (blob && blob.type.startsWith('image/')) {
+                        blobPromises.push(Promise.resolve(blob));
+                    }
                 } else if (items[i].type === 'text/uri-list' || items[i].type === 'text/plain') {
                      const p = new Promise(resolve => {
                          items[i].getAsString(s => resolve(s));
@@ -1239,6 +1250,14 @@
             }
 
             Promise.all([Promise.all(blobPromises), Promise.all(stringPromises)]).then(async ([blobs, strings]) => {
+                // Deduplicate blobs (files might appear in both lists)
+                const uniqueBlobs = [...new Set(blobs)];
+
+                if (uniqueBlobs.length > 0) {
+                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
+                    return; // Prioritize binary data over text
+                }
+
                 const urls = [];
                 strings.forEach(s => {
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
@@ -1257,9 +1276,7 @@
 
                 if (hasA && hasB) return;
 
-                if (blobs.length > 0) {
-                    loadLayerWithSmartSlotting(blobs[0], "Pasted Image");
-                } else if (urls.length > 0) {
+                if (urls.length > 0) {
                      // Try fetch
                      try {
                          const blob = await fetchImage(urls[0]);

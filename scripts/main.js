@@ -38,7 +38,25 @@
                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
                 repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
             },
-            adjustments: { gamma: 1.0, levels: { black: 0, mid: 1.0, white: 255 }, shadows: 0, highlights: 0, saturation: 0, vibrance: 0, wb: 0, colorBal: { r: 0, g: 0, b: 0 } },
+            adjustments: {
+                gamma: 1.0,
+                levels: { black: 0, mid: 1.0, white: 255 },
+                shadows: 0, highlights: 0,
+                saturation: 0, vibrance: 0,
+                wb: 0,
+                colorBal: { r: 0, g: 0, b: 0 },
+                colorTuning: {
+                    red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                }
+            },
+            activeColorBand: 'red',
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             workingA: null, workingB: null, sourceA: null, sourceB: null,
             previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
@@ -76,7 +94,8 @@
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
-            workspaceResolution: document.getElementById('workspace-resolution')
+            workspaceResolution: document.getElementById('workspace-resolution'),
+            colorTuningDrawer: document.getElementById('drawer-tools')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -109,32 +128,39 @@
         const {
             applyMasterLUT,
             applyColorOps,
+            applySelectiveColor,
             updateAdjustmentPreview,
             initAdjustments,
             resetAllAdjustments,
             updateSlider,
             setSaveSnapshotHandler,
-            setUpdateWorkingCopiesHandler
+            setUpdateWorkingCopiesHandler,
+            recalculateColorTuning,
+            refreshColorTuningUI,
+            updateAllAdjustmentUI
         } = createAdjustmentSystem({
             state,
             els,
             ctx,
             renderToContext,
             render,
-            scheduleHeavyTask
+            scheduleHeavyTask,
+            Logger
         });
 
         const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
             state,
             maskCtx,
             maskCanvas,
-            updateSlider,
             resizeMainCanvas,
             render,
             resetAllAdjustments,
             log,
             updateUI,
-            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments
+            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments,
+            recalculateColorTuning,
+            updateAllAdjustmentUI,
+            Logger
         });
 
         const {
@@ -160,7 +186,8 @@
             showHints,
             scheduleHeavyTask,
             acceptCrop,
-            cancelCrop
+            cancelCrop,
+            Logger
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -168,10 +195,18 @@
 
         function hasActiveAdjustments() {
             const a = state.adjustments;
+            let hasTuning = false;
+            for(let key in a.colorTuning) {
+                const b = a.colorTuning[key];
+                if (b.hue!==0 || b.saturation!==0 || b.vibrance!==0 || b.luminance!==0 || b.shadows!==0 || b.highlights!==0) {
+                    hasTuning = true;
+                    break;
+                }
+            }
             return a.gamma !== 1.0 || a.levels.black !== 0 || a.levels.mid !== 1.0 || a.levels.white !== 255 ||
                              a.saturation !== 0 || a.vibrance !== 0 || a.wb !== 0 ||
                              a.colorBal.r !== 0 || a.colorBal.g !== 0 || a.colorBal.b !== 0 ||
-                             a.shadows !== 0 || a.highlights !== 0;
+                             a.shadows !== 0 || a.highlights !== 0 || hasTuning;
         }
 
         function markAdjustmentsDirty() {
@@ -283,6 +318,7 @@
                 const imgData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
                 applyMasterLUT(imgData);
                 applyColorOps(imgData);
+                applySelectiveColor(imgData);
                 layerCtx.putImageData(imgData, 0, 0);
             }
 
@@ -360,17 +396,23 @@
         }
 
         function init() {
+            Logger.info("OkazuStudio Initializing...");
             initAdjustments();
             initDrawerSync();
 
             // Check if drawer is being hovered to commit changes on exit
-            // We check all drawers now, or just adjustments? Logic implies adjust commit on drawer close.
-            // Since we split into tabs, let's just check the adjustments drawer for now.
             setInterval(() => {
-                if (state.pendingAdjustmentCommit && els.adjDrawer && !els.adjDrawer.matches(':hover')) {
+                const isHoveringAdj = els.adjDrawer && els.adjDrawer.matches(':hover');
+                const isHoveringTools = els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover');
+                const isHovering = isHoveringAdj || isHoveringTools;
+
+                if (state.pendingAdjustmentCommit && !isHovering) {
                     if (!state.drawerCloseTimer) {
                          state.drawerCloseTimer = setTimeout(() => {
-                             if (state.pendingAdjustmentCommit && !els.adjDrawer.matches(':hover')) {
+                             const stillHovering = (els.adjDrawer && els.adjDrawer.matches(':hover')) ||
+                                                   (els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover'));
+                             if (state.pendingAdjustmentCommit && !stillHovering) {
+                                 Logger.info("Drawer closed, committing adjustments.");
                                  commitAdjustments();
                              }
                              state.drawerCloseTimer = null;
@@ -379,11 +421,18 @@
                 }
             }, 200);
 
-            els.fileA.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'A'));
-            els.fileB.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'B'));
+            els.fileA.addEventListener('change', (e) => {
+                Logger.interaction("File Input A", "selected file");
+                handleFileLoad(e.target.files[0], 'A');
+            });
+            els.fileB.addEventListener('change', (e) => {
+                Logger.interaction("File Input B", "selected file");
+                handleFileLoad(e.target.files[0], 'B');
+            });
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
+                Logger.interaction("Swap Button", "clicked");
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
                 [state.workingA, state.workingB] = [state.workingB, state.workingA];
@@ -483,11 +532,13 @@
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
+                Logger.interaction("Toggle Mask Visibility", state.maskVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
+                Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
@@ -502,6 +553,7 @@
             showHints();
             updateWorkspaceLabel();
             updateVisibilityToggles();
+            updateUI();
         }
 
         function updateWorkspaceLabel() {
@@ -518,6 +570,7 @@
         // --- Core Rendering & Helper ---
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
+            if (!state.cropRect && !state.isCropping) return;
 
             const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
             const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
@@ -577,6 +630,8 @@
                  if (Date.now() - state.previewThrottle > 500) state.isAdjusting = false;
                  else return;
             }
+
+            if (!state.cropRect && !state.isCropping) return;
 
             const cw = els.mainCanvas.width;
             const ch = els.mainCanvas.height;
@@ -797,6 +852,20 @@
             els.undoBtn.disabled = state.historyIndex <= 0;
             els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
             
+            // Disable drawers if no image
+            const drawerInputs = document.querySelectorAll('.side-drawer input, .side-drawer button');
+            drawerInputs.forEach(el => {
+                if (el.classList.contains('section-reset')) {
+                    // Reset buttons logic is handled internally, but we should disable them if no image
+                    el.disabled = !enable;
+                } else {
+                    el.disabled = !enable;
+                }
+            });
+
+            // Note: We deliberately do NOT change drawer opacity here as it causes visual glitches/transparency issues.
+            // Rely on disabled inputs to prevent interaction.
+
             // Disable tools while cropping
             if (state.isCropping) {
                  els.eraseMode.disabled = true;
@@ -869,10 +938,12 @@
         function handleFileLoad(file, slot) {
             if (!file) return;
             log(`Loading ${file.name}...`, "info");
+            Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
+                    Logger.info(`Image Loaded: ${img.width}x${img.height}`);
                     if (slot === 'A') {
                         setLayerSource('A', img);
                         state.nameA = file.name;

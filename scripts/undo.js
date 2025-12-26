@@ -1,4 +1,4 @@
-function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMainCanvas, render, resetAllAdjustments, log, updateUI, rebuildWorkingCopies }) {
+function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render, resetAllAdjustments, log, updateUI, rebuildWorkingCopies, recalculateColorTuning, updateAllAdjustmentUI, Logger }) {
     function saveSnapshot(actionType = 'generic') {
         const snap = {
             mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
@@ -13,6 +13,7 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
 
         if (isSameAction) {
             state.history[state.historyIndex] = snap;
+            Logger.info(`Updated existing snapshot at index ${state.historyIndex}. Action: ${actionType}`);
         } else {
             if (state.historyIndex < state.history.length - 1) {
                 state.history = state.history.slice(0, state.historyIndex + 1);
@@ -20,6 +21,7 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
             if (state.history.length > 30) state.history.shift();
             state.history.push(snap);
             state.historyIndex = state.history.length - 1;
+            Logger.info(`Created new snapshot at index ${state.historyIndex}. Action: ${actionType}`);
         }
         state.lastActionType = actionType;
         updateUI();
@@ -50,24 +52,14 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
         state.adjustments = JSON.parse(JSON.stringify(snapshot.adjustments));
         state.cropRect = { ...snapshot.cropRect };
 
-        updateSlider('adj-gamma', state.adjustments.gamma);
-        updateSlider('adj-l-black', state.adjustments.levels.black);
-        updateSlider('adj-l-mid', state.adjustments.levels.mid);
-        updateSlider('adj-l-white', state.adjustments.levels.white);
-        updateSlider('adj-sat', state.adjustments.saturation);
-        updateSlider('adj-vib', state.adjustments.vibrance);
-        updateSlider('adj-wb', state.adjustments.wb);
-        updateSlider('adj-cb-r', state.adjustments.colorBal.r);
-        updateSlider('adj-cb-g', state.adjustments.colorBal.g);
-        updateSlider('adj-cb-b', state.adjustments.colorBal.b);
-        updateSlider('adj-shadows', state.adjustments.shadows);
-        updateSlider('adj-highlights', state.adjustments.highlights);
-
         if (!state.isCropping) {
             resizeMainCanvas(state.cropRect.w, state.cropRect.h);
         } else {
             resizeMainCanvas(state.fullDims.w, state.fullDims.h);
         }
+
+        if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+        if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
 
         if (typeof rebuildWorkingCopies === 'function') rebuildWorkingCopies();
 
@@ -77,20 +69,26 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
     function undo() {
         if (state.historyIndex > 0) {
             state.historyIndex--;
+            Logger.undo(state.historyIndex, state.history.length, "Undo");
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();
             log("Undo", "info");
+        } else {
+            Logger.warn("Undo: Reached start of history.");
         }
     }
 
     function redo() {
         if (state.historyIndex < state.history.length - 1) {
             state.historyIndex++;
+            Logger.undo(state.historyIndex, state.history.length, "Redo");
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();
             log("Redo", "info");
+        } else {
+            Logger.warn("Redo: Reached end of history.");
         }
     }
 

@@ -132,7 +132,58 @@
                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Color Tuning</h3>
                 </div>
-                <p class="text-xs text-gray-500">More tools coming soon.</p>
+
+                <!-- Band Selector Grid -->
+                <div class="grid grid-cols-4 gap-2 mb-4">
+                    <button id="band-red" class="h-8 rounded bg-red-500 border-2 border-transparent hover:border-white/50 transition-all active-band" data-band="red"></button>
+                    <button id="band-orange" class="h-8 rounded bg-orange-500 border-2 border-transparent hover:border-white/50 transition-all" data-band="orange"></button>
+                    <button id="band-yellow" class="h-8 rounded bg-yellow-400 border-2 border-transparent hover:border-white/50 transition-all" data-band="yellow"></button>
+                    <button id="band-green" class="h-8 rounded bg-green-500 border-2 border-transparent hover:border-white/50 transition-all" data-band="green"></button>
+                    <button id="band-aqua" class="h-8 rounded bg-cyan-400 border-2 border-transparent hover:border-white/50 transition-all" data-band="aqua"></button>
+                    <button id="band-blue" class="h-8 rounded bg-blue-500 border-2 border-transparent hover:border-white/50 transition-all" data-band="blue"></button>
+                    <button id="band-purple" class="h-8 rounded bg-purple-500 border-2 border-transparent hover:border-white/50 transition-all" data-band="purple"></button>
+                    <button id="band-magenta" class="h-8 rounded bg-pink-500 border-2 border-transparent hover:border-white/50 transition-all" data-band="magenta"></button>
+                </div>
+
+                <!-- Sliders -->
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Hue</span> <span id="val-tune-hue" class="val-display">0</span></div>
+                    <input id="tune-hue" type="range" min="-180" max="180" step="1" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Saturation</span> <span id="val-tune-sat" class="val-display">0</span></div>
+                    <input id="tune-sat" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Vibrance</span> <span id="val-tune-vib" class="val-display">0</span></div>
+                    <input id="tune-vib" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+
+                <div class="drawer-divider"></div>
+
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Luminance</span> <span id="val-tune-lum" class="val-display">0</span></div>
+                    <input id="tune-lum" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Shadows</span> <span id="val-tune-shadows" class="val-display">0</span></div>
+                    <input id="tune-shadows" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+                <div class="drawer-slider-group">
+                    <div class="drawer-label"><span>Highlights</span> <span id="val-tune-highlights" class="val-display">0</span></div>
+                    <input id="tune-highlights" type="range" min="-100" max="100" value="0" class="w-full" data-default="0">
+                </div>
+
+                <div class="drawer-divider"></div>
+
+                <div class="flex gap-2 mt-4">
+                     <button id="resetBandBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn hover:text-white">
+                        Reset Band
+                    </button>
+                    <button id="resetTuningBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn text-accent hover:text-white">
+                        Reset All
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -306,6 +357,7 @@
         </div>
     </div>
 
+    <script src="scripts/logging.js"></script>
     <script src="scripts/adjustments.js"></script>
     <script src="scripts/undo.js"></script>
     <script src="scripts/input.js"></script>

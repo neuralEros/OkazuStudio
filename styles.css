@@ -518,3 +518,36 @@
     border-color: var(--accent-strong) !important;
     transform: scale(1.1);
 }
+
+/* Color Tuning Gradients */
+.grad-red { background: linear-gradient(to right, #ff00ff, #ff0000, #ff8000); }
+.grad-orange { background: linear-gradient(to right, #ff0000, #ff8000, #ffff00); }
+.grad-yellow { background: linear-gradient(to right, #ff8000, #ffff00, #00ff00); }
+.grad-green { background: linear-gradient(to right, #ffff00, #00ff00, #00ffff); }
+.grad-aqua { background: linear-gradient(to right, #00ff00, #00ffff, #0000ff); }
+.grad-blue { background: linear-gradient(to right, #00ffff, #0000ff, #8000ff); }
+.grad-purple { background: linear-gradient(to right, #0000ff, #8000ff, #ff00ff); }
+.grad-magenta { background: linear-gradient(to right, #8000ff, #ff00ff, #ff0000); }
+
+/* Luminance Band Gradients */
+.band-lights { background: linear-gradient(to right, #cccccc, #ffffff); }
+.band-mids { background: linear-gradient(to right, #444444, #cccccc); }
+.band-darks { background: linear-gradient(to right, #000000, #444444); }
+
+/* Luminance Row Layout */
+.tuning-lum-row {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+.tuning-lum-row button {
+    flex: 1;
+    height: 16px;
+    border: 2px solid transparent;
+    border-radius: 0.25rem;
+    transition: all 0.2s;
+}
+.tuning-lum-row button:hover {
+    border-color: rgba(255,255,255,0.5);
+}

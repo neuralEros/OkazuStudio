@@ -437,6 +437,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (pCanvas.width !== pw || pCanvas.height !== ph) {
             pCanvas.width = pw;
             pCanvas.height = ph;
+        }
+        if (state.previewFrontLayer.width !== pw || state.previewFrontLayer.height !== ph) {
             state.previewFrontLayer.width = pw;
             state.previewFrontLayer.height = ph;
         }

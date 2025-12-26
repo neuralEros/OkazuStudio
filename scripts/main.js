@@ -373,11 +373,21 @@
         }
 
         function updateLoadButton(btn, text, label) {
-             btn.textContent = text;
+             btn.innerHTML = '';
+
+             // Filename Wrapper (Truncated)
+             const textSpan = document.createElement('span');
+             textSpan.className = "w-full overflow-hidden text-ellipsis whitespace-nowrap block relative z-10";
+             textSpan.textContent = text;
+             btn.appendChild(textSpan);
+
+             // Label (Hanging out)
              const span = document.createElement('span');
              span.className = "absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-500 font-normal leading-none pointer-events-none";
              span.textContent = label;
              btn.appendChild(span);
+
+             btn.style.overflow = 'visible';
         }
 
         function syncDrawerHeights() {

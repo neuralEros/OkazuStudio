@@ -154,6 +154,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         <p class="text-[10px] text-gray-500 mt-1">Stored locally in your browser.</p>
                     </div>
 
+                    <!-- Logs -->
+                    <div class="mt-4 pt-4 border-t border-panel-divider text-right">
+                        <button id="copy-logs-btn" class="text-[10px] font-bold text-gray-500 hover:text-accent uppercase tracking-wider cursor-pointer bg-transparent border-none p-0 transition-colors">
+                            Copy Session Logs
+                        </button>
+                    </div>
+
                 </div>
             </div>
         `;

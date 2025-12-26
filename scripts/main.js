@@ -134,27 +134,33 @@
             resetAllAdjustments,
             updateSlider,
             setSaveSnapshotHandler,
-            setUpdateWorkingCopiesHandler
+            setUpdateWorkingCopiesHandler,
+            recalculateColorTuning,
+            refreshColorTuningUI,
+            updateAllAdjustmentUI
         } = createAdjustmentSystem({
             state,
             els,
             ctx,
             renderToContext,
             render,
-            scheduleHeavyTask
+            scheduleHeavyTask,
+            Logger
         });
 
         const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
             state,
             maskCtx,
             maskCanvas,
-            updateSlider,
             resizeMainCanvas,
             render,
             resetAllAdjustments,
             log,
             updateUI,
-            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments
+            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments,
+            recalculateColorTuning,
+            updateAllAdjustmentUI,
+            Logger
         });
 
         const {
@@ -180,7 +186,8 @@
             showHints,
             scheduleHeavyTask,
             acceptCrop,
-            cancelCrop
+            cancelCrop,
+            Logger
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -389,13 +396,15 @@
         }
 
         function init() {
+            Logger.info("OkazuStudio Initializing...");
             initAdjustments();
             initDrawerSync();
 
             // Check if drawer is being hovered to commit changes on exit
             setInterval(() => {
-                const isHovering = (els.adjDrawer && els.adjDrawer.matches(':hover')) ||
-                                   (els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover'));
+                const isHoveringAdj = els.adjDrawer && els.adjDrawer.matches(':hover');
+                const isHoveringTools = els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover');
+                const isHovering = isHoveringAdj || isHoveringTools;
 
                 if (state.pendingAdjustmentCommit && !isHovering) {
                     if (!state.drawerCloseTimer) {
@@ -403,6 +412,7 @@
                              const stillHovering = (els.adjDrawer && els.adjDrawer.matches(':hover')) ||
                                                    (els.colorTuningDrawer && els.colorTuningDrawer.matches(':hover'));
                              if (state.pendingAdjustmentCommit && !stillHovering) {
+                                 Logger.info("Drawer closed, committing adjustments.");
                                  commitAdjustments();
                              }
                              state.drawerCloseTimer = null;
@@ -411,11 +421,18 @@
                 }
             }, 200);
 
-            els.fileA.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'A'));
-            els.fileB.addEventListener('change', (e) => handleFileLoad(e.target.files[0], 'B'));
+            els.fileA.addEventListener('change', (e) => {
+                Logger.interaction("File Input A", "selected file");
+                handleFileLoad(e.target.files[0], 'A');
+            });
+            els.fileB.addEventListener('change', (e) => {
+                Logger.interaction("File Input B", "selected file");
+                handleFileLoad(e.target.files[0], 'B');
+            });
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
+                Logger.interaction("Swap Button", "clicked");
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
                 [state.workingA, state.workingB] = [state.workingB, state.workingA];
@@ -515,11 +532,13 @@
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
+                Logger.interaction("Toggle Mask Visibility", state.maskVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
+                Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
@@ -919,10 +938,12 @@
         function handleFileLoad(file, slot) {
             if (!file) return;
             log(`Loading ${file.name}...`, "info");
+            Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
+                    Logger.info(`Image Loaded: ${img.width}x${img.height}`);
                     if (slot === 'A') {
                         setLayerSource('A', img);
                         state.nameA = file.name;

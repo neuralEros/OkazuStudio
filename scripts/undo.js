@@ -1,9 +1,5 @@
-function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render, resetAllAdjustments, log, updateUI, rebuildWorkingCopies, recalculateColorTuning, updateAllAdjustmentUI }) {
+function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render, resetAllAdjustments, log, updateUI, rebuildWorkingCopies, recalculateColorTuning, updateAllAdjustmentUI, Logger }) {
     function saveSnapshot(actionType = 'generic') {
-        if (actionType.startsWith('tuning')) {
-             console.log(`[Undo] Saving Snapshot: ${actionType}`);
-        }
-
         const snap = {
             mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
             adjustments: JSON.parse(JSON.stringify(state.adjustments)),
@@ -17,6 +13,7 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
 
         if (isSameAction) {
             state.history[state.historyIndex] = snap;
+            Logger.info(`Updated existing snapshot at index ${state.historyIndex}. Action: ${actionType}`);
         } else {
             if (state.historyIndex < state.history.length - 1) {
                 state.history = state.history.slice(0, state.historyIndex + 1);
@@ -24,6 +21,7 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
             if (state.history.length > 30) state.history.shift();
             state.history.push(snap);
             state.historyIndex = state.history.length - 1;
+            Logger.info(`Created new snapshot at index ${state.historyIndex}. Action: ${actionType}`);
         }
         state.lastActionType = actionType;
         updateUI();
@@ -71,20 +69,26 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
     function undo() {
         if (state.historyIndex > 0) {
             state.historyIndex--;
+            Logger.undo(state.historyIndex, state.history.length, "Undo");
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();
             log("Undo", "info");
+        } else {
+            Logger.warn("Undo: Reached start of history.");
         }
     }
 
     function redo() {
         if (state.historyIndex < state.history.length - 1) {
             state.historyIndex++;
+            Logger.undo(state.historyIndex, state.history.length, "Redo");
             restoreState(state.history[state.historyIndex]);
             state.lastActionType = null;
             updateUI();
             log("Redo", "info");
+        } else {
+            Logger.warn("Redo: Reached end of history.");
         }
     }
 

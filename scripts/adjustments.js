@@ -4,6 +4,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     let masterLUT = new Uint8Array(256);
     let currentLUTHash = "";
     let hueCorrectionLUT = [];
+    let luminanceCorrectionLUT = [];
     let hasActiveColorTuning = false;
     let saveSnapshot = () => {};
     let updateWorkingCopies = () => {};
@@ -24,19 +25,6 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         let diff = Math.abs(hue - centerHue);
         if (diff > 180) diff = 360 - diff;
 
-        // Simple linear falloff over +/- 30 degrees for narrow bands (orange/yellow)
-        // and wider for others. Lightroom bands are somewhat dynamic.
-        // Let's approximate:
-        // Red (0) <-> Orange (30) <-> Yellow (60) : 30 deg sep
-        // Yellow (60) <-> Green (120): 60 deg sep
-        // Green (120) <-> Aqua (180): 60 deg sep
-        // Aqua (180) <-> Blue (240): 60 deg sep
-        // Blue (240) <-> Purple (280): 40 deg sep
-        // Purple (280) <-> Magenta (315): 35 deg sep
-        // Magenta (315) <-> Red (0): 45 deg sep
-
-        // A standard Gaussian or Cosine lobe works well for smooth blending.
-        // Let's use a dynamic width based on the band.
         let width = 45;
         if (centerHue === 30 || centerHue === 60) width = 25; // Narrower for Orange/Yellow
 
@@ -48,9 +36,37 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         return weight * weight * (3 - 2 * weight);
     }
 
+    function getLuminanceWeight(lum, band) {
+        // lum is 0.0 - 1.0
+        // Darks: Peak at 0, falloff to 0.5
+        // Mids: Peak at 0.5, falloff to 0 and 1
+        // Lights: Peak at 1, falloff to 0.5
+
+        if (band === 'darks') {
+            if (lum >= 0.5) return 0;
+            const t = lum / 0.5; // 0->0, 0.5->1
+            const w = 1 - t;
+            return w * w * (3 - 2 * w);
+        } else if (band === 'lights') {
+            if (lum <= 0.5) return 0;
+            const t = (lum - 0.5) / 0.5; // 0.5->0, 1.0->1
+            const w = t;
+            return w * w * (3 - 2 * w);
+        } else if (band === 'mids') {
+            // Peak at 0.5
+            const diff = Math.abs(lum - 0.5); // 0 -> 0.5, 0.5 -> 0, 1 -> 0.5
+            if (diff >= 0.5) return 0;
+            const t = diff / 0.5;
+            const w = 1 - t;
+            return w * w * (3 - 2 * w);
+        }
+        return 0;
+    }
+
     function updateColorTuningLUT() {
         const tuning = state.adjustments.colorTuning;
         hueCorrectionLUT = new Array(360);
+        luminanceCorrectionLUT = new Array(256);
         let anyActive = false;
 
         // Check if anything is active first to possibly skip logic
@@ -64,14 +80,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         hasActiveColorTuning = anyActive;
         if (!anyActive) return;
 
+        // Build Hue LUT
         for (let h = 0; h < 360; h++) {
             let totalWeight = 0;
-            let dHue = 0;
-            let dSat = 0;
-            let dVib = 0;
-            let dLum = 0;
-            let dShadows = 0;
-            let dHighlights = 0;
+            let dHue = 0, dSat = 0, dVib = 0, dLum = 0, dShadows = 0, dHighlights = 0;
 
             for (let bandName in BAND_CENTERS) {
                 const w = getBandWeight(h, BAND_CENTERS[bandName]);
@@ -87,36 +99,36 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 }
             }
 
-            // Normalize if overlapping weights > 1 (though our falloffs are designed to sum reasonably well,
-            // strict normalization prevents over-boosting in overlap regions).
-            // However, typical color engines simply accumulate. If we have > 1 weight sum, effects compound.
-            // Let's clamp the blended values effectively by not normalizing but designing widths to not overlap excessively.
-            // Actually, normalization is safer for smooth blending.
-            if (totalWeight > 0.001) {
-                // If we normalize, we might dilute the effect if only one band is active but weight is small?
-                // No, standard interpolation: result = (val1*w1 + val2*w2) / (w1+w2).
-                // But here we are summing *deltas* from zero.
-                // If Red has +10 sat, and we are at Red center, weight is 1 -> +10.
-                // If between Red and Orange, Red w=0.5, Orange w=0.5. If Orange is 0, sum is +5. Correct.
-                // So no division by totalWeight needed for additive deltas.
-            }
+            hueCorrectionLUT[h] = { hue: dHue, sat: dSat, vib: dVib, lum: dLum, shad: dShadows, high: dHighlights };
+        }
 
-            hueCorrectionLUT[h] = {
-                hue: dHue,
-                sat: dSat,
-                vib: dVib,
-                lum: dLum,
-                shad: dShadows,
-                high: dHighlights
-            };
+        // Build Luminance LUT
+        for (let i = 0; i < 256; i++) {
+            const lumVal = i / 255;
+            let dHue = 0, dSat = 0, dVib = 0, dLum = 0, dShadows = 0, dHighlights = 0;
+
+            ['darks', 'mids', 'lights'].forEach(band => {
+                const w = getLuminanceWeight(lumVal, band);
+                if (w > 0) {
+                    const t = tuning[band];
+                    if (t) {
+                         dHue += t.hue * w;
+                         dSat += t.saturation * w;
+                         dVib += t.vibrance * w;
+                         dLum += t.luminance * w;
+                         dShadows += t.shadows * w;
+                         dHighlights += t.highlights * w;
+                    }
+                }
+            });
+
+            luminanceCorrectionLUT[i] = { hue: dHue, sat: dSat, vib: dVib, lum: dLum, shad: dShadows, high: dHighlights };
         }
     }
 
     function applySelectiveColor(imageData) {
         if (!hasActiveColorTuning) return;
         const data = imageData.data;
-        const w = imageData.width;
-        const h = imageData.height;
 
         for (let i = 0; i < data.length; i += 4) {
             const rRaw = data[i], gRaw = data[i+1], bRaw = data[i+2];
@@ -142,27 +154,33 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             }
 
             const hueInt = Math.round(hVal) % 360;
-            const idx = hueInt < 0 ? hueInt + 360 : hueInt;
+            const hIdx = hueInt < 0 ? hueInt + 360 : hueInt;
+            const lIdx = Math.floor(lVal * 255);
 
-            const adj = hueCorrectionLUT[idx];
-            if (!adj) continue; // Should effectively mean weight was 0 for all bands
+            const hueAdj = hueCorrectionLUT[hIdx];
+            const lumAdj = luminanceCorrectionLUT[lIdx];
+
+            if (!hueAdj && !lumAdj) continue;
+
+            // Accumulate adjustments
+            let dHue = (hueAdj ? hueAdj.hue : 0) + (lumAdj ? lumAdj.hue : 0);
+            let dSat = (hueAdj ? hueAdj.sat : 0) + (lumAdj ? lumAdj.sat : 0);
+            let dVib = (hueAdj ? hueAdj.vib : 0) + (lumAdj ? lumAdj.vib : 0);
+            let dLum = (hueAdj ? hueAdj.lum : 0) + (lumAdj ? lumAdj.lum : 0);
+            let dShad = (hueAdj ? hueAdj.shad : 0) + (lumAdj ? lumAdj.shad : 0);
+            let dHigh = (hueAdj ? hueAdj.high : 0) + (lumAdj ? lumAdj.high : 0);
 
             // 1. Hue Shift
-            let newH = hVal + adj.hue;
+            let newH = hVal + dHue;
             if (newH < 0) newH += 360;
             if (newH >= 360) newH -= 360;
 
             // 2. Saturation & Vibrance
-            // Saturation is simple multiplier
-            // Vibrance weighs less on already saturated pixels
-            let satMult = 1 + (adj.sat / 100);
+            let satMult = 1 + (dSat / 100);
 
-            // Vibrance logic adapted from applyColorOps but for single pixel HSL
-            if (adj.vib !== 0) {
-                 // In HSL, 'sVal' is the saturation.
-                 // Vibrance boosts low sat more.
+            if (dVib !== 0) {
                  const vibFactor = 2.0 * (1 - sVal);
-                 satMult += (adj.vib / 100) * vibFactor;
+                 satMult += (dVib / 100) * vibFactor;
             }
 
             let newS = sVal * satMult;
@@ -170,17 +188,17 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             if (newS > 1) newS = 1;
 
             // 3. Luminance
-            let newL = lVal + (adj.lum / 200);
+            let newL = lVal + (dLum / 200);
 
             // 4. Shadows / Highlights
-            if (adj.shad !== 0 || adj.high !== 0) {
-                 if (adj.shad !== 0) {
+            if (dShad !== 0 || dHigh !== 0) {
+                 if (dShad !== 0) {
                      const sFactor = (1.0 - lVal) * (1.0 - lVal); // stronger on blacks
-                     newL += (adj.shad / 300) * sFactor;
+                     newL += (dShad / 300) * sFactor;
                  }
-                 if (adj.high !== 0) {
+                 if (dHigh !== 0) {
                      const hFactor = lVal * lVal; // stronger on whites
-                     newL += (adj.high / 300) * hFactor;
+                     newL += (dHigh / 300) * hFactor;
                  }
             }
 
@@ -447,7 +465,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
                 blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
                 purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
             }
          };
          updateSlider('adj-gamma', 1.0);
@@ -634,7 +655,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     }
 
     function initColorTuning() {
-        const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'];
+        const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta', 'lights', 'mids', 'darks'];
 
         // 1. Band Selection
         bands.forEach(band => {
@@ -719,7 +740,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (resetTuningBtn) {
             resetTuningBtn.addEventListener('click', () => {
                 for (let b of bands) {
-                    state.adjustments.colorTuning[b] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+                    if (state.adjustments.colorTuning[b]) {
+                         state.adjustments.colorTuning[b] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+                    }
                 }
                 refreshTuningSliders();
                 updateColorTuningLUT();

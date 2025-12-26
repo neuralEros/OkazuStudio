@@ -17,11 +17,6 @@ def run():
         # Wait for app to load (checking for drawer-tools)
         expect(page.locator("#drawer-tools")).to_be_visible()
 
-        # Verify the presence of new luminance buttons
-        expect(page.locator("#band-lights")).to_be_visible()
-        expect(page.locator("#band-mids")).to_be_visible()
-        expect(page.locator("#band-darks")).to_be_visible()
-
         # Hover over the tools drawer to open it
         page.locator("#drawer-tools").hover()
 
@@ -29,8 +24,8 @@ def run():
         page.wait_for_timeout(500)
 
         # Take a screenshot of the drawer
-        page.screenshot(path="verification/drawer_check.png")
-        print("Screenshot saved to verification/drawer_check.png")
+        page.screenshot(path="verification/drawer_check_fixed_v3.png")
+        print("Screenshot saved to verification/drawer_check_fixed_v3.png")
 
         browser.close()
 

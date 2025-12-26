@@ -1006,7 +1006,8 @@
                 maskCanvas.width = targetW;
                 maskCanvas.height = targetH;
                 maskCtx.clearRect(0,0,targetW,targetH); 
-                undoSys.resetMaskAndHistory();
+                // Don't reset history on resize; the resize is just an effect of LOAD/CROP actions.
+                // undoSys.resetMaskAndHistory();
             }
 
             resizeMainCanvas(state.cropRect.w, state.cropRect.h);

@@ -176,13 +176,9 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
             if (state.fullDims.w > 0) {
                 state.cropRect = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
             }
-            state.imgA = null;
-            state.imgB = null;
-            state.imgAId = null;
-            state.imgBId = null;
-            // Also need to clear canvas if we had images
-             // Actually executeAction('LOAD') will handle setting images.
-             // But if we start from 0, we assume no images.
+            // Do NOT wipe images here by default, as this is used by resetMaskAndHistory
+            // which might be called during a resize/load flow.
+            // If we want a hard reset, we should call a separate method or manual clear.
         }
 
         restoreSnapshot(snap) {
@@ -314,7 +310,14 @@ function createUndoSystem({ state, maskCtx, maskCanvas, updateSlider, resizeMain
              history.actions = [];
              history.keyframes.clear();
              history.currentIndex = -1;
-             history.resetToZero();
+
+             // Create a base keyframe from current state instead of wiping
+             // This ensures we have a starting point if we ever undo back to start
+             history.saveKeyframe(-1); // Use -1 as base index
+
+             // We do NOT call resetToZero because that wipes images.
+             // We assume the caller handles mask clearing if needed (or we do it here)
+             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
         },
         saveSnapshot, // Stub
         get canUndo() { return history.currentIndex >= 0; },

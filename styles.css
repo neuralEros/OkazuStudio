@@ -520,19 +520,19 @@
 }
 
 /* Color Tuning Gradients */
-.grad-red { background: linear-gradient(to right, #ff00ff, #ff0000 15%, #ff0000 85%, #ff8000); }
-.grad-orange { background: linear-gradient(to right, #ff0000, #ff8000 15%, #ff8000 85%, #ffff00); }
-.grad-yellow { background: linear-gradient(to right, #ff8000, #ffff00 15%, #ffff00 85%, #00ff00); }
-.grad-green { background: linear-gradient(to right, #ffff00, #00ff00 15%, #00ff00 85%, #00ffff); }
-.grad-aqua { background: linear-gradient(to right, #00ff00, #00ffff 15%, #00ffff 85%, #0000ff); }
-.grad-blue { background: linear-gradient(to right, #00ffff, #0000ff 15%, #0000ff 85%, #8000ff); }
-.grad-purple { background: linear-gradient(to right, #0000ff, #8000ff 15%, #8000ff 85%, #ff00ff); }
-.grad-magenta { background: linear-gradient(to right, #8000ff, #ff00ff 15%, #ff00ff 85%, #ff0000); }
+.grad-red { background-image: linear-gradient(to right, #ff00ff, #ff0000 20%, #ff0000 80%, #ff8000); background-origin: border-box; }
+.grad-orange { background-image: linear-gradient(to right, #ff0000, #ff8000 20%, #ff8000 80%, #ffff00); background-origin: border-box; }
+.grad-yellow { background-image: linear-gradient(to right, #ff8000, #ffff00 20%, #ffff00 80%, #00ff00); background-origin: border-box; }
+.grad-green { background-image: linear-gradient(to right, #ffff00, #00ff00 20%, #00ff00 80%, #00ffff); background-origin: border-box; }
+.grad-aqua { background-image: linear-gradient(to right, #00ff00, #00ffff 20%, #00ffff 80%, #0000ff); background-origin: border-box; }
+.grad-blue { background-image: linear-gradient(to right, #00ffff, #0000ff 20%, #0000ff 80%, #8000ff); background-origin: border-box; }
+.grad-purple { background-image: linear-gradient(to right, #0000ff, #8000ff 20%, #8000ff 80%, #ff00ff); background-origin: border-box; }
+.grad-magenta { background-image: linear-gradient(to right, #8000ff, #ff00ff 20%, #ff00ff 80%, #ff0000); background-origin: border-box; }
 
 /* Luminance Band Gradients */
-.band-lights { background: linear-gradient(to right, #cccccc, #ffffff 15%, #ffffff 85%, #ffffff); }
-.band-mids { background: linear-gradient(to right, #444444, #888888 15%, #888888 85%, #cccccc); }
-.band-darks { background: linear-gradient(to right, #000000, #222222 15%, #222222 85%, #444444); }
+.band-lights { background-image: linear-gradient(to right, #cccccc, #ffffff 20%, #ffffff 80%, #ffffff); background-origin: border-box; }
+.band-mids { background-image: linear-gradient(to right, #444444, #888888 20%, #888888 80%, #cccccc); background-origin: border-box; }
+.band-darks { background-image: linear-gradient(to right, #000000, #222222 20%, #222222 80%, #444444); background-origin: border-box; }
 
 /* Luminance Row Layout */
 .tuning-lum-row {

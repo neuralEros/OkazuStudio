@@ -520,19 +520,19 @@
 }
 
 /* Color Tuning Gradients */
-.grad-red { background-image: linear-gradient(to right, #ff00ff, #ff0000 20%, #ff0000 80%, #ff8000); background-origin: border-box; }
-.grad-orange { background-image: linear-gradient(to right, #ff0000, #ff8000 20%, #ff8000 80%, #ffff00); background-origin: border-box; }
-.grad-yellow { background-image: linear-gradient(to right, #ff8000, #ffff00 20%, #ffff00 80%, #00ff00); background-origin: border-box; }
-.grad-green { background-image: linear-gradient(to right, #ffff00, #00ff00 20%, #00ff00 80%, #00ffff); background-origin: border-box; }
-.grad-aqua { background-image: linear-gradient(to right, #00ff00, #00ffff 20%, #00ffff 80%, #0000ff); background-origin: border-box; }
-.grad-blue { background-image: linear-gradient(to right, #00ffff, #0000ff 20%, #0000ff 80%, #8000ff); background-origin: border-box; }
-.grad-purple { background-image: linear-gradient(to right, #0000ff, #8000ff 20%, #8000ff 80%, #ff00ff); background-origin: border-box; }
-.grad-magenta { background-image: linear-gradient(to right, #8000ff, #ff00ff 20%, #ff00ff 80%, #ff0000); background-origin: border-box; }
+.grad-red { background-image: linear-gradient(to right, #ff00ff, #ff0000 25%, #ff0000 75%, #ff8000); background-origin: border-box; }
+.grad-orange { background-image: linear-gradient(to right, #ff0000, #ff8000 25%, #ff8000 75%, #ffff00); background-origin: border-box; }
+.grad-yellow { background-image: linear-gradient(to right, #ff8000, #ffff00 25%, #ffff00 75%, #00ff00); background-origin: border-box; }
+.grad-green { background-image: linear-gradient(to right, #ffff00, #00ff00 25%, #00ff00 75%, #00ffff); background-origin: border-box; }
+.grad-aqua { background-image: linear-gradient(to right, #00ff00, #00ffff 25%, #00ffff 75%, #0000ff); background-origin: border-box; }
+.grad-blue { background-image: linear-gradient(to right, #00ffff, #0000ff 25%, #0000ff 75%, #8000ff); background-origin: border-box; }
+.grad-purple { background-image: linear-gradient(to right, #0000ff, #8000ff 25%, #8000ff 75%, #ff00ff); background-origin: border-box; }
+.grad-magenta { background-image: linear-gradient(to right, #8000ff, #ff00ff 25%, #ff00ff 75%, #ff0000); background-origin: border-box; }
 
 /* Luminance Band Gradients */
-.band-lights { background-image: linear-gradient(to right, #cccccc, #ffffff 20%, #ffffff 80%, #ffffff); background-origin: border-box; }
-.band-mids { background-image: linear-gradient(to right, #444444, #888888 20%, #888888 80%, #cccccc); background-origin: border-box; }
-.band-darks { background-image: linear-gradient(to right, #000000, #222222 20%, #222222 80%, #444444); background-origin: border-box; }
+.band-lights { background-image: linear-gradient(to right, #cccccc, #ffffff 25%, #ffffff 75%, #ffffff); background-origin: border-box; }
+.band-mids { background-image: linear-gradient(to right, #444444, #888888 25%, #888888 75%, #cccccc); background-origin: border-box; }
+.band-darks { background-image: linear-gradient(to right, #000000, #222222 25%, #222222 75%, #444444); background-origin: border-box; }
 
 /* Luminance Row Layout */
 .tuning-lum-row {

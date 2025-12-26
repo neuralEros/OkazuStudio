@@ -26,6 +26,7 @@
         const DEFAULT_FEATHER_PX = 5;
         const DEFAULT_REPAIR_BRUSH = DEFAULT_ERASE_BRUSH / 2;
         const DEFAULT_PATCH_FEATHER = 10;
+        const HARDNESS_MAX = 20;
 
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
@@ -420,12 +421,18 @@
 
         function init() {
             Logger.info("OkazuStudio Initializing...");
+            Logger.info(`System Info: User Agent: ${navigator.userAgent}`);
+            Logger.info(`System Info: Platform: ${navigator.platform} | Language: ${navigator.language}`);
+            Logger.info(`System Info: Screen: ${window.screen.width}x${window.screen.height} @ ${window.devicePixelRatio}x`);
+            Logger.info(`System Info: Viewport: ${window.innerWidth}x${window.innerHeight} | Touch: ${'ontouchstart' in window ? 'yes' : 'no'} | Cores: ${navigator.hardwareConcurrency || 'n/a'} | Memory: ${navigator.deviceMemory || 'n/a'}GB`);
             initAdjustments();
             initDrawerSync();
 
             // Drawer Logging
             if (els.adjDrawer) els.adjDrawer.addEventListener('mouseenter', () => Logger.info("Drawer Opened: Adjustments"));
+            if (els.adjDrawer) els.adjDrawer.addEventListener('mouseleave', () => Logger.info("Drawer Closed: Adjustments"));
             if (els.colorTuningDrawer) els.colorTuningDrawer.addEventListener('mouseenter', () => Logger.info("Drawer Opened: Color Tuning"));
+            if (els.colorTuningDrawer) els.colorTuningDrawer.addEventListener('mouseleave', () => Logger.info("Drawer Closed: Color Tuning"));
 
             // Check if drawer is being hovered to commit changes on exit
             setInterval(() => {
@@ -854,6 +861,14 @@
             state.isCropping = !state.isCropping;
             
             if (state.isCropping) {
+                if (state.cropRect) {
+                    Logger.info("Crop mode entered", {
+                        x: state.cropRect.x,
+                        y: state.cropRect.y,
+                        w: state.cropRect.w,
+                        h: state.cropRect.h
+                    });
+                }
                 state.cropRectSnapshot = state.cropRect ? { ...state.cropRect } : null;
                 els.cropBtn.classList.add('active', 'text-yellow-400');
                 // Resize main canvas to full dims
@@ -865,6 +880,14 @@
                 // Resize main canvas to crop rect
                 resizeMainCanvas(state.cropRect.w, state.cropRect.h);
                 els.viewport.classList.remove('cropping');
+                if (state.cropRect) {
+                    Logger.info("Crop mode exited", {
+                        x: state.cropRect.x,
+                        y: state.cropRect.y,
+                        w: state.cropRect.w,
+                        h: state.cropRect.h
+                    });
+                }
             }
             resetView();
             render();
@@ -969,11 +992,18 @@
         }
 
         function setMode(mode) {
+            if (state.brushMode === mode) return;
             state.brushMode = mode;
             els.eraseMode.classList.toggle('active', mode === 'erase');
             els.repairMode.classList.toggle('active', mode === 'repair');
             els.patchMode.classList.toggle('active', mode === 'patch');
             syncBrushUIToActive();
+            const hardness = Math.round(100 - (state.feather / HARDNESS_MAX * 100));
+            Logger.info(`Brush mode switched: ${mode}`, {
+                sizePercent: Number(state.brushPercent.toFixed(1)),
+                hardnessPercent: hardness,
+                featherMode: state.featherMode
+            });
         }
 
         function handleFileLoad(file, slot) {

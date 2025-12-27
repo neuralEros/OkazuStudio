@@ -237,20 +237,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function commitPolyline(shouldFill = false) {
         if (state.polylinePoints.length === 0) return;
 
-        if (window.dispatchAction) {
-             dispatchAction({
-                 type: 'POLYLINE',
-                 payload: {
-                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
-                     shouldFill,
-                     brushSize: getBrushPixelSize(),
-                     feather: state.featherMode ? state.featherPx : state.feather,
-                     featherMode: state.featherMode,
-                     mode: isEraseMode() ? 'erase' : 'repair'
-                 }
-             });
-        }
-
         const pts = state.polylinePoints;
 
         // Fill first if requested
@@ -288,6 +274,20 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              // Draw Node p2
              drawBrushStamp(p2.x, p2.y, maskCtx);
          }
+
+         if (window.dispatchAction) {
+             dispatchAction({
+                 type: 'POLYLINE',
+                 payload: {
+                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
+                     shouldFill,
+                     brushSize: getBrushPixelSize(),
+                     feather: state.featherMode ? state.featherPx : state.feather,
+                     featherMode: state.featherMode,
+                     mode: isEraseMode() ? 'erase' : 'repair'
+                 }
+             });
+        }
 
          const actionType = state.currentPolylineAction || 'mask';
          // saveSnapshot(actionType);

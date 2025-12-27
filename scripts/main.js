@@ -119,9 +119,9 @@
             els.loadingOverlay.classList.remove('hidden');
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
-                    setTimeout(() => {
+                    setTimeout(async () => {
                         try {
-                            taskFn();
+                            await taskFn();
                         } catch(e) {
                             console.error(e);
                             log("Task failed: " + e.message);
@@ -376,10 +376,12 @@
         }
 
         function rotateView() {
-            state.rotation = (state.rotation + 90) % 360;
-            updateCanvasDimensions(false); // False triggers resetView which fits new aspect ratio
-            render();
-            saveSnapshot('rotate_view');
+            scheduleHeavyTask(() => {
+                state.rotation = (state.rotation + 90) % 360;
+                updateCanvasDimensions(false); // False triggers resetView which fits new aspect ratio
+                render();
+                saveSnapshot('rotate_view');
+            });
         }
 
         function setLayerSource(slot, img) {
@@ -1705,169 +1707,165 @@
         // --- Censor, Merge, Save (Remaining) ---
         function applyCensor() {
              if (!state.imgA && !state.imgB) { log("Need at least one image"); return; }
-             bakeRotation();
-             log("Generating Censor layer...", "info");
-             setTimeout(() => {
-                try {
-                    // Ensure any fast/preview mask state is cleared so the final render uses the full-resolution mask
-                    state.isPreviewing = false;
-                    state.previewMaskCanvas = null;
-                    state.previewMaskScale = 1;
-                    state.useFastPreview = false;
-                    state.fastPreviewLastPoint = null;
 
-                    // Temporarily render full, uncropped frame for processing
-                    const wasCropping = state.isCropping;
-                    const prevCropRect = state.cropRect ? { ...state.cropRect } : null;
-                    const fullFrame = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
+             scheduleHeavyTask(async () => {
+                 bakeRotation();
+                 log("Generating Censor layer...", "info");
 
-                    state.isCropping = true;
-                    state.cropRect = fullFrame;
-                    resizeMainCanvas(fullFrame.w, fullFrame.h);
+                 // Ensure any fast/preview mask state is cleared so the final render uses the full-resolution mask
+                 state.isPreviewing = false;
+                 state.previewMaskCanvas = null;
+                 state.previewMaskScale = 1;
+                 state.useFastPreview = false;
+                 state.fastPreviewLastPoint = null;
 
-                    render(true, true); // Final, Skip Adjustments
-                    const baseData = els.mainCanvas.toDataURL('image/png');
+                 // Temporarily render full, uncropped frame for processing
+                 const wasCropping = state.isCropping;
+                 const prevCropRect = state.cropRect ? { ...state.cropRect } : null;
+                 const fullFrame = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
 
-                    // Restore crop state before building layers
-                    state.isCropping = wasCropping;
-                    state.cropRect = prevCropRect;
-                    if (wasCropping) resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-                    else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
-                    const imgBase = new Image();
-                    imgBase.onload = () => {
-                        setLayerSource('A', imgBase); state.nameA = "Base Layer";
-                        const w = imgBase.width; const h = imgBase.height;
-                        const blurRadius = Math.max(1, h * 0.01);
-                        const pad = Math.ceil(blurRadius * 3);
-                        const paddedCanvas = document.createElement('canvas');
-                        paddedCanvas.width = w + pad * 2; paddedCanvas.height = h + pad * 2;
-                        const pCtx = paddedCanvas.getContext('2d');
-                        pCtx.drawImage(imgBase, pad, pad); 
-                        pCtx.drawImage(imgBase, 0, 0, w, 1, pad, 0, w, pad);
-                        pCtx.drawImage(imgBase, 0, h-1, w, 1, pad, h+pad, w, pad);
-                        pCtx.drawImage(imgBase, 0, 0, 1, h, 0, pad, pad, h);
-                        pCtx.drawImage(imgBase, w-1, 0, 1, h, w+pad, pad, pad, h);
-                        const blurCanvas = document.createElement('canvas');
-                        blurCanvas.width = w; blurCanvas.height = h;
-                        const bCtx = blurCanvas.getContext('2d');
-                        bCtx.filter = `blur(${blurRadius}px)`;
-                        bCtx.drawImage(paddedCanvas, -pad, -pad);
-                        bCtx.filter = 'none';
-                        const blockSize = Math.max(1, h * 0.025);
-                        const sw = Math.ceil(w / blockSize); const sh = Math.ceil(h / blockSize);
-                        const tinyCanvas = document.createElement('canvas');
-                        tinyCanvas.width = sw; tinyCanvas.height = sh;
-                        const tinyCtx = tinyCanvas.getContext('2d');
-                        tinyCtx.drawImage(blurCanvas, 0, 0, sw, sh);
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = w; tempCanvas.height = h;
-                        const tCtx = tempCanvas.getContext('2d');
-                        tCtx.imageSmoothingEnabled = false;
-                        tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
-                        const imgCensored = new Image();
-                        imgCensored.onload = () => {
-                            setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
+                 state.isCropping = true;
+                 state.cropRect = fullFrame;
+                 resizeMainCanvas(fullFrame.w, fullFrame.h);
 
-                            // Re-init full dims
-                            const newW = imgCensored.width;
-                            const newH = imgCensored.height;
-                            state.fullDims = { w: newW, h: newH };
-                            // Preserve Crop if valid, else reset
-                            if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
-                                state.cropRect = { x: 0, y: 0, w: newW, h: newH };
-                            }
+                 render(true, true); // Final, Skip Adjustments
+                 const baseData = els.mainCanvas.toDataURL('image/png');
 
-                            resetMaskOnly(); // Don't reset adjustments
-                            
-                            // Restore view state
-                            state.isCropping = wasCropping;
-                            if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
-                            else resizeMainCanvas(newW, newH);
-                            
-                            state.maskVisible = true;
-                            els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
-                            state.backVisible = true;
-                            els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
-                            state.brushSettings = {
-                                erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
-                            };
-                            setMode('erase');
-                            setFeatherMode(true, { value: 5, applyToAll: true });
-                            syncBrushUIToActive();
-                            state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
-                            state.isAFront = true;
-                            updateLoadButton(els.btnA, "Base", "front");
-                            els.btnA.classList.add('border-accent-strong', 'text-accent');
-                            updateLoadButton(els.btnB, "Censored", "back");
-                            els.btnB.classList.add('border-accent-strong', 'text-accent');
+                 // Restore crop state before building layers
+                 state.isCropping = wasCropping;
+                 state.cropRect = prevCropRect;
+                 if (wasCropping) resizeMainCanvas(state.fullDims.w, state.fullDims.h);
+                 else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
 
-                            rebuildWorkingCopies(true);
+                 const imgBase = await loadImageSource(baseData);
 
-                            render(); updateUI();
-                            log("Censor setup complete", "info");
-                        };
-                        imgCensored.src = tempCanvas.toDataURL('image/png');
-                    };
-                    imgBase.src = baseData;
-                } catch(e) { console.error(e); }
-             }, 50);
+                 setLayerSource('A', imgBase); state.nameA = "Base Layer";
+                 const w = imgBase.width; const h = imgBase.height;
+                 const blurRadius = Math.max(1, h * 0.01);
+                 const pad = Math.ceil(blurRadius * 3);
+                 const paddedCanvas = document.createElement('canvas');
+                 paddedCanvas.width = w + pad * 2; paddedCanvas.height = h + pad * 2;
+                 const pCtx = paddedCanvas.getContext('2d');
+                 pCtx.drawImage(imgBase, pad, pad);
+                 pCtx.drawImage(imgBase, 0, 0, w, 1, pad, 0, w, pad);
+                 pCtx.drawImage(imgBase, 0, h-1, w, 1, pad, h+pad, w, pad);
+                 pCtx.drawImage(imgBase, 0, 0, 1, h, 0, pad, pad, h);
+                 pCtx.drawImage(imgBase, w-1, 0, 1, h, w+pad, pad, pad, h);
+                 const blurCanvas = document.createElement('canvas');
+                 blurCanvas.width = w; blurCanvas.height = h;
+                 const bCtx = blurCanvas.getContext('2d');
+                 bCtx.filter = `blur(${blurRadius}px)`;
+                 bCtx.drawImage(paddedCanvas, -pad, -pad);
+                 bCtx.filter = 'none';
+                 const blockSize = Math.max(1, h * 0.025);
+                 const sw = Math.ceil(w / blockSize); const sh = Math.ceil(h / blockSize);
+                 const tinyCanvas = document.createElement('canvas');
+                 tinyCanvas.width = sw; tinyCanvas.height = sh;
+                 const tinyCtx = tinyCanvas.getContext('2d');
+                 tinyCtx.drawImage(blurCanvas, 0, 0, sw, sh);
+                 const tempCanvas = document.createElement('canvas');
+                 tempCanvas.width = w; tempCanvas.height = h;
+                 const tCtx = tempCanvas.getContext('2d');
+                 tCtx.imageSmoothingEnabled = false;
+                 tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
+
+                 const imgCensored = await loadImageSource(tempCanvas.toDataURL('image/png'));
+
+                 setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
+
+                 // Re-init full dims
+                 const newW = imgCensored.width;
+                 const newH = imgCensored.height;
+                 state.fullDims = { w: newW, h: newH };
+                 // Preserve Crop if valid, else reset
+                 if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
+                     state.cropRect = { x: 0, y: 0, w: newW, h: newH };
+                 }
+
+                 resetMaskOnly(); // Don't reset adjustments
+
+                 // Restore view state
+                 state.isCropping = wasCropping;
+                 if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+                 else resizeMainCanvas(newW, newH);
+
+                 state.maskVisible = true;
+                 els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
+                 state.backVisible = true;
+                 els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
+                 state.brushSettings = {
+                     erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
+                     repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                 };
+                 setMode('erase');
+                 setFeatherMode(true, { value: 5, applyToAll: true });
+                 syncBrushUIToActive();
+                 state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
+                 state.isAFront = true;
+                 updateLoadButton(els.btnA, "Base", "front");
+                 els.btnA.classList.add('border-accent-strong', 'text-accent');
+                 updateLoadButton(els.btnB, "Censored", "back");
+                 els.btnB.classList.add('border-accent-strong', 'text-accent');
+
+                 rebuildWorkingCopies(true);
+
+                 render(); updateUI();
+                 log("Censor setup complete", "info");
+             });
         }
 
         function mergeDown() {
             if (!canDraw()) return;
-            bakeRotation();
-            log("Merging...", "info");
-            setTimeout(() => {
-                try {
-                    // Render Full Image temporarily
-                    const wasCropping = state.isCropping;
-                    state.isCropping = false;
-                    resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-                    
-                    render(true, true); // Final, Skip Adjustments
-                    const dataURL = els.mainCanvas.toDataURL('image/png');
-                    const newImg = new Image();
-                    newImg.onload = () => {
-                        setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
-                        state.nameA = "Merged Layer"; state.nameB = "";
-                        
-                        // Update dims
-                        const newW = newImg.width;
-                        const newH = newImg.height;
-                        state.fullDims = { w: newW, h: newH };
-                        
-                        // Preserve Crop
-                        if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
-                             state.cropRect = { x: 0, y: 0, w: newW, h: newH };
-                        }
+            scheduleHeavyTask(async () => {
+                bakeRotation();
+                log("Merging...", "info");
 
-                        resetMaskOnly(); // Don't reset adjustments
-                        
-                        // Restore view
-                        state.isCropping = wasCropping;
-                        if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
-                        else resizeMainCanvas(newW, newH);
+                // Render Full Image temporarily
+                const wasCropping = state.isCropping;
+                state.isCropping = false;
+                resizeMainCanvas(state.fullDims.w, state.fullDims.h);
 
-                        maskCanvas.width = newW; maskCanvas.height = newH;
-                        frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
-                        maskCtx.clearRect(0, 0, newW, newH);
+                render(true, true); // Final, Skip Adjustments
+                const dataURL = els.mainCanvas.toDataURL('image/png');
 
-                        rebuildWorkingCopies(true);
+                const newImg = await loadImageSource(dataURL);
 
-                        state.isAFront = true; state.opacity = 1.0;
-                        els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
-                        updateLoadButton(els.btnA, "Merged", "front");
-                        els.btnA.classList.add('border-accent-strong', 'text-accent');
-                        updateLoadButton(els.btnB, "Load", "back");
-                        els.btnB.classList.remove('border-accent-strong', 'text-accent');
-                        
-                        render(); updateUI();
-                        log("Merge successful", "info");
-                    };
-                    newImg.src = dataURL;
-                } catch (e) { console.error(e); }
-            }, 50);
+                setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
+                state.nameA = "Merged Layer"; state.nameB = "";
+
+                // Update dims
+                const newW = newImg.width;
+                const newH = newImg.height;
+                state.fullDims = { w: newW, h: newH };
+
+                // Preserve Crop
+                if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
+                        state.cropRect = { x: 0, y: 0, w: newW, h: newH };
+                }
+
+                resetMaskOnly(); // Don't reset adjustments
+
+                // Restore view
+                state.isCropping = wasCropping;
+                if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+                else resizeMainCanvas(newW, newH);
+
+                maskCanvas.width = newW; maskCanvas.height = newH;
+                frontLayerCanvas.width = newW; frontLayerCanvas.height = newH;
+                maskCtx.clearRect(0, 0, newW, newH);
+
+                rebuildWorkingCopies(true);
+
+                state.isAFront = true; state.opacity = 1.0;
+                els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
+                updateLoadButton(els.btnA, "Merged", "front");
+                els.btnA.classList.add('border-accent-strong', 'text-accent');
+                updateLoadButton(els.btnB, "Load", "back");
+                els.btnB.classList.remove('border-accent-strong', 'text-accent');
+
+                render(); updateUI();
+                log("Merge successful", "info");
+            });
         }
 
         function saveImage() {

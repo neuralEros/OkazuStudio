@@ -1414,6 +1414,23 @@
             const total = window.ActionHistory ? window.ActionHistory.actions.length : 0;
             els.undoBtn.disabled = cursor < 0;
             els.redoBtn.disabled = cursor >= total - 1;
+
+            if (cursor < 0) {
+                els.mainCanvas.classList.add('hidden');
+                els.emptyState.style.display = '';
+            } else {
+                els.mainCanvas.classList.remove('hidden');
+                els.emptyState.style.display = 'none';
+            }
+
+            // Sync Button Text with State
+            updateLoadButton(els.btnA, state.nameA ? truncate(state.nameA) : "Load", "front");
+            if (state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
+            else els.btnA.classList.remove('border-accent-strong', 'text-accent');
+
+            updateLoadButton(els.btnB, state.nameB ? truncate(state.nameB) : "Load", "back");
+            if (state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
+            else els.btnB.classList.remove('border-accent-strong', 'text-accent');
             
             // Trash Buttons
             els.btnTrashA.disabled = !state.imgA;

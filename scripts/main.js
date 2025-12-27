@@ -359,6 +359,9 @@
             if (!source) return { img: null, scale: 1 };
             if (!useBakedLayers) return { img: source, scale: 1 };
 
+            // If adjustments are hidden, bypass working copies and return raw source
+            if (!state.adjustmentsVisible) return { img: source, scale: 1 };
+
             const working = slot === 'A' ? state.workingA : state.workingB;
             const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
             if (allowRebuild && (!working || workingVersion !== state.adjustmentsVersion)) {
@@ -733,9 +736,13 @@
             
             els.clearMask.addEventListener('click', () => {
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                state.maskVisible = true;
+                state.backVisible = true;
+                state.adjustmentsVisible = true;
                 resetAllAdjustments();
                 saveSnapshot('full_reset'); 
                 resetView(); 
+                updateVisibilityToggles();
                 render();
                 log("Reset All", "info");
             });

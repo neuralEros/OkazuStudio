@@ -378,6 +378,7 @@
         function rotateView() {
             state.rotation = (state.rotation + 90) % 360;
             updateCanvasDimensions(false); // False triggers resetView which fits new aspect ratio
+            render();
             saveSnapshot('rotate_view');
         }
 

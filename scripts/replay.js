@@ -148,10 +148,14 @@
                         }
 
                         if (type === 'LOAD_IMAGE') {
-                             // Initialize dims if first image?
-                             // main.js assignLayer does: markAdjustmentsDirty, rebuildWorkingCopies, updateCanvasDimensions, render, updateUI.
-                             // We handle those at end of replayTo usually, or explicitly?
-                             // We should probably rely on `rebuildWorkingCopies` and `render` calls at end of replay loop.
+                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             this.state.rotation = 0;
+                        } else if (type === 'MERGE_LAYERS' || type === 'APPLY_CENSOR') {
+                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             }
                         }
 
                         if (type === 'MERGE_LAYERS') {
@@ -272,6 +276,24 @@
                     this.state.adjustments = this.getCleanAdjustments();
                     break;
 
+                case 'RESET_LEVELS':
+                    this.state.adjustments.levels = { black: 0, mid: 1.0, white: 255 };
+                    break;
+                case 'RESET_SATURATION':
+                    this.state.adjustments.saturation = 0;
+                    this.state.adjustments.vibrance = 0;
+                    break;
+                case 'RESET_COLOR_BALANCE':
+                    this.state.adjustments.wb = 0;
+                    this.state.adjustments.colorBal = { r: 0, g: 0, b: 0 };
+                    break;
+                case 'RESET_TUNING_BAND':
+                    this.state.adjustments.colorTuning[payload.band] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+                    break;
+                case 'RESET_TUNING_ALL':
+                    this.state.adjustments.colorTuning = this.createCleanColorTuning();
+                    break;
+
                 case 'SET_OPACITY':
                     this.state.opacity = payload.value;
                     break;
@@ -283,17 +305,23 @@
         }
 
         getCleanAdjustments() {
-             // Return default structure
              return {
                  gamma: 1.0,
                  levels: { black: 0, mid: 1.0, white: 255 },
                  shadows: 0, highlights: 0,
                  saturation: 0, vibrance: 0,
                  wb: 0, colorBal: { r: 0, g: 0, b: 0 },
-                 colorTuning: this.state.adjustments.colorTuning // Resetting structure is tedious, maybe iterate?
-                 // For now, let's assume colorTuning keys exist and reset values
+                 colorTuning: this.createCleanColorTuning()
              };
-             // Actually, a helper to reset is better.
+        }
+
+        createCleanColorTuning() {
+            const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta', 'lights', 'mids', 'darks'];
+            const t = {};
+            bands.forEach(b => {
+                t[b] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+            });
+            return t;
         }
 
         async replayTo(targetIndex) {

@@ -206,6 +206,11 @@
         if (window.createReplayEngine) {
             replayEngine = window.createReplayEngine(state, maskCtx, maskCanvas, render, updateUI, updateWorkingCopiesAfterAdjustments);
             replayEngine.setUpdateCanvasDimensionsFn(() => {
+                 if (!state.cropRect) {
+                     els.mainCanvas.classList.add('hidden');
+                     els.emptyState.style.display = '';
+                     return;
+                 }
                  const isRotated = state.rotation % 180 !== 0;
                  const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
                  const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;

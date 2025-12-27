@@ -10,6 +10,7 @@
             --accent-h: 28;
             --accent-s: 96%;
             --accent-l: 56%;
+            --accent-ink: hsl(var(--accent-h), 90%, 15%);
             --accent: hsl(var(--accent-h), var(--accent-s), var(--accent-l));
             --accent-strong: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - 6%));
             --accent-soft: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) + 8%));
@@ -40,7 +41,7 @@
         .text-accent-strong { color: var(--accent-strong) !important; }
         .border-accent { border: 1px solid var(--accent-border) !important; }
         .border-accent-strong { border: 1px solid var(--accent-strong) !important; }
-        .bg-accent { background-color: var(--accent-strong); color: white; }
+        .bg-accent { background-color: var(--accent-strong); color: var(--accent-ink); }
         .bg-accent-dark { background-color: var(--accent-dark); color: white; }
         .accent-action {
             background-color: var(--accent-dark);
@@ -444,7 +445,7 @@
 
         .tool-btn { transition: all 0.2s; }
         .tool-btn:active { transform: scale(0.95); }
-        .tool-btn.active { background-color: var(--accent-strong); color: black; border-color: var(--accent-strong); }
+        .tool-btn.active { background-color: var(--accent-strong); color: var(--accent-ink); border-color: var(--accent-strong); }
         .tool-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
         
         .icon-btn {
@@ -461,7 +462,7 @@
         .icon-btn:hover { background-color: #3a3a3a; color: white; }
         .icon-btn:active { transform: scale(0.95); }
         .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #555555; background-color: #242424; }
-        .icon-btn.active { background-color: var(--accent-strong); color: white; border: 1px solid var(--accent-soft); }
+        .icon-btn.active { background-color: var(--accent-strong); color: var(--accent-ink); border: 1px solid var(--accent-soft); }
         .icon-btn.accent-icon img {
             filter: brightness(0) saturate(100%) invert(62%) sepia(74%) saturate(985%) hue-rotate(342deg) brightness(98%) contrast(101%);
         }

@@ -406,7 +406,9 @@
                     }
                 };
 
-                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+                // Filter out 0-byte ghost files from drag operations too
+                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/') && f.size > 0);
+
                 if (files.length > 0) {
                     if (files.length === 1) {
                         loadLayerWithSmartSlotting(files[0], files[0].name);
@@ -1116,22 +1118,24 @@
 
         function loadImageSource(source) {
             return new Promise((resolve, reject) => {
-                const finalizeLoad = (srcStr) => {
+                if (source instanceof Blob) {
+                    const url = URL.createObjectURL(source);
+                    const img = new Image();
+                    img.onload = () => {
+                        URL.revokeObjectURL(url);
+                        resolve(img);
+                    };
+                    img.onerror = (e) => {
+                        URL.revokeObjectURL(url);
+                        reject(e);
+                    };
+                    img.src = url;
+                } else if (typeof source === 'string') {
                     const img = new Image();
                     img.onload = () => resolve(img);
                     img.onerror = (e) => reject(e);
-                    img.src = srcStr;
-                };
-
-                if (source instanceof Blob) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => finalizeLoad(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsDataURL(source);
-                } else if (typeof source === 'string') {
-                    finalizeLoad(source);
+                    img.src = source;
                 } else if (source instanceof Image) {
-                    // Check if already loaded
                     if (source.complete) resolve(source);
                     else {
                         source.onload = () => resolve(source);
@@ -1301,10 +1305,7 @@
                 Promise.all(debugStringPromises)
             ]).then(async ([blobs, strings, _]) => {
                 const uniqueBlobs = [...new Set(blobs)];
-                const uniqueStrings = [...new Set(strings)]; // Dedupe strings from items vs manual
-
-                // Filter out 0-byte files (broken handles)
-                const validBlobs = uniqueBlobs.filter(b => b.size > 0);
+                const uniqueStrings = [...new Set(strings)];
 
                 // Determine target state
                 const hasA = !!state.imgA;
@@ -1313,6 +1314,9 @@
                     Logger.info("Paste ignored: Both slots full.", clipboardDump);
                     return;
                 }
+
+                // Filter out 0-byte ghost files (e.g. from Hydrus/Linux clipboards)
+                const validBlobs = uniqueBlobs.filter(b => b.size > 0);
 
                 // Priority 1: Valid Binaries
                 if (validBlobs.length > 0) {
@@ -1328,17 +1332,12 @@
                 // Priority 2: URLs / Paths
                 const urls = [];
                 uniqueStrings.forEach(s => {
-                     // Check for standard URLs
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
                          urls.push(s);
                      } else {
-                         // Robust Path handling
-                         // 1. Windows path (C:\...)
                          if (s.match(/^[a-zA-Z]:\\/)) {
                              urls.push('file:///' + s.replace(/\\/g, '/'));
-                         }
-                         // 2. Unix path (/home/...)
-                         else if (s.startsWith('/')) {
+                         } else if (s.startsWith('/')) {
                               urls.push('file://' + s);
                          }
                      }
@@ -1347,65 +1346,13 @@
                 if (urls.length > 0) {
                      Logger.info("Paste: Found URL(s)", { ...clipboardDump, extractedUrls: urls });
                      try {
-                         // Just try the first valid-looking one
                          const blob = await fetchImage(urls[0]);
                          loadLayerWithSmartSlotting(blob, "Pasted URL");
                      } catch(e) {
                          Logger.error("Failed to fetch pasted URL", { error: e.message, stack: e.stack, clipboard: clipboardDump });
                      }
                 } else {
-                    Logger.warn("Paste: Sync data failed (empty/invalid). Attempting Async Clipboard API...", clipboardDump);
-
-                    try {
-                        // Fallback 1: Async Read (for images)
-                        const clipboardItems = await navigator.clipboard.read();
-                        for (const item of clipboardItems) {
-                            // Find valid image type
-                            const imageType = item.types.find(t => t.startsWith('image/'));
-                            if (imageType) {
-                                const blob = await item.getType(imageType);
-                                if (blob && blob.size > 0) {
-                                    Logger.info("Paste (Async): Found valid image blob", { type: imageType, size: blob.size });
-                                    loadLayerWithSmartSlotting(blob, "Pasted Image (Async)");
-                                    return;
-                                }
-                            }
-                        }
-                    } catch (err) {
-                        Logger.warn("Paste (Async Read) failed or denied", err);
-                    }
-
-                    try {
-                        // Fallback 2: Async ReadText (for paths)
-                        const text = await navigator.clipboard.readText();
-                        if (text) {
-                            Logger.info("Paste (Async Text): Found text", { length: text.length });
-                            const asyncUrls = [];
-                            // Re-use logic: parse text for paths
-                            const lines = text.split(/\r?\n/);
-                            lines.forEach(s => {
-                                 s = s.trim();
-                                 if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
-                                     asyncUrls.push(s);
-                                 } else if (s.match(/^[a-zA-Z]:\\/)) {
-                                     asyncUrls.push('file:///' + s.replace(/\\/g, '/'));
-                                 } else if (s.startsWith('/')) {
-                                      asyncUrls.push('file://' + s);
-                                 }
-                            });
-
-                            if (asyncUrls.length > 0) {
-                                 Logger.info("Paste (Async Text): Found URL(s)", { urls: asyncUrls });
-                                 const blob = await fetchImage(asyncUrls[0]);
-                                 loadLayerWithSmartSlotting(blob, "Pasted URL (Async)");
-                                 return;
-                            }
-                        }
-                    } catch (err) {
-                        Logger.warn("Paste (Async Text) failed or denied", err);
-                    }
-
-                    Logger.error("Paste failed: No usable data found in Sync or Async clipboard APIs.");
+                    Logger.warn("Paste ignored: No image data or URLs found.", clipboardDump);
                 }
             });
         }

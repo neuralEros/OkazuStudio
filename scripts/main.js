@@ -960,10 +960,17 @@
             els.censorBtn.addEventListener('click', applyCensor);
 
             els.undoBtn.addEventListener('click', () => {
+                if (state.isCropping) return;
+                // Double check root policy
+                const h = window.ActionHistory;
+                const min = (h && h.getLog().length > 0 && h.getLog()[0].type === 'LOAD_IMAGE') ? 0 : -1;
+                if (h && h.cursor <= min) return;
+
                 if (replayEngine) replayEngine.undo();
             });
 
             els.redoBtn.addEventListener('click', () => {
+                if (state.isCropping) return;
                 if (replayEngine) replayEngine.redo();
             });
             
@@ -1412,8 +1419,16 @@
             if (replayEngine) replayEngine.isEnabled = true;
             const cursor = window.ActionHistory ? window.ActionHistory.cursor : -1;
             const total = window.ActionHistory ? window.ActionHistory.actions.length : 0;
-            els.undoBtn.disabled = cursor < 0;
-            els.redoBtn.disabled = cursor >= total - 1;
+
+            // Root Undo Policy: Prevent undoing the first load action
+            let minCursor = -1;
+            const history = window.ActionHistory ? window.ActionHistory.getLog() : [];
+            if (history.length > 0 && history[0].type === 'LOAD_IMAGE') {
+                minCursor = 0;
+            }
+
+            els.undoBtn.disabled = cursor <= minCursor || state.isCropping;
+            els.redoBtn.disabled = cursor >= total - 1 || state.isCropping;
 
             if (cursor < 0) {
                 els.mainCanvas.classList.add('hidden');

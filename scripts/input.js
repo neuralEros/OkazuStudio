@@ -787,7 +787,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 if (e.key === '2') setBrushMode('repair');
                 if (e.key === '3') setBrushMode('patch');
             }
-            if ((e.ctrlKey || e.metaKey)) {
+            if ((e.ctrlKey || e.metaKey) && !state.isCropping) {
                 if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
                 else if (e.key === 'y') { e.preventDefault(); redo(); }
             }

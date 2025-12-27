@@ -5,9 +5,6 @@
             el.className = `console-msg ${type}`;
             el.textContent = msg;
             consoleEl.appendChild(el);
-            while (consoleEl.children.length > 10) {
-                consoleEl.removeChild(consoleEl.firstElementChild);
-            }
             setTimeout(() => {
                 el.style.opacity = '0';
                 setTimeout(() => el.remove(), 200);
@@ -34,7 +31,7 @@
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
-            maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
+            maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
@@ -97,7 +94,6 @@
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
-            toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
@@ -283,9 +279,6 @@
             const source = slot === 'A' ? state.imgA : state.imgB;
             if (!source) return { img: null, scale: 1 };
             if (!useBakedLayers) return { img: source, scale: 1 };
-
-            // If adjustments are hidden, bypass working copies and return raw source
-            if (!state.adjustmentsVisible) return { img: source, scale: 1 };
 
             const working = slot === 'A' ? state.workingA : state.workingB;
             const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
@@ -682,12 +675,6 @@
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
-                updateVisibilityToggles();
-                render();
-            });
-            els.toggleAdjBtn.addEventListener('click', () => {
-                state.adjustmentsVisible = !state.adjustmentsVisible;
-                Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
@@ -1106,13 +1093,6 @@
             els.toggleBackBtn.classList.toggle('accent-icon', backHidden);
             els.rearEyeOpen.classList.toggle('hidden', backHidden);
             els.rearEyeClosed.classList.toggle('hidden', !backHidden);
-
-            const adjHidden = !state.adjustmentsVisible;
-            els.toggleAdjBtn.classList.toggle('bg-accent-dark', adjHidden);
-            els.toggleAdjBtn.classList.toggle('border-accent-strong', adjHidden);
-            els.toggleAdjBtn.classList.toggle('accent-icon', adjHidden);
-            els.adjEyeOpen.classList.toggle('hidden', adjHidden);
-            els.adjEyeClosed.classList.toggle('hidden', !adjHidden);
         }
 
         function truncate(str) {
@@ -1285,12 +1265,33 @@
                 clipboardDump.items.push(itemDump);
 
                 if (item.kind === 'file') {
-                    const blob = item.getAsFile();
-                    if (blob) {
-                        blobPromises.push(Promise.resolve(blob));
-                        itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                    // Try FileSystemEntry API first (Better for Hydrus/Electron/Complex drops)
+                    if (typeof item.webkitGetAsEntry === 'function') {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry && entry.isFile) {
+                            const p = new Promise((resolve) => {
+                                entry.file(f => resolve(f), err => resolve(null));
+                            });
+                            blobPromises.push(p);
+                            itemDump.content = "FileSystemEntry";
+                        } else {
+                            // Fallback to standard getAsFile
+                            const blob = item.getAsFile();
+                            if (blob) {
+                                blobPromises.push(Promise.resolve(blob));
+                                itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                            } else {
+                                itemDump.content = "null blob";
+                            }
+                        }
                     } else {
-                        itemDump.content = "null blob";
+                        const blob = item.getAsFile();
+                        if (blob) {
+                            blobPromises.push(Promise.resolve(blob));
+                            itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                        } else {
+                            itemDump.content = "null blob";
+                        }
                     }
                 } else if (item.kind === 'string') {
                     const p = new Promise(resolve => {
@@ -1301,14 +1302,14 @@
                     });
                     debugStringPromises.push(p);
 
-                    if (item.type === 'text/plain' || item.type === 'text/uri-list') {
+                    if (item.type === 'text/plain' || item.type === 'text/uri-list' || item.type === 'text/html') {
                         stringPromises.push(p);
                     }
                 }
             }
 
             // Force retrieval of text formats even if not in 'items' (Browser quirk workaround)
-            const manualFormats = ['text/plain', 'text/uri-list'];
+            const manualFormats = ['text/plain', 'text/uri-list', 'text/html'];
             manualFormats.forEach(fmt => {
                 const val = e.clipboardData.getData(fmt);
                 if (val) {
@@ -1326,6 +1327,9 @@
                 const uniqueBlobs = [...new Set(blobs)];
                 const uniqueStrings = [...new Set(strings)];
 
+                // Filter out 0-byte files (broken handles) and nulls
+                const validBlobs = uniqueBlobs.filter(b => b && b.size > 0);
+
                 // Determine target state
                 const hasA = !!state.imgA;
                 const hasB = !!state.imgB;
@@ -1334,24 +1338,36 @@
                     return;
                 }
 
-                // Priority 1: All Binaries (including 0-byte, blindly try to load)
-                if (uniqueBlobs.length > 0) {
-                    Logger.info(`Paste: Attempting to load ${uniqueBlobs.length} blob(s)`, clipboardDump);
-                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
+                // Priority 1: Valid Binaries
+                if (validBlobs.length > 0) {
+                    Logger.info(`Paste: Found ${validBlobs.length} valid blob(s)`, clipboardDump);
+                    loadLayerWithSmartSlotting(validBlobs[0], "Pasted Image");
                     return;
+                }
+
+                if (uniqueBlobs.length > 0 && validBlobs.length === 0) {
+                    Logger.warn("Paste: Found blobs but all were 0 bytes. Falling back to text search...", clipboardDump);
                 }
 
                 // Priority 2: URLs / Paths
                 const urls = [];
                 uniqueStrings.forEach(s => {
+                     // 1. Standard URLs
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
                          urls.push(s);
-                     } else {
-                         if (s.match(/^[a-zA-Z]:\\/)) {
-                             urls.push('file:///' + s.replace(/\\/g, '/'));
-                         } else if (s.startsWith('/')) {
-                              urls.push('file://' + s);
-                         }
+                     }
+                     // 2. Windows Path
+                     else if (s.match(/^[a-zA-Z]:\\/)) {
+                         urls.push('file:///' + s.replace(/\\/g, '/'));
+                     }
+                     // 3. Unix Path
+                     else if (s.startsWith('/')) {
+                          urls.push('file://' + s);
+                     }
+                     // 4. HTML Source (Img tags)
+                     else if (s.includes('<img')) {
+                         const match = s.match(/src=["'](.*?)["']/);
+                         if (match && match[1]) urls.push(match[1]);
                      }
                 });
 

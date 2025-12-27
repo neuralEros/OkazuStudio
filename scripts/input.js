@@ -52,6 +52,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function updateViewTransform() {
         els.canvasWrapper.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
         updateCursorSize();
+
+        // Keep crop handles constant size during zoom
+        const invScale = 1 / state.view.scale;
+        // Handles are children of cropBox and will inherit the variable
+        if (els.cropBox) els.cropBox.style.setProperty('--inv-scale', invScale);
     }
 
     function clampBrushPercent(val) {

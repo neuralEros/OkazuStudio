@@ -537,7 +537,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 if (window.dispatchAction) dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value) } });
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                saveSnapshot(actionKey);
+                // saveSnapshot(actionKey);
             });
         }
 
@@ -565,7 +565,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             resetAllAdjustments();
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            saveSnapshot('adjustments_reset');
+            // saveSnapshot('adjustments_reset');
         });
 
         els.resetLevelsBtn.addEventListener('click', () => {
@@ -578,7 +578,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             updateSlider('adj-l-white', 255);
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            saveSnapshot('levels_reset');
+            // saveSnapshot('levels_reset');
         });
 
         document.getElementById('resetSatBtn').addEventListener('click', () => {
@@ -590,7 +590,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-vib', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             saveSnapshot('sat_reset');
+             // saveSnapshot('sat_reset');
         });
 
         els.resetColorBtn.addEventListener('click', () => {
@@ -605,7 +605,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-cb-b', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             saveSnapshot('color_reset');
+             // saveSnapshot('color_reset');
         });
     }
 
@@ -748,7 +748,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 Logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                saveSnapshot(`tuning-${state.activeColorBand}-${param.key}`);
+                // saveSnapshot(`tuning-${state.activeColorBand}-${param.key}`);
             });
         });
 
@@ -766,7 +766,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 updateColorTuningLUT();
                 state.pendingAdjustmentCommit = true;
                 updateAdjustmentPreview();
-                saveSnapshot(`tuning-reset-${band}`);
+                // saveSnapshot(`tuning-reset-${band}`);
             });
         }
 
@@ -783,7 +783,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 updateColorTuningLUT();
                 state.pendingAdjustmentCommit = true;
                 updateAdjustmentPreview();
-                saveSnapshot('tuning-reset-all');
+                // saveSnapshot('tuning-reset-all');
             });
         }
     }

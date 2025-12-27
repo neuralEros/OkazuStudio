@@ -475,7 +475,7 @@
                 updateCanvasDimensions(true); // Preserve crop
                 resetView(); // Force fit to screen
                 render();
-                saveSnapshot('rotate_view');
+                // saveSnapshot('rotate_view');
             });
         }
 
@@ -745,7 +745,7 @@
              if (!state.imgA && !state.imgB) {
                  // Full Reset
                  resetAllAdjustments();
-                 saveSnapshot('clear_all');
+                 // saveSnapshot('clear_all');
                  resetView();
                  els.mainCanvas.classList.add('hidden');
                  els.emptyState.style.display = '';
@@ -942,7 +942,7 @@
                 state.backVisible = true;
                 state.adjustmentsVisible = true;
                 resetAllAdjustments();
-                saveSnapshot('full_reset'); 
+                // saveSnapshot('full_reset');
                 resetView(); 
                 updateVisibilityToggles();
                 render();
@@ -954,26 +954,18 @@
             els.censorBtn.addEventListener('click', applyCensor);
 
             els.undoBtn.addEventListener('click', () => {
-                if (state.settings.useReplay && replayEngine) {
-                    if (window.ActionHistory && window.ActionHistory.cursor >= 0) {
-                        window.ActionHistory.cursor--;
-                        replayEngine.replayTo(window.ActionHistory.cursor);
-                        updateUI();
-                    }
-                } else {
-                    undo();
+                if (replayEngine && window.ActionHistory && window.ActionHistory.cursor >= 0) {
+                    window.ActionHistory.cursor--;
+                    replayEngine.replayTo(window.ActionHistory.cursor);
+                    updateUI();
                 }
             });
 
             els.redoBtn.addEventListener('click', () => {
-                if (state.settings.useReplay && replayEngine) {
-                    if (window.ActionHistory && window.ActionHistory.cursor < window.ActionHistory.actions.length - 1) {
-                        window.ActionHistory.cursor++;
-                        replayEngine.replayTo(window.ActionHistory.cursor);
-                        updateUI();
-                    }
-                } else {
-                    redo();
+                if (replayEngine && window.ActionHistory && window.ActionHistory.cursor < window.ActionHistory.actions.length - 1) {
+                    window.ActionHistory.cursor++;
+                    replayEngine.replayTo(window.ActionHistory.cursor);
+                    updateUI();
                 }
             });
             
@@ -1418,17 +1410,11 @@
             els.mergeBtn.disabled = !enable;
             els.censorBtn.disabled = !state.imgA && !state.imgB;
 
-            if (state.settings.useReplay && window.ActionHistory) {
-                if (replayEngine) replayEngine.isEnabled = true;
-                const cursor = window.ActionHistory.cursor;
-                const total = window.ActionHistory.actions.length;
-                els.undoBtn.disabled = cursor < 0;
-                els.redoBtn.disabled = cursor >= total - 1;
-            } else {
-                if (replayEngine) replayEngine.isEnabled = false;
-                els.undoBtn.disabled = state.historyIndex <= 0;
-                els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
-            }
+            if (replayEngine) replayEngine.isEnabled = true;
+            const cursor = window.ActionHistory ? window.ActionHistory.cursor : -1;
+            const total = window.ActionHistory ? window.ActionHistory.actions.length : 0;
+            els.undoBtn.disabled = cursor < 0;
+            els.redoBtn.disabled = cursor >= total - 1;
             
             // Trash Buttons
             els.btnTrashA.disabled = !state.imgA;

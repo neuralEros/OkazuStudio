@@ -290,7 +290,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
          }
 
          const actionType = state.currentPolylineAction || 'mask';
-         saveSnapshot(actionType);
+         // saveSnapshot(actionType);
          state.polylineDirty = false;
     }
 
@@ -552,11 +552,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.fastPreviewLastPoint = null;
             state.activeStroke = null;
             render();
-            saveSnapshot('draw');
+            // saveSnapshot('draw');
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;
-            saveSnapshot('crop');
+            // saveSnapshot('crop');
         }
         state.isPanning = false;
         state.isDrawing = false;

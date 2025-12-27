@@ -963,7 +963,12 @@
                 if (state.isCropping) return;
                 // Double check root policy
                 const h = window.ActionHistory;
-                const min = (h && h.getLog().length > 0 && h.getLog()[0].type === 'LOAD_IMAGE') ? 0 : -1;
+                let min = -1;
+                const log = h ? h.getLog() : [];
+                for (let i = 0; i < log.length; i++) {
+                    if (log[i].type === 'LOAD_IMAGE') min = i;
+                    else break;
+                }
                 if (h && h.cursor <= min) return;
 
                 if (replayEngine) replayEngine.undo();
@@ -1420,11 +1425,15 @@
             const cursor = window.ActionHistory ? window.ActionHistory.cursor : -1;
             const total = window.ActionHistory ? window.ActionHistory.actions.length : 0;
 
-            // Root Undo Policy: Prevent undoing the first load action
+            // Root Undo Policy: Prevent undoing the setup phase (contiguous LOAD_IMAGE actions at start)
             let minCursor = -1;
             const history = window.ActionHistory ? window.ActionHistory.getLog() : [];
-            if (history.length > 0 && history[0].type === 'LOAD_IMAGE') {
-                minCursor = 0;
+            for (let i = 0; i < history.length; i++) {
+                if (history[i].type === 'LOAD_IMAGE') {
+                    minCursor = i;
+                } else {
+                    break;
+                }
             }
 
             els.undoBtn.disabled = cursor <= minCursor || state.isCropping;

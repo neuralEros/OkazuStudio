@@ -9,6 +9,16 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function canDraw() { return (state.imgA || state.imgB) && state.cropRect; }
 
+    function forceCropHandleUpdate() {
+        if (!els.cropBox) return;
+        const invScale = 1 / state.view.scale;
+        els.cropBox.style.setProperty('--inv-scale', invScale);
+
+        // Redundant explicit update for maximum security per user request
+        const handles = document.querySelectorAll('.crop-handle');
+        handles.forEach(h => h.style.setProperty('--inv-scale', invScale));
+    }
+
     function getActiveBrushKey() {
         return state.brushMode || 'erase';
     }
@@ -52,6 +62,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function updateViewTransform() {
         els.canvasWrapper.style.transform = `translate(${state.view.x}px, ${state.view.y}px) scale(${state.view.scale})`;
         updateCursorSize();
+        forceCropHandleUpdate();
     }
 
     function clampBrushPercent(val) {
@@ -603,6 +614,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             // Convert back to Truth Space for state
             state.cropRect = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
             render();
+            forceCropHandleUpdate();
         } else if (state.isDrawing) {
             addFastStrokePoint(coords);
             render();

@@ -3,7 +3,8 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
         const snap = {
             mask: maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height),
             adjustments: JSON.parse(JSON.stringify(state.adjustments)),
-            cropRect: { ...state.cropRect }
+            cropRect: { ...state.cropRect },
+            rotation: state.rotation
         };
 
         const canCoalesce = actionType !== 'draw' && actionType !== 'generic';
@@ -32,6 +33,7 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
         state.history = [];
         state.historyIndex = -1;
         resetAllAdjustments();
+        state.rotation = 0;
         state.lastActionType = null;
         if (state.fullDims.w > 0) {
             state.cropRect = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
@@ -51,8 +53,27 @@ function createUndoSystem({ state, maskCtx, maskCanvas, resizeMainCanvas, render
         maskCtx.putImageData(snapshot.mask, 0, 0);
         state.adjustments = JSON.parse(JSON.stringify(snapshot.adjustments));
         state.cropRect = { ...snapshot.cropRect };
+        state.rotation = snapshot.rotation || 0;
 
         if (!state.isCropping) {
+            // This needs to be mindful of rotation - render() handles the final sizing
+            // But resizeMainCanvas generally sets the "Truth" dimensions if rotation logic is added there?
+            // Actually, mainCanvas resizing is typically strictly visual in most frameworks, but here
+            // resizeMainCanvas sets .width/.height.
+            // We should let render() handle the visual swap, so passing "Truth" dims here is tricky
+            // if resizeMainCanvas expects Truth.
+            // In our plan, render() handles visual resizing.
+            // So we just update state, and call render().
+            // However, resizeMainCanvas is used to force canvas size.
+            // If we are rotated, we might need to swap W/H.
+            // For now, let's trust that the render pipeline or main.js logic handles the swap based on state.rotation.
+            // We will update resizeMainCanvas logic in main.js if needed.
+            // But we must call it to reset buffers?
+            // Let's defer to main.js updates. For now, pass Truth Dims as before.
+            // Actually, wait. If rotation is 90, and cropRect is 100x200.
+            // Visual canvas should be 200x100.
+            // If resizeMainCanvas sets width/height, it needs to know about rotation.
+            // We will update resizeMainCanvas in main.js to respect state.rotation.
             resizeMainCanvas(state.cropRect.w, state.cropRect.h);
         } else {
             resizeMainCanvas(state.fullDims.w, state.fullDims.h);

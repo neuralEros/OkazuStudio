@@ -1,4 +1,5 @@
-function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop, setBrushMode }) {
+function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop, setBrushMode, coordinateHelpers }) {
+    const { visualToTruthCoords, truthToVisualRect, getRotatedHandle } = coordinateHelpers || {};
     const BRUSH_MIN = 0.2;
     const BRUSH_MAX = 30;
     const BRUSH_SLIDER_STEPS = 1000;
@@ -30,7 +31,22 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const canvasX = (mouseX - state.view.x) / state.view.scale;
         const canvasY = (mouseY - state.view.y) / state.view.scale;
 
-        if (!state.isCropping && state.cropRect) {
+        if (state.isCropping) {
+            // In crop mode, canvasX/Y are relative to full visual dims.
+            // Map directly to Truth.
+            if (visualToTruthCoords) return visualToTruthCoords(canvasX, canvasY);
+            return { x: canvasX, y: canvasY }; // Fallback
+        } else if (state.cropRect) {
+            // In normal mode, canvasX/Y are relative to the Visual Crop Rect.
+            // We need to find the "Full Visual Coordinates".
+            // Visual Full X = Visual Crop X + canvasX.
+            if (truthToVisualRect && visualToTruthCoords) {
+                const vRect = truthToVisualRect(state.cropRect);
+                const vFullX = vRect.x + canvasX;
+                const vFullY = vRect.y + canvasY;
+                return visualToTruthCoords(vFullX, vFullY);
+            }
+            // Fallback (Assumes rot 0)
             return { x: canvasX + state.cropRect.x, y: canvasY + state.cropRect.y };
         }
         return { x: canvasX, y: canvasY };
@@ -560,54 +576,86 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             updateViewTransform();
         } else if (state.isCropping && state.cropDrag) {
             const rect = els.viewport.getBoundingClientRect();
+            // mx, my are Visual Coordinates
             const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
             const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
 
             const r = state.cropRect;
 
+            // Map Visual Delta to Truth Delta?
+            // "box" drag maps mouse movement (visual delta) to rect movement (truth delta).
+            // We need visualToTruthCoords for points.
+            // For Deltas:
+            // if 90 deg: dx_v = dy_t?
+            // Let's use points.
+            // Convert current mouse (mx, my) to Truth (tmx, tmy).
+            // Use that to drive logic.
+
+            let tmx = mx, tmy = my;
+            if (visualToTruthCoords) {
+                const pt = visualToTruthCoords(mx, my);
+                tmx = pt.x; tmy = pt.y;
+            }
+
             if (state.cropDrag.type === 'box') {
-                const dx = mx - state.cropDrag.startX;
-                const dy = my - state.cropDrag.startY;
-                const sr = state.cropDrag.startRect;
-                r.x = Math.max(0, Math.min(state.fullDims.w - r.w, sr.x + dx));
-                r.y = Math.max(0, Math.min(state.fullDims.h - r.h, sr.y + dy));
+                // Determine Delta in Truth
+                // We stored startX/startY as Visual.
+                // Converting them to Truth startTX, startTY.
+
+                // Better:
+                // state.cropDrag.startPointTruth (calculated on pointerdown).
+
+                if (state.cropDrag.startPointTruth) {
+                    const dx = tmx - state.cropDrag.startPointTruth.x;
+                    const dy = tmy - state.cropDrag.startPointTruth.y;
+                    const sr = state.cropDrag.startRect;
+                    r.x = Math.max(0, Math.min(state.fullDims.w - r.w, sr.x + dx));
+                    r.y = Math.max(0, Math.min(state.fullDims.h - r.h, sr.y + dy));
+                }
             } else {
-                const h = state.cropDrag.h;
+                // Handle Logic.
+                // We use getRotatedHandle to find WHICH Truth Edge we are dragging.
+                // e.g. Dragging Visual North -> RotatedHandle might be West.
+                // Then we use Truth Coordinates (tmx, tmy) to modify 'w' (West) edge.
+
+                let h = state.cropDrag.h;
+                if (getRotatedHandle) h = getRotatedHandle(h);
+
                 if (h === 'nw') {
                     const oldR = r.x + r.w; const oldB = r.y + r.h;
-                    r.x = Math.min(mx, oldR - 10);
+                    r.x = Math.min(tmx, oldR - 10);
                     r.x = Math.max(0, r.x);
-                    r.y = Math.min(my, oldB - 10);
+                    r.y = Math.min(tmy, oldB - 10);
                     r.y = Math.max(0, r.y);
                     r.w = oldR - r.x;
                     r.h = oldB - r.y;
                 } else if (h === 'se') {
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, tmx - r.x));
+                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, tmy - r.y));
                 } else if (h === 'ne') {
                     const oldB = r.y + r.h;
-                    r.y = Math.min(my, oldB - 10);
+                    r.y = Math.min(tmy, oldB - 10);
                     r.y = Math.max(0, r.y);
                     r.h = oldB - r.y;
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
+                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, tmx - r.x));
                 } else if (h === 'sw') {
                     const oldR = r.x + r.w;
-                    r.x = Math.min(mx, oldR - 10);
+                    r.x = Math.min(tmx, oldR - 10);
                     r.x = Math.max(0, r.x);
                     r.w = oldR - r.x;
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, tmy - r.y));
                 } else if (h === 'n') {
                     const oldB = r.y + r.h;
-                    r.y = Math.min(my, oldB - 10);
+                    r.y = Math.min(tmy, oldB - 10);
                     r.y = Math.max(0, r.y);
                     r.h = oldB - r.y;
                 } else if (h === 's') {
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
+                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, tmy - r.y));
                 } else if (h === 'e') {
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
+                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, tmx - r.x));
                 } else if (h === 'w') {
                     const oldR = r.x + r.w;
-                    r.x = Math.min(mx, oldR - 10);
+                    r.x = Math.min(tmx, oldR - 10);
                     r.x = Math.max(0, r.x);
                     r.w = oldR - r.x;
                 }
@@ -783,10 +831,17 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             const rect = els.viewport.getBoundingClientRect();
             const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
             const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
+
+            let startPointTruth = { x: mx, y: my };
+            if (visualToTruthCoords) {
+                startPointTruth = visualToTruthCoords(mx, my);
+            }
+
             state.cropDrag = {
                 type: 'box',
                 startX: mx,
                 startY: my,
+                startPointTruth: startPointTruth,
                 startRect: { ...state.cropRect }
             };
         });

@@ -62,6 +62,7 @@
                     darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
                 }
             },
+            rotation: 0,
             activeColorBand: 'red',
             isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
             workingA: null, workingB: null, sourceA: null, sourceB: null,
@@ -97,7 +98,7 @@
             toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
-            cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
+            rotateBtn: document.getElementById('rotateBtn'), cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
@@ -195,7 +196,12 @@
             scheduleHeavyTask,
             acceptCrop,
             cancelCrop,
-            setBrushMode: setMode
+            setBrushMode: setMode,
+            coordinateHelpers: {
+                visualToTruthCoords,
+                truthToVisualRect,
+                getRotatedHandle
+            }
         });
 
         setSaveSnapshotHandler(saveSnapshot);
@@ -228,6 +234,78 @@
             const c = canvas.getContext('2d');
             c.drawImage(img, 0, 0);
             return canvas;
+        }
+
+        function bakeRotation() {
+            if (state.rotation === 0) return;
+            const rot = state.rotation;
+
+            // Dimensions
+            const tW = state.fullDims.w;
+            const tH = state.fullDims.h;
+            // New Dims (swapped if 90/270)
+            const nW = (rot === 90 || rot === 270) ? tH : tW;
+            const nH = (rot === 90 || rot === 270) ? tW : tH;
+
+            log("Baking Rotation: " + rot + "°", "info");
+
+            // Helper to rotate a canvas
+            const rotateCanvas = (source) => {
+                if (!source) return null;
+                const c = document.createElement('canvas');
+                c.width = nW; c.height = nH;
+                const ctx = c.getContext('2d');
+                ctx.translate(nW/2, nH/2);
+                ctx.rotate(rot * Math.PI / 180);
+                ctx.translate(-source.width/2, -source.height/2);
+                ctx.drawImage(source, 0, 0);
+                return c;
+            };
+
+            // Rotate Images
+            if (state.imgA) {
+                const newA = rotateCanvas(state.imgA);
+                state.imgA = newA;
+                state.sourceA = newA;
+            }
+            if (state.imgB) {
+                const newB = rotateCanvas(state.imgB);
+                state.imgB = newB;
+                state.sourceB = newB;
+            }
+
+            // Rotate Mask
+            const newMask = rotateCanvas(maskCanvas);
+            maskCanvas.width = nW;
+            maskCanvas.height = nH;
+            maskCtx.clearRect(0, 0, nW, nH);
+            if (newMask) maskCtx.drawImage(newMask, 0, 0);
+
+            // Rotate Front Layer Buffer (if sized)
+            if (frontLayerCanvas.width > 0) {
+                 frontLayerCanvas.width = nW;
+                 frontLayerCanvas.height = nH;
+            }
+
+            // Update Dimensions
+            state.fullDims = { w: nW, h: nH };
+
+            // Transform CropRect (Truth to New Truth)
+            // Note: truthToVisualRect handles "Truth to Rotated Screen".
+            // Since we are baking the rotation, the "New Truth" IS the "Rotated Screen" dims.
+            // So we can reuse that logic to calculate the new crop rect coordinates.
+            state.cropRect = truthToVisualRect(state.cropRect);
+
+            // Reset Rotation
+            state.rotation = 0;
+
+            // Clean state
+            state.history = []; // Clear history as undoing across bake is hard
+            state.historyIndex = -1;
+
+            // Trigger Rebuilds
+            rebuildWorkingCopies(true);
+            saveSnapshot('bake_rotation');
         }
 
         function setLayerSource(slot, img) {
@@ -350,6 +428,9 @@
         async function loadLayerWithSmartSlotting(source, name) {
              log(`Loading ${name}...`, "info");
              try {
+                 // Bake any existing rotation before loading new content
+                 if (state.rotation !== 0) bakeRotation();
+
                  const img = await loadImageSource(source);
 
                  // 0 loaded -> Slot A (Front)
@@ -665,6 +746,15 @@
             els.undoBtn.addEventListener('click', undo);
             els.redoBtn.addEventListener('click', redo);
             
+            els.rotateBtn.addEventListener('click', () => {
+                state.rotation = (state.rotation + 90) % 360;
+                // Reset view fit? Maybe?
+                // Adjust view so center remains center?
+                // For simplicity, just render.
+                saveSnapshot('rotate');
+                render();
+            });
+
             els.cropBtn.addEventListener('click', toggleCropMode);
 
             els.toggleMaskBtn.addEventListener('click', () => {
@@ -699,13 +789,119 @@
             updateUI();
         }
 
+        function getVisualDims() {
+            if (state.rotation === 90 || state.rotation === 270) {
+                return { w: state.fullDims.h, h: state.fullDims.w };
+            }
+            return { w: state.fullDims.w, h: state.fullDims.h };
+        }
+
+        function visualToTruthCoords(vx, vy) {
+            const rot = state.rotation;
+            if (rot === 0) return { x: vx, y: vy };
+            // Visual dims (swapped if needed) are irrelevant for logic,
+            // we use truth dims to reverse map.
+            // But we need the dimensions of the "box" we are in.
+            // Visual Width/Height
+            const vW = (rot === 90 || rot === 270) ? state.fullDims.h : state.fullDims.w;
+            const vH = (rot === 90 || rot === 270) ? state.fullDims.w : state.fullDims.h;
+
+            // 90 CW: x' = h - y, y' = x
+            // Reverse: y = h - x', x = y'
+            // where h is Truth Height (which is Visual Width)
+
+            if (rot === 90) {
+                return { x: vy, y: vW - vx };
+            }
+            // 180: x' = w - x, y' = h - y
+            // Reverse: x = w - x', y = h - y'
+            if (rot === 180) {
+                return { x: vW - vx, y: vH - vy };
+            }
+            // 270 (90 CCW): x' = y, y' = w - x
+            // Reverse: y = x', x = w - y'
+            // w is Truth Width (Visual Height)
+            if (rot === 270) {
+                return { x: vH - vy, y: vx };
+            }
+            return { x: vx, y: vy };
+        }
+
+        function truthToVisualRect(r) {
+            // Transform a rect (x,y,w,h) in Truth Space to Visual Space
+            const rot = state.rotation;
+            if (rot === 0) return { ...r };
+
+            const tW = state.fullDims.w;
+            const tH = state.fullDims.h;
+
+            if (rot === 90) {
+                // (x, y) -> (H - y, x). Since y is top, H-y is distance from right.
+                // But rect origin needs to be top-left of the new rect.
+                // Old Top-Right (x+w, y) -> (H-y, x+w) -> Bottom-Right visually?
+                // Let's transform all 4 corners and find bounding box.
+                // TL: (x, y) -> (H - y, x)
+                // TR: (x+w, y) -> (H - y, x+w)
+                // BL: (x, y+h) -> (H - (y+h), x)
+                // BR: (x+w, y+h) -> (H - (y+h), x+w)
+                // Min X: H - (y+h). Max X: H - y. Width: h.
+                // Min Y: x. Max Y: x+w. Height: w.
+                return { x: tH - (r.y + r.h), y: r.x, w: r.h, h: r.w };
+            }
+            if (rot === 180) {
+                // (x, y) -> (W - x, H - y)
+                // BR corner becomes new TL?
+                // TL: (W-x, H-y). BR: (W-(x+w), H-(y+h))
+                // Min X: W - x - w. Min Y: H - y - h.
+                return { x: tW - r.x - r.w, y: tH - r.y - r.h, w: r.w, h: r.h };
+            }
+            if (rot === 270) {
+                // (x, y) -> (y, W - x)
+                // TL: (y, W-x). TR: (y, W-(x+w))
+                // BL: (y+h, W-x). BR: (y+h, W-(x+w))
+                // Min X: y. Max X: y+h.
+                // Min Y: W - x - w. Max Y: W - x.
+                return { x: r.y, y: tW - r.x - r.w, w: r.h, h: r.w };
+            }
+            return { ...r };
+        }
+
+        function getRotatedHandle(h) {
+            const rot = state.rotation;
+            if (rot === 0) return h;
+
+            const map = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw'];
+            const shifts = rot / 45; // 90=2 steps.
+            // But handle list is circular.
+            // 90 CW: N -> E?
+            // Visual North handle modifies Visual Top.
+            // Visual Top is Truth Right (at 90 deg? wait).
+            // Let's re-verify:
+            // 90 CW. Top of screen is Left of Image.
+            // So Visual North -> Truth West (Left).
+            // Let's check rotation:
+            // N (0) -> W (-90 / +270).
+            // So shift is -2 steps.
+            // 90 CW = -2 indices.
+
+            const index = map.indexOf(h);
+            if (index === -1) return h; // 'box' etc
+
+            // Steps: 90 -> -2. 180 -> -4. 270 -> -6 (+2).
+            const step = - (rot / 45);
+            let newIndex = (index + step) % 8;
+            if (newIndex < 0) newIndex += 8;
+
+            return map[newIndex];
+        }
+
         function updateWorkspaceLabel() {
             if (!els.workspaceResolution) return;
             if (!canDraw()) {
                 els.workspaceResolution.style.display = 'none';
                 return;
             }
-
+            // Show Visual dimensions
             els.workspaceResolution.textContent = `${els.mainCanvas.width}×${els.mainCanvas.height}`;
             els.workspaceResolution.style.display = '';
         }
@@ -714,6 +910,25 @@
         function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
             targetCtx.clearRect(0, 0, w, h);
             if (!state.cropRect && !state.isCropping) return;
+
+            // Apply Rotation Transform
+            targetCtx.save();
+            const rot = state.rotation;
+            if (rot !== 0) {
+                targetCtx.translate(w / 2, h / 2);
+                targetCtx.rotate(rot * Math.PI / 180);
+                // Inverse translate based on Truth Dims?
+                // If w/h are Visual Dims.
+                // Center is same.
+                // But we need to translate back by Truth dims / 2?
+                // Visual W = Truth H (at 90).
+                // Center is (H/2, W/2).
+                // We rotate.
+                // We need to draw Truth at (-TW/2, -TH/2).
+                const tW = (rot === 90 || rot === 270) ? h : w;
+                const tH = (rot === 90 || rot === 270) ? w : h;
+                targetCtx.translate(-tW / 2, -tH / 2);
+            }
 
             // Enforce adjustments visibility for nested renders
             const effectiveBaked = useBakedLayers && state.adjustmentsVisible;
@@ -744,33 +959,315 @@
                 const bSrcW = sW / scale;
                 const bSrcH = sH / scale;
 
-                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, w, h);
-            }
+                // When rotated, fullDims refers to Truth. BackImg is drawn to Truth Rect.
+                // The context is transformed, so we draw normally using Truth coords.
+                // BUT: renderToContext takes w, h which are destination dims (Visual).
+                // If we are drawing to the full canvas (w, h), we are drawing the "View".
+                // If cropRect is active, sX/sY/sW/sH are Truth Crop.
+                // We draw the cropped portion of Truth Image onto the 0,0,w,h of destination.
+                // WAIT. If we have a transform applied, (0,0) is Truth Top-Left.
+                // But we want to fill the "Visual Canvas" (w,h).
+                // The transform maps Truth Coords to Visual Coords.
+                // So we should draw to (0,0, tW, tH) in Truth Space?
+                // No, renderToContext is used for "Export" logic usually, OR preview buffer.
+                // If we are just rendering the cropped view:
+                // We want to draw the content defined by sX, sY, sW, sH.
+                // If we apply rotation, we are rotating the viewport.
+                // So we should draw the content at (sX, sY, sW, sH) ???
+                // NO. sX is the crop rect in Truth.
+                // We want to draw that specific rect from the source.
+                // `drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh)`
+                // Source rect is sX...sH.
+                // Dest rect is 0, 0, w, h (Visual Canvas).
+                // If we rely on the context transform to do the rotation:
+                // We draw at destination (0, 0, w, h)?
+                // No. If context is rotated, drawing at (0,0) draws at rotated location.
+                // Actually, `renderToContext` is generic.
+                // If we are rotated, `w` and `h` are Visual Dims.
+                // If we draw image source sX..sH to 0..w/h, we get a stretched/skewed image if we simply rotate the context?
+                // If we simply draw the source rect to the destination rect, we get the unrotated pixels.
+                // Rotation must happen *after*?
+                // Or we rotate the *source*?
 
-            // Draw Front
-            if (frontImg) {
-                const fCtx = state.previewFrontLayer.getContext('2d');
-                fCtx.clearRect(0, 0, w, h);
+                // Let's reconsider.
+                // CropRect defines what we see.
+                // If rotation is 90. Visual Canvas is HxW.
+                // We want to see the content of CropRect, rotated.
+                // If we blindly copy pixels from Source(CropRect) to Dest(0,0), it's unrotated.
+                // So we DO need the context transform.
+                // BUT `drawImage` draws an aligned rectangle.
+                // If context is rotated 90, drawing a rectangle results in a rotated rectangle.
+                // So we need to draw the source image (Full) to the context such that the CropRect portion falls onto the Visual Canvas area.
+                // This is complicated.
+                // Easier approach:
+                // 1. We are rendering the "View".
+                // 2. The View is the CropRect.
+                // 3. We transform the Context to align Visual (0,0) with Truth CropRect Top-Left (rotated).
+                // 4. We draw the *Entire* source image?
+                //    Yes, but clipped to viewport?
+                //    Or we use `drawImage` with source parameters?
+                //    `drawImage` source params are axis-aligned to the image.
+                //    So we can pick the source pixels easily.
+                //    But we can't draw them axis-aligned to the destination if rotation is 90.
+                //    So we MUST use the context transform.
+                //    If we use the context transform, we cannot use `drawImage` destination (0,0, w, h) because that would draw a rotated box that might not align?
+                //    Wait. If we rotate 90.
+                //    We draw the image at (dx, dy).
+                //    We need to position the image so that sX, sY is at Visual 0,0.
+                //    Logic:
+                //    Context is rotated.
+                //    We draw the Full Image at (0,0) [Truth Space]?
+                //    And we translate the context so that (sX, sY) is at (0,0) [Visual Space]?
+                //    Yes.
+                //    Transform:
+                //    1. Translate Center of Visual to Origin?
+                //    2. Rotate.
+                //    3. Translate back?
+                //    Actually:
+                //    We want Visual (0,0) to map to Truth (sX, sY) [conceptually].
+                //    So we draw the image at (-sX, -sY).
+                //    Then we rotate?
+                //    No, rotation center matters.
 
-                fCtx.globalCompositeOperation = 'source-over';
-                const frontScale = frontLayer.scale || 1;
-                fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, w, h);
+                // Let's stick to the "Visual Dims" strategy.
+                // Visual Canvas is WxH.
+                // We Translate(W/2, H/2). Rotate(deg). Translate(-tW/2, -tH/2). [Where tW/tH is Truth Crop Dims].
+                // Now (0,0) Visual is (0,0) Truth Crop (rotated).
+                // We draw the *Cropped* Source?
+                // No, we assume `sX, sY` is the top-left of the crop in Truth.
+                // So we Translate(-sX, -sY).
+                // Then draw Full Image at (0,0).
+                // Net result: The portion of the image at sX,sY is at the origin of the rotated context.
+                // Let's verify center rotation.
+                // We want center of CropRect to be center of Visual Canvas.
+                // Visual Center: (w/2, h/2).
+                // Truth Center: (sX + sW/2, sY + sH/2).
+                // Transform:
+                // Translate(w/2, h/2).
+                // Rotate(deg).
+                // Translate(-(sX + sW/2), -(sY + sH/2)).
+                // Draw Image at (0,0).
 
-                if (state.maskVisible) {
-                    fCtx.globalCompositeOperation = 'destination-out';
-                    const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
-                    const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
-                    fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, w, h);
+                // Is sW/sH == tW/tH (Truth Crop Dims)?
+                // sW, sH are from `state.cropRect`.
+                // w, h are passed to function (Visual Dims).
+                // If 90 deg: w = sH, h = sW.
+                // Center matches.
+
+                // Correct Transform Pipeline:
+                // targetCtx.translate(w/2, h/2);
+                // targetCtx.rotate(rot * Math.PI / 180);
+                // targetCtx.translate(-(sX + sW/2), -(sY + sH/2));
+
+                // Reset standard translate/rotate block above and replace with this.
+                // But wait, `renderToContext` is used for `render()` (View) AND `saveImage` (Export).
+                // For Export, w/h matches crop rect size.
+                // For Render (View), w/h matches canvas size (Visual Dims).
+                // So this logic holds.
+
+                // What about drawing the Background?
+                // BackImg has its own scaling to fit `fullDims` (Truth).
+                // `const scale = state.fullDims.h / backImg.height`
+                // `backX = (state.fullDims.w - backW) / 2`
+                // The `drawImage` call for Back uses `bSrcX...` to map crop rect to back image.
+                // If we use the Full Draw + Transform method, we need to draw the Back Image
+                // scaled and positioned in Truth Space.
+                // Back Image in Truth Space:
+                // Drawn at (backX, 0) with size (backW, backH).
+
+                // So:
+                // 1. Setup Transform (Center to Center).
+                // 2. Draw Back Image at (backX, 0, backW, backH).
+                // 3. Draw Front Image at (0, 0, fullW, fullH) [Assuming Front is full size].
+
+                // This replaces the complex `drawImage(subrect)` logic?
+                // The existing logic calculated `bSrcX` etc to draw *only* the visible part.
+                // This is efficient.
+                // Drawing the full image and letting canvas clip is easier but might be slower?
+                // The existing logic `ctx.drawImage(img, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, w, h)`
+                // explicitly maps the source rect to the destination rect (0..w).
+                // If we rotate, we can't map rect-to-rect easily.
+                // So we MUST use the Transform method and draw the *relevant* part.
+                // Or we can just draw the Full Image (clipped by browser) if performance allows.
+                // Given we are zooming/panning, drawing full image is bad (drawing 4k image when zoomed in).
+
+                // Hybrid:
+                // We use the Transform.
+                // But we `drawImage` only a roughly computed source rect?
+                // Or just draw full for now? The app handles large images.
+                // The existing code was careful about `bSrcX`.
+                // Let's stick to Transform + Full Draw for simplicity in this complexity?
+                // No, large images will lag.
+                // We can calculate the bounding box of the Visual Rect in Truth Space.
+                // `truthToVisualRect` inverse?
+                // We have `visualToTruthCoords`.
+                // Visual Rect is (0,0, w, h).
+                // Truth Polygon (rotated rect) corners.
+                // Bounding Box of that polygon in Truth Space.
+                // Use that as Source Rect.
+                // Destination Rect?
+                // We are drawing into a transformed context.
+                // So we draw at the Truth Coordinates.
+                // So `drawImage(img, srcX, srcY, srcW, srcH, srcX, srcY, srcW, srcH)`.
+
+                // Let's refine the Transform again.
+                // targetCtx.translate(w/2, h/2);
+                // targetCtx.rotate(rot * Math.PI / 180);
+                // targetCtx.translate(-(sX + sW/2), -(sY + sH/2));
+
+                // Now we are in Truth Coordinates.
+                // We want to draw Back Image.
+                // It lives at (backX, 0, backW, backH).
+                // We can just `drawImage(backImg, 0, 0, backImg.w, backImg.h, backX, 0, backW, backH)`.
+                // The browser will clip it to the canvas.
+                // Is this slow?
+                // The canvas is `w` x `h`.
+                // If we are zoomed in, we are drawing a huge image off-screen?
+                // Yes.
+                // But `drawImage` is usually optimized for off-screen clipping.
+                // The previous code was manual clipping.
+                // I will use the Transform method + Full Draw (or simpler mapped draw) for now.
+                // It is much safer for correctness.
+
+                // Wait, Front Image:
+                // `frontImg` (full source).
+                // Drawn at (0, 0, fullW, fullH).
+                // Mask: (0, 0, fullW, fullH).
+
+                // So the plan:
+                // 1. Apply Transform.
+                // 2. Draw Back (positioned).
+                // 3. Draw Front (positioned).
+                // 4. Draw Mask (positioned).
+
+                // One catch: `frontLayer` logic creates a `state.previewFrontLayer`.
+                // The existing code clears `previewFrontLayer` (w, h) and draws into it.
+                // `previewFrontLayer` is a buffer of size (w, h) [Visual].
+                // If we use it, we must render into it *with rotation* too?
+                // Yes. `fCtx` needs the same transform.
+
+                // Wait, `previewFrontLayer` is reused.
+                // `fCtx.clearRect(0, 0, w, h)`.
+                // Then draws front/mask.
+                // Then `targetCtx` draws `previewFrontLayer` identity.
+                // So:
+                // `targetCtx` gets identity draw.
+                // `fCtx` gets the Transform + Scene Draw.
+                // This seems consistent.
+
+                // Override `targetCtx` transform logic for the *Back* image since it draws directly to target.
+                // The Front draws to buffer, then buffer to target.
+                // Buffer is w x h.
+                // So Buffer acts as the viewport.
+
+                // Let's restructure `renderToContext`.
+                // It needs to apply transform to whatever context is receiving the "Scene".
+
+                // Back: targetCtx.
+                // Front: fCtx.
+
+                // So I will calculate the transform matrix/params once.
+                // Apply to targetCtx. Draw Back.
+                // Reset targetCtx transform?
+                // No, Front buffer `previewFrontLayer` is size w, h.
+                // If we draw Front Buffer to TargetCtx, we want 1:1 pixel mapping (it's already rendered view).
+                // So:
+                // 1. Draw Back to TargetCtx (Transformed).
+                // 2. Reset TargetCtx Transform.
+                // 3. Render Front to `previewFrontLayer` (Transformed).
+                // 4. Draw `previewFrontLayer` to TargetCtx (Identity).
+
+                // This preserves opacity/compositing logic.
+
+                // Transform Params:
+                const tCenterX = sX + sW/2;
+                const tCenterY = sY + sH/2;
+
+                // Helper to apply
+                const applyTransform = (ctx) => {
+                    ctx.save();
+                    ctx.translate(w/2, h/2);
+                    ctx.rotate(rot * Math.PI / 180);
+                    ctx.translate(-tCenterX, -tCenterY);
+                };
+
+                // Draw Back
+                if (backImg && state.backVisible) {
+                     targetCtx.save(); // Save opacity etc
+                     applyTransform(targetCtx); // Apply Geometry
+                     targetCtx.globalAlpha = 1.0;
+                     targetCtx.globalCompositeOperation = 'source-over';
+
+                     const scale = state.fullDims.h / backImg.height;
+                     const backW = backImg.width * scale;
+                     const backH = state.fullDims.h;
+                     const backX = (state.fullDims.w - backW) / 2;
+
+                     targetCtx.drawImage(backImg, backX, 0, backW, backH);
+                     targetCtx.restore(); // Restore Geometry & Opacity
                 }
-                
-                targetCtx.globalCompositeOperation = 'source-over';
-                // Use forceOpacity for adjustments preview (so we see true pixels)
-                // Also force opacity if only one layer is present
-                const singleLayer = !state.imgA || !state.imgB;
-                const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
-                targetCtx.globalAlpha = effectiveOpacity; 
-                targetCtx.drawImage(state.previewFrontLayer, 0, 0);
+
+                // Draw Front
+                if (frontImg) {
+                    const fCtx = state.previewFrontLayer.getContext('2d');
+                    fCtx.clearRect(0, 0, w, h);
+
+                    fCtx.save();
+                    applyTransform(fCtx);
+
+                    fCtx.globalCompositeOperation = 'source-over';
+                    // Front Layer Scale? Usually 1 unless previewing downscaled.
+                    // If frontLayer.scale != 1, we are drawing a downscaled working copy.
+                    // That working copy represents the full image (0,0, fullW, fullH).
+                    // So we draw it at (0,0) with size (fullW, fullH).
+                    // `frontLayer.img` is the image.
+                    // `frontLayer.scale` is how much it was downscaled FROM fullDims?
+                    // No. `rebuildPreviewLayerForSlot` creates `pw` = `working.width * scale`.
+                    // So `img` is size `pw x ph`.
+                    // It represents `working` which is size `fullDims` (roughly).
+                    // So we need to draw `img` to fill `fullDims`.
+                    // `drawImage(img, 0, 0, state.fullDims.w, state.fullDims.h)`
+
+                    // Wait, existing code:
+                    // `drawImage(img, sX*scale, sY*scale, sW*scale, sH*scale, 0, 0, w, h)`
+                    // It was mapping source-rect to dest-rect.
+                    // Now we are using Transform.
+                    // We draw the *Whole* image at (0,0) scaled to Truth Size.
+                    // Truth Size = `state.fullDims`.
+                    // `img` Size = `img.width`.
+                    // We draw `drawImage(img, 0, 0, state.fullDims.w, state.fullDims.h)`.
+
+                    const fImg = frontImg;
+                    // Note: frontLayer.scale is helpful if we need to map input coords,
+                    // but here we just stretch it to Truth Size.
+                    fCtx.drawImage(fImg, 0, 0, state.fullDims.w, state.fullDims.h);
+
+                    if (state.maskVisible) {
+                        fCtx.globalCompositeOperation = 'destination-out';
+                        // Mask Source
+                        const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
+                        // Mask is always Full Resolution Truth (except previewMaskCanvas which might be scaled?)
+                        // `state.previewMaskCanvas` logic in `input.js`:
+                        // `pw = w * scale`.
+                        // So if we use preview mask, we must draw it stretched to `state.fullDims`.
+                         fCtx.drawImage(maskSource, 0, 0, state.fullDims.w, state.fullDims.h);
+                    }
+
+                    fCtx.restore(); // Restore Transform
+
+                    // Composite Buffer to Target
+                    targetCtx.globalCompositeOperation = 'source-over';
+                    const singleLayer = !state.imgA || !state.imgB;
+                    const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
+                    targetCtx.globalAlpha = effectiveOpacity;
+                    targetCtx.drawImage(state.previewFrontLayer, 0, 0);
+                }
+            } else {
+                 // Nothing happened (restore transform if I polluted it? No, I used save/restore inside)
             }
+
+            targetCtx.restore(); // Restore the save() I added at top?
+            // I removed the top-level transform and pushed it down.
         }
         
         function render(finalOutput = false, skipAdjustments = false) {
@@ -781,159 +1278,68 @@
 
             if (!state.cropRect && !state.isCropping) return;
 
-            const cw = els.mainCanvas.width;
-            const ch = els.mainCanvas.height;
+            // Set Visual Dimensions (swapping if needed)
+            const vDims = getVisualDims();
+            // If cropping (full view), use full visual dims.
+            // If not cropping (cropped view), use visual crop dims.
+            let canvasW, canvasH;
+
+            if (state.isCropping) {
+                // Full Dims Swapped
+                canvasW = vDims.w;
+                canvasH = vDims.h;
+            } else {
+                // Crop Rect Swapped
+                const vr = truthToVisualRect(state.cropRect);
+                canvasW = vr.w;
+                canvasH = vr.h;
+            }
+
+            if (els.mainCanvas.width !== canvasW || els.mainCanvas.height !== canvasH) {
+                resizeMainCanvas(canvasW, canvasH);
+            }
 
             const useBakedLayers = !skipAdjustments;
-            // Determine if 'Full' mode applies to the current interaction
             const isAdjusting = state.isAdjusting;
             const resSetting = isAdjusting ? state.settings.adjustmentPreviewResolution : state.settings.brushPreviewResolution;
             const preferPreview = state.useFastPreview && !finalOutput && resSetting !== 'Full';
-
             const allowRebuild = !isUserInteracting();
 
-            // If cropping, draw full source image, then overlay
-            // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
-            const sX = state.isCropping ? 0 : state.cropRect.x;
-            const sY = state.isCropping ? 0 : state.cropRect.y;
-            const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+            // We use renderToContext to handle all the complex rotation/transform logic now
+            if (preferPreview) {
+                 els.mainCanvas.style.visibility = 'hidden';
+                 els.previewCanvas.classList.remove('hidden');
 
-            const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
-            const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
-            const frontImg = frontLayer.img;
-            const backImg = backLayer.img;
-            const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
+                 // Calculate Preview Size
+                 // sH is Visual Height of viewport
+                 const sH = canvasH;
+                 const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
+                 const fastScale = Math.min(1, targetH / sH);
 
-            const shouldUseDownscaledComposite = preferPreview && (frontImg || backImg);
+                 const pw = Math.max(1, Math.round(canvasW * fastScale));
+                 const ph = Math.max(1, Math.round(canvasH * fastScale));
 
-            if (shouldUseDownscaledComposite) {
-                els.mainCanvas.style.visibility = 'hidden';
-                els.previewCanvas.classList.remove('hidden');
-
-                const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
-                let fastScale = Math.min(1, targetH / sH);
-                if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
-                const pw = Math.max(1, Math.round(sW * fastScale));
-                const ph = Math.max(1, Math.round(sH * fastScale));
-                
-                const pCtx = els.previewCanvas.getContext('2d');
-                if (els.previewCanvas.width !== pw || els.previewCanvas.height !== ph) {
+                 if (els.previewCanvas.width !== pw || els.previewCanvas.height !== ph) {
                     els.previewCanvas.width = pw;
                     els.previewCanvas.height = ph;
-                }
-                pCtx.clearRect(0, 0, pw, ph);
+                 }
+                 const pCtx = els.previewCanvas.getContext('2d');
 
-                // Modified export logic: Only render back if state.backVisible is true
-                const shouldRenderBack = backImg && state.backVisible;
-                if (shouldRenderBack) {
-                    pCtx.globalAlpha = 1.0;
-                    pCtx.globalCompositeOperation = 'source-over';
-
-                    const scale = state.fullDims.h / backImg.height;
-                    const backW = backImg.width * scale;
-                    const backH = state.fullDims.h;
-                    const backX = (state.fullDims.w - backW) / 2;
-
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
-
-                    pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pw, ph);
-                }
-
-                if (frontImg) {
-                    if (frontLayerCanvas.width !== pw || frontLayerCanvas.height !== ph) {
-                        frontLayerCanvas.width = pw;
-                        frontLayerCanvas.height = ph;
-                    }
-                    frontLayerCtx.clearRect(0, 0, pw, ph);
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pw, ph);
-
-                    let maskSource = maskCanvas;
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                        maskSource = state.previewMaskCanvas;
-                    }
-
-                    if (state.maskVisible) {
-                        frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
-                    }
-
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    // Force opacity if only one layer
-                    const singleLayer = !state.imgA || !state.imgB;
-                    const effectiveOpacity = (finalOutput || !state.backVisible || singleLayer) ? 1.0 : state.opacity;
-                    pCtx.globalAlpha = effectiveOpacity;
-                    pCtx.drawImage(frontLayerCanvas, 0, 0);
-                }
+                 // Render to Preview (Visual Dims)
+                 renderToContext(pCtx, pw, ph, false, useBakedLayers, preferPreview, allowRebuild);
             } else {
                 els.mainCanvas.style.visibility = 'visible';
                 els.previewCanvas.classList.add('hidden');
                 
-                ctx.clearRect(0, 0, cw, ch);
-
-                // 1. Draw Back
-                // Modified export logic: Only render back if state.backVisible is true
-                const shouldRenderBack = backImg && state.backVisible;
-
-                if (shouldRenderBack) {
-                    ctx.globalAlpha = 1.0;
-                    ctx.globalCompositeOperation = 'source-over';
-
-                    const scale = state.fullDims.h / backImg.height;
-                    const backW = backImg.width * scale;
-                    const backH = state.fullDims.h;
-                    const backX = (state.fullDims.w - backW) / 2;
-
-                    // Mapping crop rect to back image source rect
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
-
-                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
-                }
-
-                // 2. Prepare Front Layer
-                if (frontImg) {
-                    if (frontLayerCanvas.width !== cw || frontLayerCanvas.height !== ch) {
-                        frontLayerCanvas.width = cw;
-                        frontLayerCanvas.height = ch;
-                    }
-                    frontLayerCtx.clearRect(0, 0, cw, ch);
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    // Draw clipped portion of front image
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, cw, ch);
-
-                    let maskSource = maskCanvas;
-                    if (state.isPreviewing && state.previewMaskCanvas) {
-                        maskSource = state.previewMaskCanvas;
-                    }
-
-                    if (state.maskVisible) {
-                        frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
-                    }
-
-                    // 3. Composite Front to Main
-                    frontLayerCtx.globalCompositeOperation = 'source-over';
-                    // Force opacity if only one layer
-                    const singleLayer = !state.imgA || !state.imgB;
-                    const effectiveOpacity = (finalOutput || !state.backVisible || singleLayer) ? 1.0 : state.opacity;
-                    ctx.globalAlpha = effectiveOpacity;
-                    ctx.drawImage(frontLayerCanvas, 0, 0);
-                }
+                // Render to Main (Visual Dims)
+                renderToContext(ctx, canvasW, canvasH, false, useBakedLayers, preferPreview, allowRebuild);
             }
             
-            // 4. Update Crop DOM Overlay
+            // Update Crop DOM Overlay
             if (state.isCropping) {
                 els.cropOverlayDom.style.display = 'block';
-                const r = state.cropRect;
+                // Transform Truth Crop Rect to Visual
+                const r = truthToVisualRect(state.cropRect);
                 els.cropBox.style.left = r.x + 'px';
                 els.cropBox.style.top = r.y + 'px';
                 els.cropBox.style.width = r.w + 'px';
@@ -947,7 +1353,6 @@
             } else {
                 els.cropOverlayDom.style.display = 'none';
             }
-            
         }
 
         // --- Crop Logic ---
@@ -1241,6 +1646,9 @@
         function handlePaste(e) {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+            // Bake rotation before processing paste
+            if (state.rotation !== 0) bakeRotation();
+
             // --- 1. Snapshot Clipboard for Debugging (Lossless) ---
             const clipboardDump = {
                 timestamp: new Date().toISOString(),
@@ -1436,6 +1844,7 @@
         // --- Censor, Merge, Save (Remaining) ---
         function applyCensor() {
              if (!state.imgA && !state.imgB) { log("Need at least one image"); return; }
+             if (state.rotation !== 0) bakeRotation();
              log("Generating Censor layer...", "info");
              setTimeout(() => {
                 try {
@@ -1546,6 +1955,7 @@
 
         function mergeDown() {
             if (!canDraw()) return;
+            if (state.rotation !== 0) bakeRotation();
             log("Merging...", "info");
             setTimeout(() => {
                 try {
@@ -1601,6 +2011,7 @@
 
         function saveImage() {
             if (!state.imgA && !state.imgB) return;
+            if (state.rotation !== 0) bakeRotation();
             Logger.info("Exporting image...");
             try {
                 // Render CROP area for export

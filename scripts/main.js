@@ -5,9 +5,6 @@
             el.className = `console-msg ${type}`;
             el.textContent = msg;
             consoleEl.appendChild(el);
-            while (consoleEl.children.length > 10) {
-                consoleEl.removeChild(consoleEl.firstElementChild);
-            }
             setTimeout(() => {
                 el.style.opacity = '0';
                 setTimeout(() => el.remove(), 200);
@@ -34,7 +31,7 @@
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
-            maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
+            maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
@@ -97,7 +94,6 @@
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
-            toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
@@ -284,9 +280,6 @@
             if (!source) return { img: null, scale: 1 };
             if (!useBakedLayers) return { img: source, scale: 1 };
 
-            // If adjustments are hidden, bypass working copies and return raw source
-            if (!state.adjustmentsVisible) return { img: source, scale: 1 };
-
             const working = slot === 'A' ? state.workingA : state.workingB;
             const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
             if (allowRebuild && (!working || workingVersion !== state.adjustmentsVersion)) {
@@ -414,6 +407,7 @@
                 };
 
                 const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+
                 if (files.length > 0) {
                     if (files.length === 1) {
                         loadLayerWithSmartSlotting(files[0], files[0].name);
@@ -681,12 +675,6 @@
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
-                updateVisibilityToggles();
-                render();
-            });
-            els.toggleAdjBtn.addEventListener('click', () => {
-                state.adjustmentsVisible = !state.adjustmentsVisible;
-                Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
@@ -1105,13 +1093,6 @@
             els.toggleBackBtn.classList.toggle('accent-icon', backHidden);
             els.rearEyeOpen.classList.toggle('hidden', backHidden);
             els.rearEyeClosed.classList.toggle('hidden', !backHidden);
-
-            const adjHidden = !state.adjustmentsVisible;
-            els.toggleAdjBtn.classList.toggle('bg-accent-dark', adjHidden);
-            els.toggleAdjBtn.classList.toggle('border-accent-strong', adjHidden);
-            els.toggleAdjBtn.classList.toggle('accent-icon', adjHidden);
-            els.adjEyeOpen.classList.toggle('hidden', adjHidden);
-            els.adjEyeClosed.classList.toggle('hidden', !adjHidden);
         }
 
         function truncate(str) {
@@ -1136,22 +1117,24 @@
 
         function loadImageSource(source) {
             return new Promise((resolve, reject) => {
-                const finalizeLoad = (srcStr) => {
+                if (source instanceof Blob) {
+                    const url = URL.createObjectURL(source);
+                    const img = new Image();
+                    img.onload = () => {
+                        URL.revokeObjectURL(url);
+                        resolve(img);
+                    };
+                    img.onerror = (e) => {
+                        URL.revokeObjectURL(url);
+                        reject(e);
+                    };
+                    img.src = url;
+                } else if (typeof source === 'string') {
                     const img = new Image();
                     img.onload = () => resolve(img);
                     img.onerror = (e) => reject(e);
-                    img.src = srcStr;
-                };
-
-                if (source instanceof Blob) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => finalizeLoad(e.target.result);
-                    reader.onerror = (e) => reject(e);
-                    reader.readAsDataURL(source);
-                } else if (typeof source === 'string') {
-                    finalizeLoad(source);
+                    img.src = source;
                 } else if (source instanceof Image) {
-                    // Check if already loaded
                     if (source.complete) resolve(source);
                     else {
                         source.onload = () => resolve(source);
@@ -1239,71 +1222,165 @@
         }
 
         function handlePaste(e) {
-            // Ignore if pasting into an input field
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+            // --- 1. Snapshot Clipboard for Debugging (Lossless) ---
+            const clipboardDump = {
+                timestamp: new Date().toISOString(),
+                types: [...(e.clipboardData.types || [])],
+                files: [],
+                items: [],
+                manualText: {}
+            };
+
+            // Files Metadata
+            if (e.clipboardData.files) {
+                for (let i = 0; i < e.clipboardData.files.length; i++) {
+                    const f = e.clipboardData.files[i];
+                    clipboardDump.files.push({
+                        name: f.name,
+                        type: f.type,
+                        size: f.size,
+                        lastModified: f.lastModified
+                    });
+                }
+            }
+
+            // Items Processing
             const items = e.clipboardData.items;
-            const files = e.clipboardData.files;
             const blobPromises = [];
             const stringPromises = [];
+            const debugStringPromises = [];
 
-            // 1. Check direct files list (most robust for OS file copy/paste)
-            for (let i = 0; i < files.length; i++) {
-                if (files[i].type.startsWith('image/')) {
-                    blobPromises.push(Promise.resolve(files[i]));
+            // Add direct files to blob promises
+            if (e.clipboardData.files) {
+                for (let i = 0; i < e.clipboardData.files.length; i++) {
+                    blobPromises.push(Promise.resolve(e.clipboardData.files[i]));
                 }
             }
 
-            // 2. Check items (fallback for screenshots or specific browser behaviors)
             for (let i = 0; i < items.length; i++) {
-                if (items[i].kind === 'file') {
-                    const blob = items[i].getAsFile();
-                    if (blob && blob.type.startsWith('image/')) {
-                        blobPromises.push(Promise.resolve(blob));
+                const item = items[i];
+                const itemDump = { kind: item.kind, type: item.type, content: "<pending>" };
+                clipboardDump.items.push(itemDump);
+
+                if (item.kind === 'file') {
+                    // Try FileSystemEntry API first (Better for Hydrus/Electron/Complex drops)
+                    if (typeof item.webkitGetAsEntry === 'function') {
+                        const entry = item.webkitGetAsEntry();
+                        if (entry && entry.isFile) {
+                            const p = new Promise((resolve) => {
+                                entry.file(f => resolve(f), err => resolve(null));
+                            });
+                            blobPromises.push(p);
+                            itemDump.content = "FileSystemEntry";
+                        } else {
+                            // Fallback to standard getAsFile
+                            const blob = item.getAsFile();
+                            if (blob) {
+                                blobPromises.push(Promise.resolve(blob));
+                                itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                            } else {
+                                itemDump.content = "null blob";
+                            }
+                        }
+                    } else {
+                        const blob = item.getAsFile();
+                        if (blob) {
+                            blobPromises.push(Promise.resolve(blob));
+                            itemDump.content = `Blob(${blob.type}, ${blob.size})`;
+                        } else {
+                            itemDump.content = "null blob";
+                        }
                     }
-                } else if (items[i].type === 'text/uri-list' || items[i].type === 'text/plain') {
-                     const p = new Promise(resolve => {
-                         items[i].getAsString(s => resolve(s));
-                     });
-                     stringPromises.push(p);
+                } else if (item.kind === 'string') {
+                    const p = new Promise(resolve => {
+                        item.getAsString(s => {
+                            itemDump.content = s;
+                            resolve(s);
+                        });
+                    });
+                    debugStringPromises.push(p);
+
+                    if (item.type === 'text/plain' || item.type === 'text/uri-list' || item.type === 'text/html') {
+                        stringPromises.push(p);
+                    }
                 }
             }
 
-            Promise.all([Promise.all(blobPromises), Promise.all(stringPromises)]).then(async ([blobs, strings]) => {
-                // Deduplicate blobs (files might appear in both lists)
-                const uniqueBlobs = [...new Set(blobs)];
+            // Force retrieval of text formats even if not in 'items' (Browser quirk workaround)
+            const manualFormats = ['text/plain', 'text/uri-list', 'text/html'];
+            manualFormats.forEach(fmt => {
+                const val = e.clipboardData.getData(fmt);
+                if (val) {
+                    clipboardDump.manualText[fmt] = val;
+                    stringPromises.push(Promise.resolve(val));
+                }
+            });
 
-                if (uniqueBlobs.length > 0) {
-                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
-                    return; // Prioritize binary data over text
+            // --- 2. Process ---
+            Promise.all([
+                Promise.all(blobPromises),
+                Promise.all(stringPromises),
+                Promise.all(debugStringPromises)
+            ]).then(async ([blobs, strings, _]) => {
+                const uniqueBlobs = [...new Set(blobs)];
+                const uniqueStrings = [...new Set(strings)];
+
+                // Filter out 0-byte files (broken handles) and nulls
+                const validBlobs = uniqueBlobs.filter(b => b && b.size > 0);
+
+                // Determine target state
+                const hasA = !!state.imgA;
+                const hasB = !!state.imgB;
+                if (hasA && hasB) {
+                    Logger.info("Paste ignored: Both slots full.", clipboardDump);
+                    return;
                 }
 
+                // Priority 1: Valid Binaries
+                if (validBlobs.length > 0) {
+                    Logger.info(`Paste: Found ${validBlobs.length} valid blob(s)`, clipboardDump);
+                    loadLayerWithSmartSlotting(validBlobs[0], "Pasted Image");
+                    return;
+                }
+
+                if (uniqueBlobs.length > 0 && validBlobs.length === 0) {
+                    Logger.warn("Paste: Found blobs but all were 0 bytes. Falling back to text search...", clipboardDump);
+                }
+
+                // Priority 2: URLs / Paths
                 const urls = [];
-                strings.forEach(s => {
+                uniqueStrings.forEach(s => {
+                     // 1. Standard URLs
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
                          urls.push(s);
-                     } else {
-                         // Try to interpret as file path
-                         if (s.match(/^[a-zA-Z]:\\/) || s.startsWith('/')) {
-                              urls.push('file://' + s);
-                         }
+                     }
+                     // 2. Windows Path
+                     else if (s.match(/^[a-zA-Z]:\\/)) {
+                         urls.push('file:///' + s.replace(/\\/g, '/'));
+                     }
+                     // 3. Unix Path
+                     else if (s.startsWith('/')) {
+                          urls.push('file://' + s);
+                     }
+                     // 4. HTML Source (Img tags)
+                     else if (s.includes('<img')) {
+                         const match = s.match(/src=["'](.*?)["']/);
+                         if (match && match[1]) urls.push(match[1]);
                      }
                 });
 
-                // Determine target
-                const hasA = !!state.imgA;
-                const hasB = !!state.imgB;
-
-                if (hasA && hasB) return;
-
                 if (urls.length > 0) {
-                     // Try fetch
+                     Logger.info("Paste: Found URL(s)", { ...clipboardDump, extractedUrls: urls });
                      try {
                          const blob = await fetchImage(urls[0]);
                          loadLayerWithSmartSlotting(blob, "Pasted URL");
                      } catch(e) {
-                         Logger.error("Failed to fetch pasted URL", e);
+                         Logger.error("Failed to fetch pasted URL", { error: e.message, stack: e.stack, clipboard: clipboardDump });
                      }
+                } else {
+                    Logger.warn("Paste ignored: No image data or URLs found.", clipboardDump);
                 }
             });
         }

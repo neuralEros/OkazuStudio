@@ -448,15 +448,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
         const pCtx = pCanvas.getContext('2d');
         renderToContext(pCtx, pw, ph, true, false);
-
-        // Only apply adjustments if globally visible
-        if (state.adjustmentsVisible) {
-            const imgData = pCtx.getImageData(0, 0, pw, ph);
-            applyMasterLUT(imgData);
-            applyColorOps(imgData);
-            applySelectiveColor(imgData);
-            pCtx.putImageData(imgData, 0, 0);
-        }
+        const imgData = pCtx.getImageData(0, 0, pw, ph);
+        applyMasterLUT(imgData);
+        applyColorOps(imgData);
+        applySelectiveColor(imgData);
+        pCtx.putImageData(imgData, 0, 0);
     }
 
     function resetAllAdjustments() {

@@ -1226,7 +1226,8 @@
                 timestamp: new Date().toISOString(),
                 types: [...(e.clipboardData.types || [])],
                 files: [],
-                items: []
+                items: [],
+                manualText: {}
             };
 
             // Files Metadata
@@ -1244,11 +1245,11 @@
 
             // Items Processing
             const items = e.clipboardData.items;
-            const blobPromises = []; // For App Logic
-            const stringPromises = []; // For App Logic
-            const debugStringPromises = []; // For Debug Dump
+            const blobPromises = [];
+            const stringPromises = [];
+            const debugStringPromises = [];
 
-            // Add direct files to blob promises (Permissive: Try ALL files)
+            // Add direct files to blob promises
             if (e.clipboardData.files) {
                 for (let i = 0; i < e.clipboardData.files.length; i++) {
                     blobPromises.push(Promise.resolve(e.clipboardData.files[i]));
@@ -1261,7 +1262,6 @@
                 clipboardDump.items.push(itemDump);
 
                 if (item.kind === 'file') {
-                    // Logic for App: Get file, don't filter by image type (permissive)
                     const blob = item.getAsFile();
                     if (blob) {
                         blobPromises.push(Promise.resolve(blob));
@@ -1270,29 +1270,41 @@
                         itemDump.content = "null blob";
                     }
                 } else if (item.kind === 'string') {
-                    // Logic for App + Debug
                     const p = new Promise(resolve => {
                         item.getAsString(s => {
-                            itemDump.content = s; // Update dump
+                            itemDump.content = s;
                             resolve(s);
                         });
                     });
-                    debugStringPromises.push(p); // Wait for this for debug
+                    debugStringPromises.push(p);
 
-                    // Only process as potential URL if text/plain or uri-list
                     if (item.type === 'text/plain' || item.type === 'text/uri-list') {
                         stringPromises.push(p);
                     }
                 }
             }
 
+            // Force retrieval of text formats even if not in 'items' (Browser quirk workaround)
+            const manualFormats = ['text/plain', 'text/uri-list'];
+            manualFormats.forEach(fmt => {
+                const val = e.clipboardData.getData(fmt);
+                if (val) {
+                    clipboardDump.manualText[fmt] = val;
+                    stringPromises.push(Promise.resolve(val));
+                }
+            });
+
             // --- 2. Process ---
             Promise.all([
                 Promise.all(blobPromises),
                 Promise.all(stringPromises),
-                Promise.all(debugStringPromises) // Ensure dump is populated
+                Promise.all(debugStringPromises)
             ]).then(async ([blobs, strings, _]) => {
                 const uniqueBlobs = [...new Set(blobs)];
+                const uniqueStrings = [...new Set(strings)]; // Dedupe strings from items vs manual
+
+                // Filter out 0-byte files (broken handles)
+                const validBlobs = uniqueBlobs.filter(b => b.size > 0);
 
                 // Determine target state
                 const hasA = !!state.imgA;
@@ -1302,39 +1314,47 @@
                     return;
                 }
 
-                // Priority 1: Binaries (Files)
-                if (uniqueBlobs.length > 0) {
-                    Logger.info(`Paste: Found ${uniqueBlobs.length} blob(s)`, clipboardDump);
-                    // Try the first one
-                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
+                // Priority 1: Valid Binaries
+                if (validBlobs.length > 0) {
+                    Logger.info(`Paste: Found ${validBlobs.length} valid blob(s)`, clipboardDump);
+                    loadLayerWithSmartSlotting(validBlobs[0], "Pasted Image");
                     return;
                 }
 
-                // Priority 2: URLs
+                if (uniqueBlobs.length > 0 && validBlobs.length === 0) {
+                    Logger.warn("Paste: Found blobs but all were 0 bytes. Falling back to text search...", clipboardDump);
+                }
+
+                // Priority 2: URLs / Paths
                 const urls = [];
-                strings.forEach(s => {
+                uniqueStrings.forEach(s => {
+                     // Check for standard URLs
                      if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
                          urls.push(s);
                      } else {
-                         // Try to interpret as file path (Windows or Unix)
-                         if (s.match(/^[a-zA-Z]:\\/) || s.startsWith('/')) {
+                         // Robust Path handling
+                         // 1. Windows path (C:\...)
+                         if (s.match(/^[a-zA-Z]:\\/)) {
+                             urls.push('file:///' + s.replace(/\\/g, '/'));
+                         }
+                         // 2. Unix path (/home/...)
+                         else if (s.startsWith('/')) {
                               urls.push('file://' + s);
                          }
                      }
                 });
 
                 if (urls.length > 0) {
-                     Logger.info("Paste: Found URL(s)", clipboardDump);
+                     Logger.info("Paste: Found URL(s)", { ...clipboardDump, extractedUrls: urls });
                      try {
+                         // Just try the first valid-looking one
                          const blob = await fetchImage(urls[0]);
                          loadLayerWithSmartSlotting(blob, "Pasted URL");
                      } catch(e) {
-                         // Detailed failure log
                          Logger.error("Failed to fetch pasted URL", { error: e.message, stack: e.stack, clipboard: clipboardDump });
                      }
                 } else {
-                    // Failure: No usable data found
-                    Logger.warn("Paste ignored: No valid image data found.", clipboardDump);
+                    Logger.warn("Paste ignored: No valid image data or URLs found.", clipboardDump);
                 }
             });
         }

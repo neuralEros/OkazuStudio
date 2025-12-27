@@ -622,7 +622,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
              const start = {x: state.lastDrawX, y: state.lastDrawY};
              const end = {x: state.currentPointerX, y: state.currentPointerY};
-             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+             BrushKernel.paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
              // Draw cursor node
              drawBrushStamp(end.x, end.y, pCtx);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {

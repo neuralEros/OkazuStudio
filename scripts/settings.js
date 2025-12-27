@@ -5,7 +5,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     const defaults = {
         hue: 28,
         saturation: 96,
-        rgbMode: false,
+        rgbMode: true,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: ''
@@ -34,6 +34,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } else {
             state.settings = { ...defaults };
         }
+
+        // If RGB mode is active on load, force start at Hue 0 (Red)
+        if (state.settings.rgbMode) {
+            state.settings.hue = 0;
+        }
+
         applySettings();
     }
 

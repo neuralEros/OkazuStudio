@@ -4,6 +4,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     // Default Settings
     const defaults = {
         hue: 28,
+        saturation: 96,
         rgbMode: false,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
@@ -68,9 +69,35 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } catch (e) { return encoded; }
     }
 
+    function updateThemeVariables(hue, sat) {
+        // Boost lightness for pastels (low saturation)
+        // At sat=100, boost=0. At sat=0, boost=40.
+        const satBoost = (100 - sat) * 0.4;
+        
+        // Boost lightness for darker hues (Blue/Purple area around 240)
+        // Cosine peak at 240deg. 
+        // hue 240 -> cos(0) = 1 -> boost 15
+        // hue 60 -> cos(-180) = -1 -> boost 0 (clamped)
+        const hueBoost = Math.max(0, Math.cos((hue - 240) * Math.PI / 180)) * 15;
+
+        // Base lightness 56, max 95
+        const buttonL = Math.min(95, 56 + satBoost + hueBoost);
+
+        // Ink Lightness
+        // Base 10% lightness. If button is very light (e.g. 90%), ink should be slightly lighter (20%)
+        // to avoid harsh black-on-pastel contrast? Or maybe just keep it dark.
+        // User requested: "10% when button is 56% and 20% when button is 90%"
+        // slope = (20 - 10) / (90 - 56) = 10 / 34 ~= 0.294
+        const inkL = 10 + Math.max(0, (buttonL - 56) * 0.294);
+
+        document.documentElement.style.setProperty('--accent-h', hue);
+        document.documentElement.style.setProperty('--accent-s', `${sat}%`);
+        document.documentElement.style.setProperty('--accent-l', `${buttonL}%`);
+        document.documentElement.style.setProperty('--accent-ink', `hsl(${hue}, 90%, ${inkL}%)`);
+    }
+
     function applySettings() {
-        // Apply Hue
-        document.documentElement.style.setProperty('--accent-h', state.settings.hue);
+        updateThemeVariables(state.settings.hue, state.settings.saturation);
 
         // Handle RGB Mode
         if (state.settings.rgbMode) {
@@ -84,7 +111,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (rgbInterval) return;
         rgbInterval = setInterval(() => {
             state.settings.hue = (state.settings.hue + 1) % 360;
-            document.documentElement.style.setProperty('--accent-h', state.settings.hue);
+            updateThemeVariables(state.settings.hue, state.settings.saturation);
             // Update slider if visible
             const slider = document.getElementById('setting-hue');
             if (slider) slider.value = state.settings.hue;
@@ -119,11 +146,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- UI Hue -->
                     <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue</label>
-                        <div class="flex items-center gap-4">
-                            <input id="setting-hue" type="range" min="0" max="360" class="flex-grow accent-accent">
-                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">Default</button>
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue/Saturation</label>
+                        <div class="grid grid-cols-[1fr_auto] grid-rows-2 gap-x-4 gap-y-3 items-center">
+                            <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
                             <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">RGB</button>
+                            <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
+                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">Default</button>
                         </div>
                     </div>
 
@@ -172,10 +200,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         // Hue Controls
         const hueSlider = document.getElementById('setting-hue');
+        const saturationSlider = document.getElementById('setting-saturation');
         const hueReset = document.getElementById('setting-hue-reset');
         const rgbToggle = document.getElementById('setting-rgb-toggle');
 
         hueSlider.value = state.settings.hue;
+        saturationSlider.value = state.settings.saturation;
         hueSlider.addEventListener('input', (e) => {
             state.settings.hue = parseInt(e.target.value);
             // If dragging slider, disable RGB mode
@@ -189,15 +219,23 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             saveDebounced();
         });
 
+        saturationSlider.addEventListener('input', (e) => {
+            state.settings.saturation = parseInt(e.target.value);
+            applySettings();
+            saveDebounced();
+        });
+
         hueReset.addEventListener('click', () => {
-            state.settings.hue = 28; // Default orange
-            hueSlider.value = 28;
+            state.settings.hue = defaults.hue; // Default orange
+            state.settings.saturation = defaults.saturation;
+            hueSlider.value = defaults.hue;
+            saturationSlider.value = defaults.saturation;
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
                 stopRgbMode();
             }
-            lastStaticHue = 28;
+            lastStaticHue = defaults.hue;
             applySettings();
             saveSettings();
         });
@@ -211,10 +249,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         function updateRgbButtonState() {
             if (state.settings.rgbMode) {
-                rgbToggle.classList.add('bg-accent', 'border-accent', 'text-white');
+                rgbToggle.classList.add('bg-accent', 'border-accent');
                 rgbToggle.classList.remove('text-gray-400', 'hover:bg-panel-strong');
             } else {
-                rgbToggle.classList.remove('bg-accent', 'border-accent', 'text-white');
+                rgbToggle.classList.remove('bg-accent', 'border-accent');
                 rgbToggle.classList.add('text-gray-400', 'hover:bg-panel-strong');
             }
         }
@@ -239,10 +277,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             document.querySelectorAll(selector).forEach(btn => {
                 const val = btn.dataset.val === 'Full' ? 'Full' : parseInt(btn.dataset.val);
                 if (val === current) {
-                    btn.classList.add('bg-accent', 'text-white');
+                    btn.classList.add('bg-accent');
                     btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
                 } else {
-                    btn.classList.remove('bg-accent', 'text-white');
+                    btn.classList.remove('bg-accent');
                     btn.classList.add('text-gray-400', 'hover:bg-panel-800');
                 }
             });

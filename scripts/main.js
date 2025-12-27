@@ -173,9 +173,9 @@
                     // I'll make them all accent-action but maybe Cancel is outlined.
 
                     if (isCancel) {
-                         btn.className = "w-full py-2.5 px-4 bg-transparent border border-accent-border text-accent-soft hover:bg-accent-dark hover:text-white hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
+                         btn.className = "w-full py-2.5 px-4 bg-transparent border-accent text-accent-soft hover:bg-accent-dark hover:text-white hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
                     } else {
-                         btn.className = "w-full py-2.5 px-4 bg-accent-dark border border-accent-border text-white hover:bg-accent-strong hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
+                         btn.className = "w-full py-2.5 px-4 bg-accent-dark border-accent text-white hover:bg-accent-strong hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
                     }
 
                     btn.textContent = text;

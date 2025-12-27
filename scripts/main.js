@@ -1354,7 +1354,58 @@
                          Logger.error("Failed to fetch pasted URL", { error: e.message, stack: e.stack, clipboard: clipboardDump });
                      }
                 } else {
-                    Logger.warn("Paste ignored: No valid image data or URLs found.", clipboardDump);
+                    Logger.warn("Paste: Sync data failed (empty/invalid). Attempting Async Clipboard API...", clipboardDump);
+
+                    try {
+                        // Fallback 1: Async Read (for images)
+                        const clipboardItems = await navigator.clipboard.read();
+                        for (const item of clipboardItems) {
+                            // Find valid image type
+                            const imageType = item.types.find(t => t.startsWith('image/'));
+                            if (imageType) {
+                                const blob = await item.getType(imageType);
+                                if (blob && blob.size > 0) {
+                                    Logger.info("Paste (Async): Found valid image blob", { type: imageType, size: blob.size });
+                                    loadLayerWithSmartSlotting(blob, "Pasted Image (Async)");
+                                    return;
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        Logger.warn("Paste (Async Read) failed or denied", err);
+                    }
+
+                    try {
+                        // Fallback 2: Async ReadText (for paths)
+                        const text = await navigator.clipboard.readText();
+                        if (text) {
+                            Logger.info("Paste (Async Text): Found text", { length: text.length });
+                            const asyncUrls = [];
+                            // Re-use logic: parse text for paths
+                            const lines = text.split(/\r?\n/);
+                            lines.forEach(s => {
+                                 s = s.trim();
+                                 if (s.match(/^https?:\/\//) || s.match(/^file:\/\//)) {
+                                     asyncUrls.push(s);
+                                 } else if (s.match(/^[a-zA-Z]:\\/)) {
+                                     asyncUrls.push('file:///' + s.replace(/\\/g, '/'));
+                                 } else if (s.startsWith('/')) {
+                                      asyncUrls.push('file://' + s);
+                                 }
+                            });
+
+                            if (asyncUrls.length > 0) {
+                                 Logger.info("Paste (Async Text): Found URL(s)", { urls: asyncUrls });
+                                 const blob = await fetchImage(asyncUrls[0]);
+                                 loadLayerWithSmartSlotting(blob, "Pasted URL (Async)");
+                                 return;
+                            }
+                        }
+                    } catch (err) {
+                        Logger.warn("Paste (Async Text) failed or denied", err);
+                    }
+
+                    Logger.error("Paste failed: No usable data found in Sync or Async clipboard APIs.");
                 }
             });
         }

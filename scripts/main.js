@@ -1235,14 +1235,12 @@
                 }
                 state.cropRectSnapshot = state.cropRect ? { ...state.cropRect } : null;
                 els.cropBtn.classList.add('active', 'text-yellow-400');
-                // Resize main canvas to full dims
-                resizeMainCanvas(state.fullDims.w, state.fullDims.h);
+                updateCanvasDimensions(true);
                 els.viewport.classList.add('cropping');
             } else {
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
-                // Resize main canvas to crop rect
-                resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+                updateCanvasDimensions(true);
                 els.viewport.classList.remove('cropping');
                 if (state.cropRect) {
                     Logger.info("Crop mode exited", {
@@ -1678,8 +1676,12 @@
             }
 
             const isRotated = state.rotation % 180 !== 0;
-            const visualW = isRotated ? state.cropRect.h : state.cropRect.w;
-            const visualH = isRotated ? state.cropRect.w : state.cropRect.h;
+
+            const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
+            const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+
+            const visualW = isRotated ? baseH : baseW;
+            const visualH = isRotated ? baseW : baseH;
 
             resizeMainCanvas(visualW, visualH);
 

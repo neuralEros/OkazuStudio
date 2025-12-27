@@ -5,6 +5,9 @@
             el.className = `console-msg ${type}`;
             el.textContent = msg;
             consoleEl.appendChild(el);
+            while (consoleEl.children.length > 10) {
+                consoleEl.removeChild(consoleEl.firstElementChild);
+            }
             setTimeout(() => {
                 el.style.opacity = '0';
                 setTimeout(() => el.remove(), 200);

@@ -443,6 +443,7 @@
         }
 
         function rotateView() {
+            if (window.dispatchAction) dispatchAction({ type: 'ROTATE_VIEW', payload: {} });
             scheduleHeavyTask(() => {
                 state.rotation = (state.rotation + 90) % 360;
                 updateCanvasDimensions(true); // Preserve crop
@@ -700,6 +701,7 @@
         }
 
         function clearLayer(slot) {
+             if (window.dispatchAction) dispatchAction({ type: 'CLEAR_LAYER', payload: { slot } });
              if (slot === 'A') {
                  state.imgA = null; state.sourceA = null; state.workingA = null;
                  state.nameA = "";
@@ -820,6 +822,7 @@
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
                 Logger.interaction("Swap Button", "clicked");
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
@@ -880,6 +883,7 @@
             const finalizeOpacityRender = () => {
                 if (!isOpacityDragging) return;
                 isOpacityDragging = false;
+                if (window.dispatchAction) dispatchAction({ type: 'SET_OPACITY', payload: { value: state.opacity } });
                 scheduleOpacityRender(true);
             };
             els.opacitySlider.addEventListener('pointerdown', () => {
@@ -903,6 +907,7 @@
             els.patchMode.addEventListener('click', () => setMode('patch'));
             
             els.clearMask.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                 state.maskVisible = true;
                 state.backVisible = true;
@@ -925,18 +930,21 @@
             els.rotateBtn.addEventListener('click', rotateView);
 
             els.toggleMaskBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_MASK', payload: { visible: !state.maskVisible } });
                 state.maskVisible = !state.maskVisible;
                 Logger.interaction("Toggle Mask Visibility", state.maskVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_BACK', payload: { visible: !state.backVisible } });
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleAdjBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_ADJUSTMENTS', payload: { visible: !state.adjustmentsVisible } });
                 state.adjustmentsVisible = !state.adjustmentsVisible;
                 Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
@@ -1293,6 +1301,7 @@
         // --- Crop Logic ---
         function acceptCrop() {
             if (!state.isCropping) return;
+            if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: state.cropRect } });
             state.cropRectSnapshot = null;
             toggleCropMode();
         }
@@ -1502,6 +1511,7 @@
         }
 
         function assignLayer(img, slot, name) {
+             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload: { slot, name, width: img.width, height: img.height } });
              Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height}`);
              if (slot === 'A') {
                 setLayerSource('A', img);
@@ -1789,6 +1799,7 @@
         // --- Censor, Merge, Save (Remaining) ---
         function applyCensor() {
              if (!state.imgA && !state.imgB) { log("Need at least one image"); return; }
+             if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: {} });
 
              scheduleHeavyTask(async () => {
                  bakeRotation();
@@ -1898,6 +1909,7 @@
 
         function mergeDown() {
             if (!canDraw()) return;
+            if (window.dispatchAction) dispatchAction({ type: 'MERGE_LAYERS', payload: {} });
             scheduleHeavyTask(async () => {
                 bakeRotation();
                 log("Merging...", "info");

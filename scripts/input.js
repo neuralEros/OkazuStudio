@@ -349,6 +349,20 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function commitPolyline(shouldFill = false) {
         if (state.polylinePoints.length === 0) return;
 
+        if (window.dispatchAction) {
+             dispatchAction({
+                 type: 'POLYLINE',
+                 payload: {
+                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
+                     shouldFill,
+                     brushSize: getBrushPixelSize(),
+                     feather: state.featherMode ? state.featherPx : state.feather,
+                     featherMode: state.featherMode,
+                     mode: isEraseMode() ? 'erase' : 'repair'
+                 }
+             });
+        }
+
         const pts = state.polylinePoints;
 
         // Fill first if requested
@@ -640,6 +654,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     // We just draw it again.
                     drawBrushStamp(state.pointerDownCoords.x, state.pointerDownCoords.y, maskCtx);
                 }
+            }
+
+            if (state.activeStroke && window.dispatchAction) {
+                dispatchAction({ type: 'STROKE', payload: { ...state.activeStroke } });
             }
 
             state.previewMaskCanvas = null;

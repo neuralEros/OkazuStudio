@@ -31,7 +31,7 @@
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
-            maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
+            maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
@@ -94,6 +94,7 @@
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
+            toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
@@ -279,6 +280,9 @@
             const source = slot === 'A' ? state.imgA : state.imgB;
             if (!source) return { img: null, scale: 1 };
             if (!useBakedLayers) return { img: source, scale: 1 };
+
+            // If adjustments are hidden, bypass working copies and return raw source
+            if (!state.adjustmentsVisible) return { img: source, scale: 1 };
 
             const working = slot === 'A' ? state.workingA : state.workingB;
             const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
@@ -674,6 +678,12 @@
             els.toggleBackBtn.addEventListener('click', () => {
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
+                updateVisibilityToggles();
+                render();
+            });
+            els.toggleAdjBtn.addEventListener('click', () => {
+                state.adjustmentsVisible = !state.adjustmentsVisible;
+                Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
@@ -1092,6 +1102,13 @@
             els.toggleBackBtn.classList.toggle('accent-icon', backHidden);
             els.rearEyeOpen.classList.toggle('hidden', backHidden);
             els.rearEyeClosed.classList.toggle('hidden', !backHidden);
+
+            const adjHidden = !state.adjustmentsVisible;
+            els.toggleAdjBtn.classList.toggle('bg-accent-dark', adjHidden);
+            els.toggleAdjBtn.classList.toggle('border-accent-strong', adjHidden);
+            els.toggleAdjBtn.classList.toggle('accent-icon', adjHidden);
+            els.adjEyeOpen.classList.toggle('hidden', adjHidden);
+            els.adjEyeClosed.classList.toggle('hidden', !adjHidden);
         }
 
         function truncate(str) {

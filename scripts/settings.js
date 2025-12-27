@@ -73,9 +73,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // Boost lightness for pastels (low saturation)
         // At sat=100, boost=0. At sat=0, boost=40.
         const satBoost = (100 - sat) * 0.4;
-        
+
         // Boost lightness for darker hues (Blue/Purple area around 240)
-        // Cosine peak at 240deg. 
+        // Cosine peak at 240deg.
         // hue 240 -> cos(0) = 1 -> boost 15
         // hue 60 -> cos(-180) = -1 -> boost 0 (clamped)
         const hueBoost = Math.max(0, Math.cos((hue - 240) * Math.PI / 180)) * 15;

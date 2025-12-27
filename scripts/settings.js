@@ -8,7 +8,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         rgbMode: true,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
-        apiKey: ''
+        apiKey: '',
+        keyframeInterval: 10,
+        keyframeBuffer: 5
     };
 
     let lastStaticHue = defaults.hue;
@@ -181,6 +183,27 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         </div>
                     </div>
 
+                    <!-- Undo History -->
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                        <div class="flex gap-4">
+                            <div class="flex-1">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-[10px] text-gray-400">Keyframe Interval</span>
+                                    <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
+                                </div>
+                                <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-[10px] text-gray-400">Buffer Depth</span>
+                                    <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
+                                </div>
+                                <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Logs -->
                     <div class="mt-4 pt-4 border-t border-panel-divider text-right">
                         <button id="copy-logs-btn" class="text-[10px] font-bold text-gray-500 hover:text-accent uppercase tracking-wider cursor-pointer bg-transparent border-none p-0 transition-colors">
@@ -294,6 +317,32 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         setupResSwitch('.res-btn-brush', 'brushPreviewResolution');
         setupResSwitch('.res-btn-adj', 'adjustmentPreviewResolution');
+
+        // Undo History Settings
+        const keyframeIntervalSlider = document.getElementById('setting-keyframe-interval');
+        const keyframeIntervalVal = document.getElementById('val-keyframe-interval');
+        const keyframeBufferSlider = document.getElementById('setting-keyframe-buffer');
+        const keyframeBufferVal = document.getElementById('val-keyframe-buffer');
+
+        keyframeIntervalSlider.value = state.settings.keyframeInterval;
+        keyframeIntervalVal.textContent = state.settings.keyframeInterval;
+
+        keyframeBufferSlider.value = state.settings.keyframeBuffer;
+        keyframeBufferVal.textContent = state.settings.keyframeBuffer;
+
+        keyframeIntervalSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.settings.keyframeInterval = val;
+            keyframeIntervalVal.textContent = val;
+            saveDebounced();
+        });
+
+        keyframeBufferSlider.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.settings.keyframeBuffer = val;
+            keyframeBufferVal.textContent = val;
+            saveDebounced();
+        });
 
         // Copy Logs
         const copyLogsBtn = document.getElementById('copy-logs-btn');

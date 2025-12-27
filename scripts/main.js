@@ -223,12 +223,10 @@
                  els.canvasWrapper.style.height = visualH + 'px';
             });
 
-            // Override dispatchAction to hook replay engine
-            const originalDispatch = window.dispatchAction;
+            // Override dispatchAction to use ReplayEngine directly
             window.dispatchAction = function(action) {
-                originalDispatch(action);
-                if (replayEngine && window.ActionHistory) {
-                    replayEngine.onActionLogged(action, window.ActionHistory.cursor);
+                if (replayEngine) {
+                    replayEngine.logAction(action);
                 }
             };
         }
@@ -256,20 +254,22 @@
             Logger
         });
 
-        const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
-            state,
-            maskCtx,
-            maskCanvas,
-            resizeMainCanvas,
-            render,
-            resetAllAdjustments,
-            log,
-            updateUI,
-            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments,
-            recalculateColorTuning,
-            updateAllAdjustmentUI,
-            Logger
-        });
+        // Helper to reset mask only (for internal ops like merge)
+        function resetMaskOnly() {
+             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        }
+
+        // Helper to reset both mask and history (for full reset)
+        function resetMaskAndHistory() {
+             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+             // History reset is handled by ReplayEngine via RESET_ALL action usually,
+             // but if we need manual force reset:
+             if (replayEngine) {
+                  // Actually, ReplayEngine history clearing is not exposed directly.
+                  // But creating a new ReplayEngine or logging a RESET action is the way.
+                  // For now, main logic assumes dispatchAction('RESET_ALL') handles state.
+             }
+        }
 
         const {
             canDraw,
@@ -288,9 +288,9 @@
             maskCtx,
             maskCanvas,
             render,
-            saveSnapshot,
-            undo,
-            redo,
+            saveSnapshot: () => {}, // Legacy shim
+            undo: () => replayEngine && replayEngine.undo(),
+            redo: () => replayEngine && replayEngine.redo(),
             showHints,
             scheduleHeavyTask,
             acceptCrop,
@@ -298,7 +298,7 @@
             setBrushMode: setMode
         });
 
-        setSaveSnapshotHandler(saveSnapshot);
+        setSaveSnapshotHandler(() => {}); // Legacy shim
         setUpdateWorkingCopiesHandler(updateWorkingCopiesAfterAdjustments);
 
         function hasActiveAdjustments() {
@@ -959,19 +959,11 @@
             els.censorBtn.addEventListener('click', applyCensor);
 
             els.undoBtn.addEventListener('click', () => {
-                if (replayEngine && window.ActionHistory && window.ActionHistory.cursor >= 0) {
-                    window.ActionHistory.cursor--;
-                    replayEngine.replayTo(window.ActionHistory.cursor);
-                    updateUI();
-                }
+                if (replayEngine) replayEngine.undo();
             });
 
             els.redoBtn.addEventListener('click', () => {
-                if (replayEngine && window.ActionHistory && window.ActionHistory.cursor < window.ActionHistory.actions.length - 1) {
-                    window.ActionHistory.cursor++;
-                    replayEngine.replayTo(window.ActionHistory.cursor);
-                    updateUI();
-                }
+                if (replayEngine) replayEngine.redo();
             });
             
             els.cropBtn.addEventListener('click', toggleCropMode);

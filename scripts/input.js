@@ -311,6 +311,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function paintStampAt(context, x, y, size, feather, featherMode, isErasing) {
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size)) return;
         const radius = size / 2;
         const softness = getSoftnessForSize(size, feather, featherMode);
         context.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';

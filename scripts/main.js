@@ -916,6 +916,12 @@
                 state.previewFrontLayer = document.createElement('canvas');
             }
 
+            // Ensure buffer is sized correctly
+            if (state.previewFrontLayer.width !== w || state.previewFrontLayer.height !== h) {
+                state.previewFrontLayer.width = w;
+                state.previewFrontLayer.height = h;
+            }
+
             // Apply Rotation Transform
             targetCtx.save();
             const rot = state.rotation;

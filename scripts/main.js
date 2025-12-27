@@ -131,6 +131,58 @@
             });
         }
 
+        function showModal(message, choices, cancellable = true) {
+            return new Promise((resolve) => {
+                const overlay = document.getElementById('modal-overlay');
+                const msg = document.getElementById('modal-message');
+                const choiceContainer = document.getElementById('modal-choices');
+                const cancelBtn = document.getElementById('modal-cancel');
+
+                msg.textContent = message;
+                choiceContainer.innerHTML = '';
+
+                // Reset state
+                overlay.classList.remove('hidden');
+                // Trigger reflow for transition
+                void overlay.offsetWidth;
+                overlay.classList.add('visible');
+                overlay.classList.remove('opacity-0');
+
+                const cleanup = () => {
+                     overlay.classList.add('opacity-0');
+                     overlay.classList.remove('visible');
+                     setTimeout(() => {
+                         overlay.classList.add('hidden');
+                     }, 200);
+                };
+
+                choices.forEach(choice => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full py-3 px-4 bg-panel-strong border border-panel-border hover:bg-panel-border text-gray-200 hover:text-white rounded transition-colors text-sm font-bold uppercase tracking-wide flex items-center justify-between group";
+
+                    const span = document.createElement('span');
+                    span.textContent = choice.label;
+                    btn.appendChild(span);
+
+                    btn.onclick = () => {
+                        cleanup();
+                        resolve(choice.value);
+                    };
+                    choiceContainer.appendChild(btn);
+                });
+
+                if (cancellable) {
+                    cancelBtn.style.display = 'block';
+                    cancelBtn.onclick = () => {
+                        cleanup();
+                        resolve(null);
+                    };
+                } else {
+                    cancelBtn.style.display = 'none';
+                }
+            });
+        }
+
         const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
 
         const {
@@ -358,6 +410,26 @@
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
                      assignLayer(img, 'A', name);
+                     return;
+                 }
+
+                 // If Both Occupied -> Ask User
+                 if (state.imgA && state.imgB) {
+                     const choice = await showModal(
+                         "Both slots are already occupied. Where would you like to load the image?",
+                         [
+                             { label: "Load to Front", value: 'A' },
+                             { label: "Load to Back", value: 'B' }
+                         ],
+                         true
+                     );
+
+                     if (!choice) {
+                         log("Load cancelled", "info");
+                         return;
+                     }
+
+                     assignLayer(img, choice, name);
                      return;
                  }
 
@@ -1353,14 +1425,6 @@
 
                 // Filter out 0-byte files (broken handles) and nulls
                 const validBlobs = uniqueBlobs.filter(b => b && b.size > 0);
-
-                // Determine target state
-                const hasA = !!state.imgA;
-                const hasB = !!state.imgB;
-                if (hasA && hasB) {
-                    Logger.info("Paste ignored: Both slots full.", clipboardDump);
-                    return;
-                }
 
                 // Priority 1: Valid Binaries
                 if (validBlobs.length > 0) {

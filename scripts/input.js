@@ -27,83 +27,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Visual Coordinates (0,0 is Top-Left of rotated canvas)
-        const visualX = (mouseX - state.view.x) / state.view.scale;
-        const visualY = (mouseY - state.view.y) / state.view.scale;
+        const canvasX = (mouseX - state.view.x) / state.view.scale;
+        const canvasY = (mouseY - state.view.y) / state.view.scale;
 
         if (!state.isCropping && state.cropRect) {
-            // Apply rotation mapping to get "Truth" coordinates relative to the crop rect's origin?
-            // No, the visual canvas size changes.
-            // If rotated 90deg, Visual W = Truth H.
-            // visualX/Y are within Visual W/H.
-            // We need to map (visualX, visualY) -> (truthX, truthY) inside the crop rect.
-            // But wait, the mainCanvas physically resizes.
-
-            // Dimensions of the VISUAL canvas
-            const isRotated = state.rotation % 180 !== 0;
-            const visualW = isRotated ? state.cropRect.h : state.cropRect.w;
-            const visualH = isRotated ? state.cropRect.w : state.cropRect.h;
-
-            let tx = visualX;
-            let ty = visualY;
-
-            // Apply inverse rotation to find Truth coordinates relative to the crop area top-left
-            // 90 Deg CW visual means Top-Left visual corresponds to Bottom-Left Truth (relative to rect).
-            // (0,0) -> (0, H).
-            // Let's use the explicit mapping again.
-            // Visual (vx, vy) in vW x vH.
-            // Truth (tx, ty) in tW x tH.
-            // If 90 deg:
-            // tx = vy
-            // ty = vW - vx  (Assuming standard Cartesian rotation where +Y is down)
-
-            if (state.rotation === 90) {
-                tx = visualY;
-                ty = visualW - visualX;
-            } else if (state.rotation === 180) {
-                tx = visualW - visualX;
-                ty = visualH - visualY;
-            } else if (state.rotation === 270) {
-                tx = visualH - visualY;
-                ty = visualX;
-            }
-
-            return { x: tx + state.cropRect.x, y: ty + state.cropRect.y };
+            return { x: canvasX + state.cropRect.x, y: canvasY + state.cropRect.y };
         }
-
-        // If cropping (full view), we might need similar logic if rotation is allowed during crop?
-        // Current plan assumes rotation is reset or handled before crop?
-        // But the user said "Brush & Crop Interaction... Obviously".
-        // If we are in Crop Mode, we show the FULL image.
-        // Does "Rotate" button work in Crop Mode?
-        // If so, state.fullDims defines the visual area?
-        // If I rotate while cropping, fullDims swap visually?
-        // `updateCanvasDimensions` uses `state.fullDims` if cropping? No, it uses cropRect.
-        // `toggleCropMode` resizes canvas to fullDims.
-
-        if (state.isCropping) {
-             // Logic for full image mapping
-             const isRotated = state.rotation % 180 !== 0;
-             const visualW = isRotated ? state.fullDims.h : state.fullDims.w;
-             const visualH = isRotated ? state.fullDims.w : state.fullDims.h;
-
-             let tx = visualX;
-             let ty = visualY;
-
-             if (state.rotation === 90) {
-                tx = visualY;
-                ty = visualW - visualX;
-            } else if (state.rotation === 180) {
-                tx = visualW - visualX;
-                ty = visualH - visualY;
-            } else if (state.rotation === 270) {
-                tx = visualH - visualY;
-                ty = visualX;
-            }
-            return { x: tx, y: ty };
-        }
-
-        return { x: visualX, y: visualY };
+        return { x: canvasX, y: canvasY };
     }
 
     function resetView() {
@@ -630,58 +560,48 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             updateViewTransform();
         } else if (state.isCropping && state.cropDrag) {
             const rect = els.viewport.getBoundingClientRect();
+            // Mouse in Visual Canvas Coords
             const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
             const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
 
-            const r = state.cropRect;
+            const isRotated = state.rotation % 180 !== 0;
+            // Visual Dimensions (Swapped if rotated)
+            const visualFullW = isRotated ? state.fullDims.h : state.fullDims.w;
+            const visualFullH = isRotated ? state.fullDims.w : state.fullDims.h;
+
+            // Work with a Visual Rect
+            let newVisualRect = { ...state.cropDrag.startVisualRect };
 
             if (state.cropDrag.type === 'box') {
                 const dx = mx - state.cropDrag.startX;
                 const dy = my - state.cropDrag.startY;
-                const sr = state.cropDrag.startRect;
-                r.x = Math.max(0, Math.min(state.fullDims.w - r.w, sr.x + dx));
-                r.y = Math.max(0, Math.min(state.fullDims.h - r.h, sr.y + dy));
+
+                newVisualRect.x = Math.max(0, Math.min(visualFullW - newVisualRect.w, newVisualRect.x + dx));
+                newVisualRect.y = Math.max(0, Math.min(visualFullH - newVisualRect.h, newVisualRect.y + dy));
             } else {
                 const h = state.cropDrag.h;
-                if (h === 'nw') {
-                    const oldR = r.x + r.w; const oldB = r.y + r.h;
-                    r.x = Math.min(mx, oldR - 10);
-                    r.x = Math.max(0, r.x);
-                    r.y = Math.min(my, oldB - 10);
-                    r.y = Math.max(0, r.y);
-                    r.w = oldR - r.x;
-                    r.h = oldB - r.y;
-                } else if (h === 'se') {
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
-                } else if (h === 'ne') {
-                    const oldB = r.y + r.h;
-                    r.y = Math.min(my, oldB - 10);
-                    r.y = Math.max(0, r.y);
-                    r.h = oldB - r.y;
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
-                } else if (h === 'sw') {
-                    const oldR = r.x + r.w;
-                    r.x = Math.min(mx, oldR - 10);
-                    r.x = Math.max(0, r.x);
-                    r.w = oldR - r.x;
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
-                } else if (h === 'n') {
-                    const oldB = r.y + r.h;
-                    r.y = Math.min(my, oldB - 10);
-                    r.y = Math.max(0, r.y);
-                    r.h = oldB - r.y;
-                } else if (h === 's') {
-                    r.h = Math.max(10, Math.min(state.fullDims.h - r.y, my - r.y));
-                } else if (h === 'e') {
-                    r.w = Math.max(10, Math.min(state.fullDims.w - r.x, mx - r.x));
-                } else if (h === 'w') {
-                    const oldR = r.x + r.w;
-                    r.x = Math.min(mx, oldR - 10);
-                    r.x = Math.max(0, r.x);
-                    r.w = oldR - r.x;
+
+                // Visual Resizing Logic
+                if (h.includes('e')) newVisualRect.w = Math.max(10, Math.min(visualFullW - newVisualRect.x, mx - newVisualRect.x));
+                if (h.includes('s')) newVisualRect.h = Math.max(10, Math.min(visualFullH - newVisualRect.y, my - newVisualRect.y));
+
+                if (h.includes('w')) {
+                    const oldR = newVisualRect.x + newVisualRect.w;
+                    newVisualRect.x = Math.min(mx, oldR - 10);
+                    newVisualRect.x = Math.max(0, newVisualRect.x);
+                    newVisualRect.w = oldR - newVisualRect.x;
+                }
+
+                if (h.includes('n')) {
+                    const oldB = newVisualRect.y + newVisualRect.h;
+                    newVisualRect.y = Math.min(my, oldB - 10);
+                    newVisualRect.y = Math.max(0, newVisualRect.y);
+                    newVisualRect.h = oldB - newVisualRect.y;
                 }
             }
+
+            // Convert back to Truth Space for state
+            state.cropRect = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
             render();
         } else if (state.isDrawing) {
             addFastStrokePoint(coords);
@@ -837,13 +757,69 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         updateCursorPos(e);
     }
 
+    function truthToVisualRect(r, rot, fullW, fullH) {
+        if (rot === 0) return { ...r };
+        let vx = r.x, vy = r.y, vw = r.w, vh = r.h;
+        if (rot === 90) {
+            vx = fullH - (r.y + r.h);
+            vy = r.x;
+            vw = r.h;
+            vh = r.w;
+        } else if (rot === 180) {
+            vx = fullW - (r.x + r.w);
+            vy = fullH - (r.y + r.h);
+        } else if (rot === 270) {
+            vx = r.y;
+            vy = fullW - (r.x + r.w);
+            vw = r.h;
+            vh = r.w;
+        }
+        return { x: vx, y: vy, w: vw, h: vh };
+    }
+
+    function visualToTruthRect(v, rot, fullW, fullH) {
+        if (rot === 0) return { ...v };
+        let tx = v.x, ty = v.y, tw = v.w, th = v.h;
+
+        // Inverse logic
+        if (rot === 90) {
+            // v.x = H - (t.y + t.h)  =>  t.y + t.h = H - v.x  => t.y = H - v.x - t.h
+            // v.y = t.x              =>  t.x = v.y
+            // v.w = t.h              =>  t.h = v.w
+            // v.h = t.w              =>  t.w = v.h
+            tw = v.h;
+            th = v.w;
+            tx = v.y;
+            ty = fullH - v.x - th;
+        } else if (rot === 180) {
+            // v.x = W - (t.x + t.w) => t.x = W - v.x - t.w
+            // v.y = H - (t.y + t.h) => t.y = H - v.y - t.h
+            tx = fullW - v.x - tw;
+            ty = fullH - v.y - th;
+        } else if (rot === 270) {
+            // v.x = t.y             => t.y = v.x
+            // v.y = W - (t.x + t.w) => t.x = W - v.y - t.w
+            tw = v.h;
+            th = v.w;
+            ty = v.x;
+            tx = fullW - v.y - tw;
+        }
+        return { x: tx, y: ty, w: tw, h: th };
+    }
+
     function attachCropHandlers() {
         const handles = document.querySelectorAll('.crop-handle');
 
         handles.forEach(h => {
             h.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
-                state.cropDrag = { type: 'handle', h: h.dataset.handle };
+                // Store Visual Start Rect for consistent dragging
+                const startVisualRect = truthToVisualRect(state.cropRect, state.rotation, state.fullDims.w, state.fullDims.h);
+                state.cropDrag = {
+                    type: 'handle',
+                    h: h.dataset.handle,
+                    startVisualRect
+                };
             });
         });
 
@@ -853,11 +829,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             const rect = els.viewport.getBoundingClientRect();
             const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
             const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
+
+            const startVisualRect = truthToVisualRect(state.cropRect, state.rotation, state.fullDims.w, state.fullDims.h);
+
             state.cropDrag = {
                 type: 'box',
                 startX: mx,
                 startY: my,
-                startRect: { ...state.cropRect }
+                startRect: { ...state.cropRect }, // Legacy field, might remove if unused
+                startVisualRect
             };
         });
 

@@ -378,7 +378,8 @@
         function rotateView() {
             scheduleHeavyTask(() => {
                 state.rotation = (state.rotation + 90) % 360;
-                updateCanvasDimensions(false); // False triggers resetView which fits new aspect ratio
+                updateCanvasDimensions(true); // Preserve crop
+                resetView(); // Force fit to screen
                 render();
                 saveSnapshot('rotate_view');
             });

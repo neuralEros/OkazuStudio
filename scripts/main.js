@@ -406,8 +406,7 @@
                     }
                 };
 
-                // Filter out 0-byte ghost files from drag operations too
-                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/') && f.size > 0);
+                const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
 
                 if (files.length > 0) {
                     if (files.length === 1) {
@@ -1315,18 +1314,11 @@
                     return;
                 }
 
-                // Filter out 0-byte ghost files (e.g. from Hydrus/Linux clipboards)
-                const validBlobs = uniqueBlobs.filter(b => b.size > 0);
-
-                // Priority 1: Valid Binaries
-                if (validBlobs.length > 0) {
-                    Logger.info(`Paste: Found ${validBlobs.length} valid blob(s)`, clipboardDump);
-                    loadLayerWithSmartSlotting(validBlobs[0], "Pasted Image");
+                // Priority 1: All Binaries (including 0-byte, blindly try to load)
+                if (uniqueBlobs.length > 0) {
+                    Logger.info(`Paste: Attempting to load ${uniqueBlobs.length} blob(s)`, clipboardDump);
+                    loadLayerWithSmartSlotting(uniqueBlobs[0], "Pasted Image");
                     return;
-                }
-
-                if (uniqueBlobs.length > 0 && validBlobs.length === 0) {
-                    Logger.warn("Paste: Found blobs but all were 0 bytes. Falling back to text search...", clipboardDump);
                 }
 
                 // Priority 2: URLs / Paths

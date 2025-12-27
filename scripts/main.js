@@ -31,7 +31,7 @@
         const state = {
             imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
-            maskVisible: true, backVisible: true, history: [], historyIndex: -1, lastActionType: null,
+            maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
@@ -94,6 +94,7 @@
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
+            toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
@@ -678,6 +679,12 @@
                 updateVisibilityToggles();
                 render();
             });
+            els.toggleAdjBtn.addEventListener('click', () => {
+                state.adjustmentsVisible = !state.adjustmentsVisible;
+                Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
+                updateVisibilityToggles();
+                render();
+            });
 
             attachInputHandlers();
 
@@ -708,8 +715,11 @@
             targetCtx.clearRect(0, 0, w, h);
             if (!state.cropRect && !state.isCropping) return;
 
-            const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
-            const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
+            // Enforce adjustments visibility for nested renders
+            const effectiveBaked = useBakedLayers && state.adjustmentsVisible;
+
+            const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers: effectiveBaked, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers: effectiveBaked, preferPreview, allowRebuild });
+            const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers: effectiveBaked, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers: effectiveBaked, preferPreview, allowRebuild });
             const frontImg = frontLayer.img;
             const backImg = backLayer.img;
 
@@ -1093,6 +1103,13 @@
             els.toggleBackBtn.classList.toggle('accent-icon', backHidden);
             els.rearEyeOpen.classList.toggle('hidden', backHidden);
             els.rearEyeClosed.classList.toggle('hidden', !backHidden);
+
+            const adjHidden = !state.adjustmentsVisible;
+            els.toggleAdjBtn.classList.toggle('bg-accent-dark', adjHidden);
+            els.toggleAdjBtn.classList.toggle('border-accent-strong', adjHidden);
+            els.toggleAdjBtn.classList.toggle('accent-icon', adjHidden);
+            els.adjEyeOpen.classList.toggle('hidden', adjHidden);
+            els.adjEyeClosed.classList.toggle('hidden', !adjHidden);
         }
 
         function truncate(str) {

@@ -10,7 +10,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         adjustmentPreviewResolution: 1080,
         apiKey: '',
         keyframeInterval: 10,
-        keyframeBuffer: 5
+        keyframeBuffer: 5,
+        useReplay: false
     };
 
     let lastStaticHue = defaults.hue;
@@ -185,7 +186,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- Undo History -->
                     <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest">Undo History (Replay Buffer)</label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <span class="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Enable Replay (Beta)</span>
+                                <input type="checkbox" id="setting-use-replay" class="accent-accent">
+                            </label>
+                        </div>
                         <div class="flex gap-4">
                             <div class="flex-1">
                                 <div class="flex justify-between mb-1">
@@ -342,6 +349,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             state.settings.keyframeBuffer = val;
             keyframeBufferVal.textContent = val;
             saveDebounced();
+        });
+
+        const useReplayCheckbox = document.getElementById('setting-use-replay');
+        useReplayCheckbox.checked = state.settings.useReplay;
+        useReplayCheckbox.addEventListener('change', (e) => {
+            state.settings.useReplay = e.target.checked;
+            saveSettings();
+            // Notify main app if needed? Global state is updated.
+            // main.js checks state.settings.useReplay dynamically.
         });
 
         // Copy Logs

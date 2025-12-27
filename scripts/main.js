@@ -113,6 +113,7 @@
         const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
+        let replayEngine = null;
 
         function scheduleHeavyTask(taskFn) {
             if (!els.loadingOverlay) return taskFn();
@@ -201,6 +202,31 @@
         }
 
         const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
+
+        if (window.createReplayEngine) {
+            replayEngine = window.createReplayEngine(state, maskCtx, maskCanvas, render, updateUI, updateWorkingCopiesAfterAdjustments);
+            replayEngine.setUpdateCanvasDimensionsFn(() => {
+                 const isRotated = state.rotation % 180 !== 0;
+                 const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
+                 const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+                 const visualW = isRotated ? baseH : baseW;
+                 const visualH = isRotated ? baseW : baseH;
+                 resizeMainCanvas(visualW, visualH);
+                 els.mainCanvas.classList.remove('hidden');
+                 els.emptyState.style.display = 'none';
+                 els.canvasWrapper.style.width = visualW + 'px';
+                 els.canvasWrapper.style.height = visualH + 'px';
+            });
+
+            // Override dispatchAction to hook replay engine
+            const originalDispatch = window.dispatchAction;
+            window.dispatchAction = function(action) {
+                originalDispatch(action);
+                if (replayEngine && window.ActionHistory) {
+                    replayEngine.onActionLogged(action, window.ActionHistory.cursor);
+                }
+            };
+        }
 
         const {
             applyMasterLUT,
@@ -926,8 +952,30 @@
             els.saveBtn.addEventListener('click', saveImage);
             els.mergeBtn.addEventListener('click', mergeDown);
             els.censorBtn.addEventListener('click', applyCensor);
-            els.undoBtn.addEventListener('click', undo);
-            els.redoBtn.addEventListener('click', redo);
+
+            els.undoBtn.addEventListener('click', () => {
+                if (state.settings.useReplay && replayEngine) {
+                    if (window.ActionHistory && window.ActionHistory.cursor >= 0) {
+                        window.ActionHistory.cursor--;
+                        replayEngine.replayTo(window.ActionHistory.cursor);
+                        updateUI();
+                    }
+                } else {
+                    undo();
+                }
+            });
+
+            els.redoBtn.addEventListener('click', () => {
+                if (state.settings.useReplay && replayEngine) {
+                    if (window.ActionHistory && window.ActionHistory.cursor < window.ActionHistory.actions.length - 1) {
+                        window.ActionHistory.cursor++;
+                        replayEngine.replayTo(window.ActionHistory.cursor);
+                        updateUI();
+                    }
+                } else {
+                    redo();
+                }
+            });
             
             els.cropBtn.addEventListener('click', toggleCropMode);
             els.rotateBtn.addEventListener('click', rotateView);
@@ -1369,8 +1417,18 @@
             const enable = canDraw();
             els.mergeBtn.disabled = !enable;
             els.censorBtn.disabled = !state.imgA && !state.imgB;
-            els.undoBtn.disabled = state.historyIndex <= 0;
-            els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+
+            if (state.settings.useReplay && window.ActionHistory) {
+                if (replayEngine) replayEngine.isEnabled = true;
+                const cursor = window.ActionHistory.cursor;
+                const total = window.ActionHistory.actions.length;
+                els.undoBtn.disabled = cursor < 0;
+                els.redoBtn.disabled = cursor >= total - 1;
+            } else {
+                if (replayEngine) replayEngine.isEnabled = false;
+                els.undoBtn.disabled = state.historyIndex <= 0;
+                els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+            }
             
             // Trash Buttons
             els.btnTrashA.disabled = !state.imgA;

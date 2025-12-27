@@ -5,7 +5,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     const defaults = {
         hue: 28,
         saturation: 96,
-        rgbMode: false,
+        rgbMode: true,
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: ''
@@ -34,6 +34,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } else {
             state.settings = { ...defaults };
         }
+
+        // If RGB mode is active on load, force start at Hue 0 (Red)
+        if (state.settings.rgbMode) {
+            state.settings.hue = 0;
+        }
+
         applySettings();
     }
 
@@ -110,13 +116,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function startRgbMode() {
         if (rgbInterval) return;
         rgbInterval = setInterval(() => {
-            state.settings.hue = (state.settings.hue + 1) % 360;
+            state.settings.hue = (state.settings.hue + 0.5) % 360;
             updateThemeVariables(state.settings.hue, state.settings.saturation);
             // Update slider if visible
             const slider = document.getElementById('setting-hue');
             if (slider) slider.value = state.settings.hue;
             // We don't save constantly during RGB mode loop
-        }, 1000); // 1 notch per second
+        }, 125); // 0.5 notch per 125ms (4x speed)
     }
 
     function stopRgbMode() {

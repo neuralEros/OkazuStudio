@@ -464,7 +464,7 @@
         .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; color: #555555; background-color: #242424; }
         .icon-btn.active { background-color: var(--accent-strong); color: var(--accent-ink); border: 1px solid var(--accent-soft); }
         .icon-btn.accent-icon img {
-            filter: brightness(0) saturate(100%) invert(62%) sepia(74%) saturate(985%) hue-rotate(342deg) brightness(98%) contrast(101%);
+            filter: brightness(0) invert(1) sepia(1) saturate(10000%) hue-rotate(calc(var(--accent-h) * 1deg - 50deg));
         }
 
         .feather-toggle {

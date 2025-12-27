@@ -27,13 +27,83 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        const canvasX = (mouseX - state.view.x) / state.view.scale;
-        const canvasY = (mouseY - state.view.y) / state.view.scale;
+        // Visual Coordinates (0,0 is Top-Left of rotated canvas)
+        const visualX = (mouseX - state.view.x) / state.view.scale;
+        const visualY = (mouseY - state.view.y) / state.view.scale;
 
         if (!state.isCropping && state.cropRect) {
-            return { x: canvasX + state.cropRect.x, y: canvasY + state.cropRect.y };
+            // Apply rotation mapping to get "Truth" coordinates relative to the crop rect's origin?
+            // No, the visual canvas size changes.
+            // If rotated 90deg, Visual W = Truth H.
+            // visualX/Y are within Visual W/H.
+            // We need to map (visualX, visualY) -> (truthX, truthY) inside the crop rect.
+            // But wait, the mainCanvas physically resizes.
+
+            // Dimensions of the VISUAL canvas
+            const isRotated = state.rotation % 180 !== 0;
+            const visualW = isRotated ? state.cropRect.h : state.cropRect.w;
+            const visualH = isRotated ? state.cropRect.w : state.cropRect.h;
+
+            let tx = visualX;
+            let ty = visualY;
+
+            // Apply inverse rotation to find Truth coordinates relative to the crop area top-left
+            // 90 Deg CW visual means Top-Left visual corresponds to Bottom-Left Truth (relative to rect).
+            // (0,0) -> (0, H).
+            // Let's use the explicit mapping again.
+            // Visual (vx, vy) in vW x vH.
+            // Truth (tx, ty) in tW x tH.
+            // If 90 deg:
+            // tx = vy
+            // ty = vW - vx  (Assuming standard Cartesian rotation where +Y is down)
+
+            if (state.rotation === 90) {
+                tx = visualY;
+                ty = visualW - visualX;
+            } else if (state.rotation === 180) {
+                tx = visualW - visualX;
+                ty = visualH - visualY;
+            } else if (state.rotation === 270) {
+                tx = visualH - visualY;
+                ty = visualX;
+            }
+
+            return { x: tx + state.cropRect.x, y: ty + state.cropRect.y };
         }
-        return { x: canvasX, y: canvasY };
+
+        // If cropping (full view), we might need similar logic if rotation is allowed during crop?
+        // Current plan assumes rotation is reset or handled before crop?
+        // But the user said "Brush & Crop Interaction... Obviously".
+        // If we are in Crop Mode, we show the FULL image.
+        // Does "Rotate" button work in Crop Mode?
+        // If so, state.fullDims defines the visual area?
+        // If I rotate while cropping, fullDims swap visually?
+        // `updateCanvasDimensions` uses `state.fullDims` if cropping? No, it uses cropRect.
+        // `toggleCropMode` resizes canvas to fullDims.
+
+        if (state.isCropping) {
+             // Logic for full image mapping
+             const isRotated = state.rotation % 180 !== 0;
+             const visualW = isRotated ? state.fullDims.h : state.fullDims.w;
+             const visualH = isRotated ? state.fullDims.w : state.fullDims.h;
+
+             let tx = visualX;
+             let ty = visualY;
+
+             if (state.rotation === 90) {
+                tx = visualY;
+                ty = visualW - visualX;
+            } else if (state.rotation === 180) {
+                tx = visualW - visualX;
+                ty = visualH - visualY;
+            } else if (state.rotation === 270) {
+                tx = visualH - visualY;
+                ty = visualX;
+            }
+            return { x: tx, y: ty };
+        }
+
+        return { x: visualX, y: visualY };
     }
 
     function resetView() {

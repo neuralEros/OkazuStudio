@@ -36,6 +36,7 @@
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
             isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
             activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
+            rotation: 0,
             brushSettings: {
                 erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
                 repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
@@ -97,6 +98,7 @@
             toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
+            rotateBtn: document.getElementById('rotateBtn'),
             cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
@@ -230,6 +232,155 @@
             return canvas;
         }
 
+        function rotateCanvas(canvas, rotation) {
+            if (rotation === 0 || !canvas) return canvas;
+            const w = canvas.width;
+            const h = canvas.height;
+            // For 90 and 270 degrees, dimensions are swapped
+            const newW = (rotation % 180 === 0) ? w : h;
+            const newH = (rotation % 180 === 0) ? h : w;
+
+            const temp = document.createElement('canvas');
+            temp.width = newW;
+            temp.height = newH;
+            const ctx = temp.getContext('2d');
+
+            // Transform context to rotate the drawing
+            // Translate to center of new canvas
+            ctx.translate(newW / 2, newH / 2);
+            // Apply rotation (convert to radians)
+            ctx.rotate(rotation * Math.PI / 180);
+            // Draw original image centered
+            ctx.drawImage(canvas, -w / 2, -h / 2);
+
+            return temp;
+        }
+
+        function rotateRect(rect, parentW, parentH, rotation) {
+            if (rotation === 0) return { ...rect };
+
+            // 90 Deg CW: (x, y) -> (h - y, x) relative to origin?
+            // Actually let's use the explicit mapping derived:
+            // Top-Left (x, y) becomes Top-Right relative to new dims?
+            // Let's trace corners.
+            // 90 Deg CW:
+            // Width -> Height, Height -> Width
+            // (0,0) -> (H, 0)
+            // (W,0) -> (H, W)
+            // (0,H) -> (0, 0)
+            // (W,H) -> (0, W)
+            // Wait, this is CCW?
+            // CW 90:
+            //  A B  ->  C A
+            //  C D      D B
+            // A(0,0) -> (H, 0)? No. New grid is H x W.
+            // A is at Top-Right (Effective).
+            // Let's rely on standard rotation formula about center, then shift origin?
+            // Or simpler:
+            // 90 CW: newX = parentH - (rect.y + rect.h)
+            //        newY = rect.x
+            //        newW = rect.h
+            //        newH = rect.w
+
+            if (rotation === 90) {
+                return {
+                    x: parentH - (rect.y + rect.h),
+                    y: rect.x,
+                    w: rect.h,
+                    h: rect.w
+                };
+            }
+            if (rotation === 180) {
+                return {
+                    x: parentW - (rect.x + rect.w),
+                    y: parentH - (rect.y + rect.h),
+                    w: rect.w,
+                    h: rect.h
+                };
+            }
+            if (rotation === 270) {
+                return {
+                    x: rect.y,
+                    y: parentW - (rect.x + rect.w),
+                    w: rect.h,
+                    h: rect.w
+                };
+            }
+            return { ...rect };
+        }
+
+        function bakeRotation() {
+            if (state.rotation === 0) return;
+            const rot = state.rotation;
+
+            Logger.info(`Baking rotation: ${rot} degrees`);
+
+            // Rotate Source/Img Layers
+            if (state.imgA) {
+                state.imgA = rotateCanvas(state.imgA, rot);
+                state.sourceA = state.imgA; // Assuming source is same as imgA for baking
+            }
+            if (state.imgB) {
+                state.imgB = rotateCanvas(state.imgB, rot);
+                state.sourceB = state.imgB;
+            }
+
+            // Rotate Mask
+            // Mask is a global canvas, we must update it in place
+            if (maskCanvas) {
+                const rotatedMask = rotateCanvas(maskCanvas, rot);
+                maskCanvas.width = rotatedMask.width;
+                maskCanvas.height = rotatedMask.height;
+                maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                maskCtx.drawImage(rotatedMask, 0, 0);
+            }
+
+            // Update Full Dims
+            const oldFullW = state.fullDims.w;
+            const oldFullH = state.fullDims.h;
+            if (rot % 180 !== 0) {
+                state.fullDims = { w: oldFullH, h: oldFullW };
+            }
+
+            // Update Crop Rect
+            if (state.cropRect) {
+                state.cropRect = rotateRect(state.cropRect, oldFullW, oldFullH, rot);
+            } else {
+                // If no crop rect, set to new full dims
+                state.cropRect = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
+            }
+
+            // Update FrontLayerCanvas (buffer) dimensions
+            if (frontLayerCanvas) {
+                frontLayerCanvas.width = state.fullDims.w;
+                frontLayerCanvas.height = state.fullDims.h;
+            }
+
+            // Reset Rotation
+            state.rotation = 0;
+
+            // Rebuild workings
+            rebuildWorkingCopies(true);
+
+            // Reset Mask History & State (History coordinates are now invalid)
+            // But we want to preserve the mask content we just rotated.
+            // resetMaskAndHistory() clears the mask! We must avoid that.
+            // We just need to clear history stack because Undo actions (coordinates) are invalid.
+            state.history = [];
+            state.historyIndex = -1;
+            // Or better: We accept that baking clears history.
+            // But we MUST NOT clear the maskCanvas we just rotated.
+            // resetMaskAndHistory calls maskCtx.clearRect.
+            // So we manually reset history and update UI.
+            updateUI();
+        }
+
+        function rotateView() {
+            state.rotation = (state.rotation + 90) % 360;
+            updateCanvasDimensions(false); // False triggers resetView which fits new aspect ratio
+            saveSnapshot('rotate_view');
+        }
+
         function setLayerSource(slot, img) {
             const base = cloneToCanvas(img);
             if (slot === 'A') {
@@ -351,6 +502,7 @@
         }
 
         async function loadLayerWithSmartSlotting(source, name) {
+             bakeRotation();
              log(`Loading ${name}...`, "info");
              try {
                  const img = await loadImageSource(source);
@@ -523,6 +675,12 @@
             Logger.info(`System Info: Platform: ${navigator.platform} | Language: ${navigator.language}`);
             Logger.info(`System Info: Screen: ${window.screen.width}x${window.screen.height} @ ${window.devicePixelRatio}x`);
             Logger.info(`System Info: Viewport: ${window.innerWidth}x${window.innerHeight} | Touch: ${'ontouchstart' in window ? 'yes' : 'no'} | Cores: ${navigator.hardwareConcurrency || 'n/a'} | Memory: ${navigator.deviceMemory || 'n/a'}GB`);
+
+            // Ensure previewFrontLayer is initialized
+            if (!state.previewFrontLayer) {
+                state.previewFrontLayer = document.createElement('canvas');
+            }
+
             initAdjustments();
             initDrawerSync();
 
@@ -673,6 +831,7 @@
             els.redoBtn.addEventListener('click', redo);
             
             els.cropBtn.addEventListener('click', toggleCropMode);
+            els.rotateBtn.addEventListener('click', rotateView);
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
@@ -736,6 +895,14 @@
             const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
             const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
 
+            const isRotated = state.rotation % 180 !== 0;
+            // Determine effective draw dimensions (Truth space)
+            const drawW = isRotated ? h : w;
+            const drawH = isRotated ? w : h;
+
+            targetCtx.save();
+            applyRotation(targetCtx, w, h, state.rotation);
+
             // Draw Back
             if (backImg && state.backVisible) {
                 targetCtx.globalAlpha = 1.0;
@@ -751,23 +918,28 @@
                 const bSrcW = sW / scale;
                 const bSrcH = sH / scale;
 
-                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, w, h);
+                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
             }
 
             // Draw Front
             if (frontImg) {
                 const fCtx = state.previewFrontLayer.getContext('2d');
-                fCtx.clearRect(0, 0, w, h);
+                if (state.previewFrontLayer.width !== drawW || state.previewFrontLayer.height !== drawH) {
+                    state.previewFrontLayer.width = drawW;
+                    state.previewFrontLayer.height = drawH;
+                }
+
+                fCtx.clearRect(0, 0, drawW, drawH);
 
                 fCtx.globalCompositeOperation = 'source-over';
                 const frontScale = frontLayer.scale || 1;
-                fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, w, h);
+                fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
 
                 if (state.maskVisible) {
                     fCtx.globalCompositeOperation = 'destination-out';
                     const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
                     const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
-                    fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, w, h);
+                    fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
                 }
                 
                 targetCtx.globalCompositeOperation = 'source-over';
@@ -778,6 +950,7 @@
                 targetCtx.globalAlpha = effectiveOpacity; 
                 targetCtx.drawImage(state.previewFrontLayer, 0, 0);
             }
+            targetCtx.restore();
         }
         
         function render(finalOutput = false, skipAdjustments = false) {
@@ -788,8 +961,16 @@
 
             if (!state.cropRect && !state.isCropping) return;
 
+            // Dimensions logic
+            // Visual Dims (rotated) are set on els.mainCanvas by updateCanvasDimensions or resizeMainCanvas calls
+            // Truth Dims are in sX, sY, sW, sH
+            const isRotated = state.rotation % 180 !== 0;
             const cw = els.mainCanvas.width;
             const ch = els.mainCanvas.height;
+
+            // When rotating, visual dims are swapped vs Truth dims.
+            // sW/sH are truth dims.
+            // renderToContext below (via inline logic here) needs to handle rotation.
 
             const useBakedLayers = !skipAdjustments;
             // Determine if 'Full' mode applies to the current interaction
@@ -806,6 +987,10 @@
             const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
             const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
 
+            // Effective Draw Dimensions (Truth Space)
+            const drawW = isRotated ? ch : cw;
+            const drawH = isRotated ? cw : ch;
+
             const frontLayer = state.isAFront ? getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild });
             const backLayer = state.isAFront ? getLayerForRender('B', { useBakedLayers, preferPreview, allowRebuild }) : getLayerForRender('A', { useBakedLayers, preferPreview, allowRebuild });
             const frontImg = frontLayer.img;
@@ -819,10 +1004,17 @@
                 els.previewCanvas.classList.remove('hidden');
 
                 const targetH = state.settings.brushPreviewResolution === 'Full' ? 100000 : (state.settings.brushPreviewResolution || 1080);
+                // Calculate scale based on Truth dimensions, but targetH is a visual constraint usually?
+                // Let's assume targetH is max dimension constraint.
                 let fastScale = Math.min(1, targetH / sH);
                 if (state.isPreviewing && state.previewMaskCanvas) fastScale = maskScale;
-                const pw = Math.max(1, Math.round(sW * fastScale));
-                const ph = Math.max(1, Math.round(sH * fastScale));
+
+                // Visual sizes for preview
+                // If rotated: sW/sH swapped visually.
+                const visualSW = isRotated ? sH : sW;
+                const visualSH = isRotated ? sW : sH;
+                const pw = Math.max(1, Math.round(visualSW * fastScale));
+                const ph = Math.max(1, Math.round(visualSH * fastScale));
                 
                 const pCtx = els.previewCanvas.getContext('2d');
                 if (els.previewCanvas.width !== pw || els.previewCanvas.height !== ph) {
@@ -830,6 +1022,14 @@
                     els.previewCanvas.height = ph;
                 }
                 pCtx.clearRect(0, 0, pw, ph);
+
+                // Effective Draw (Truth) dimensions for the scaled buffer
+                // If rotated, pw/ph are swapped relative to truth.
+                const pDrawW = isRotated ? ph : pw;
+                const pDrawH = isRotated ? pw : ph;
+
+                pCtx.save();
+                applyRotation(pCtx, pw, ph, state.rotation);
 
                 // Modified export logic: Only render back if state.backVisible is true
                 const shouldRenderBack = backImg && state.backVisible;
@@ -847,18 +1047,18 @@
                     const bSrcW = sW / scale;
                     const bSrcH = sH / scale;
 
-                    pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pw, ph);
+                    pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pDrawW, pDrawH);
                 }
 
                 if (frontImg) {
-                    if (frontLayerCanvas.width !== pw || frontLayerCanvas.height !== ph) {
-                        frontLayerCanvas.width = pw;
-                        frontLayerCanvas.height = ph;
+                    if (frontLayerCanvas.width !== pDrawW || frontLayerCanvas.height !== pDrawH) {
+                        frontLayerCanvas.width = pDrawW;
+                        frontLayerCanvas.height = pDrawH;
                     }
-                    frontLayerCtx.clearRect(0, 0, pw, ph);
+                    frontLayerCtx.clearRect(0, 0, pDrawW, pDrawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
                     const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pw, ph);
+                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pDrawW, pDrawH);
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -867,7 +1067,7 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pw, ph);
+                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pDrawW, pDrawH);
                     }
 
                     frontLayerCtx.globalCompositeOperation = 'source-over';
@@ -877,11 +1077,15 @@
                     pCtx.globalAlpha = effectiveOpacity;
                     pCtx.drawImage(frontLayerCanvas, 0, 0);
                 }
+                pCtx.restore();
             } else {
                 els.mainCanvas.style.visibility = 'visible';
                 els.previewCanvas.classList.add('hidden');
                 
                 ctx.clearRect(0, 0, cw, ch);
+
+                ctx.save();
+                applyRotation(ctx, cw, ch, state.rotation);
 
                 // 1. Draw Back
                 // Modified export logic: Only render back if state.backVisible is true
@@ -902,20 +1106,20 @@
                     const bSrcW = sW / scale;
                     const bSrcH = sH / scale;
 
-                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, cw, ch);
+                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
                 }
 
                 // 2. Prepare Front Layer
                 if (frontImg) {
-                    if (frontLayerCanvas.width !== cw || frontLayerCanvas.height !== ch) {
-                        frontLayerCanvas.width = cw;
-                        frontLayerCanvas.height = ch;
+                    if (frontLayerCanvas.width !== drawW || frontLayerCanvas.height !== drawH) {
+                        frontLayerCanvas.width = drawW;
+                        frontLayerCanvas.height = drawH;
                     }
-                    frontLayerCtx.clearRect(0, 0, cw, ch);
+                    frontLayerCtx.clearRect(0, 0, drawW, drawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
                     // Draw clipped portion of front image
                     const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, cw, ch);
+                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -924,7 +1128,7 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, cw, ch);
+                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
                     }
 
                     // 3. Composite Front to Main
@@ -935,16 +1139,54 @@
                     ctx.globalAlpha = effectiveOpacity;
                     ctx.drawImage(frontLayerCanvas, 0, 0);
                 }
+                ctx.restore();
             }
             
             // 4. Update Crop DOM Overlay
             if (state.isCropping) {
                 els.cropOverlayDom.style.display = 'block';
                 const r = state.cropRect;
-                els.cropBox.style.left = r.x + 'px';
-                els.cropBox.style.top = r.y + 'px';
-                els.cropBox.style.width = r.w + 'px';
-                els.cropBox.style.height = r.h + 'px';
+
+                // Calculate Visual Rect for the DOM overlay
+                // Truth Rect (r.x, r.y, r.w, r.h) -> Visual Rect (vx, vy, vw, vh)
+                // Using the visual dimension 'sH' (visual Width) and 'sW' (visual Height) which are confusingly named due to swap above
+                // Let's use clean derivation based on state.rotation and truth dims.
+
+                let vx = r.x, vy = r.y, vw = r.w, vh = r.h;
+                const truthW = state.fullDims.w;
+                const truthH = state.fullDims.h;
+
+                if (state.rotation === 90) {
+                    // 90 CW: Top-Left (x,y) -> Visual Top-Right relative.
+                    // Visual Top-Left is derived from Truth Bottom-Left (x, y+h).
+                    // T(x, y+h) -> V(vx, vy).
+                    // vx = H - (y+h) => truthH - (r.y + r.h)
+                    // vy = x => r.x
+                    vx = truthH - (r.y + r.h);
+                    vy = r.x;
+                    vw = r.h;
+                    vh = r.w;
+                } else if (state.rotation === 180) {
+                    // 180: T(x+w, y+h) -> V(vx, vy) (Top-Left)
+                    // vx = W - (x+w) => truthW - (r.x + r.w)
+                    // vy = H - (y+h) => truthH - (r.y + r.h)
+                    vx = truthW - (r.x + r.w);
+                    vy = truthH - (r.y + r.h);
+                    // vw, vh same
+                } else if (state.rotation === 270) {
+                    // 270: T(x+w, y) -> V(vx, vy)
+                    // vx = y => r.y
+                    // vy = W - (x+w) => truthW - (r.x + r.w)
+                    vx = r.y;
+                    vy = truthW - (r.x + r.w);
+                    vw = r.h;
+                    vh = r.w;
+                }
+
+                els.cropBox.style.left = vx + 'px';
+                els.cropBox.style.top = vy + 'px';
+                els.cropBox.style.width = vw + 'px';
+                els.cropBox.style.height = vh + 'px';
                 
                 const invScale = 1 / state.view.scale;
                 els.cropBox.style.setProperty('--inv-scale', invScale);
@@ -1192,6 +1434,7 @@
 
         function handleFileLoad(file, slot) {
             if (!file) return;
+            bakeRotation();
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
 
@@ -1430,19 +1673,38 @@
                 resetMaskAndHistory(); 
             }
 
-            resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+            const isRotated = state.rotation % 180 !== 0;
+            const visualW = isRotated ? state.cropRect.h : state.cropRect.w;
+            const visualH = isRotated ? state.cropRect.w : state.cropRect.h;
+
+            resizeMainCanvas(visualW, visualH);
 
             els.mainCanvas.classList.remove('hidden');
             els.emptyState.style.display = 'none';
-            els.canvasWrapper.style.width = state.cropRect.w + 'px';
-            els.canvasWrapper.style.height = state.cropRect.h + 'px';
+            els.canvasWrapper.style.width = visualW + 'px';
+            els.canvasWrapper.style.height = visualH + 'px';
             
             if (!preserveView) resetView(); 
+        }
+
+        function applyRotation(ctx, w, h, rotation) {
+            if (rotation === 0) return;
+            if (rotation === 90) {
+                ctx.translate(w, 0);
+                ctx.rotate(90 * Math.PI / 180);
+            } else if (rotation === 180) {
+                ctx.translate(w, h);
+                ctx.rotate(180 * Math.PI / 180);
+            } else if (rotation === 270) {
+                ctx.translate(0, h);
+                ctx.rotate(270 * Math.PI / 180);
+            }
         }
 
         // --- Censor, Merge, Save (Remaining) ---
         function applyCensor() {
              if (!state.imgA && !state.imgB) { log("Need at least one image"); return; }
+             bakeRotation();
              log("Generating Censor layer...", "info");
              setTimeout(() => {
                 try {
@@ -1553,6 +1815,7 @@
 
         function mergeDown() {
             if (!canDraw()) return;
+            bakeRotation();
             log("Merging...", "info");
             setTimeout(() => {
                 try {
@@ -1608,6 +1871,7 @@
 
         function saveImage() {
             if (!state.imgA && !state.imgB) return;
+            bakeRotation();
             Logger.info("Exporting image...");
             try {
                 // Render CROP area for export

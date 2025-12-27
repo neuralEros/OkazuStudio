@@ -534,6 +534,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             });
 
             el.addEventListener('change', (e) => {
+                if (window.dispatchAction) dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value) } });
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
                 saveSnapshot(actionKey);
@@ -560,6 +561,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 a.colorBal.r === 0 && a.colorBal.g === 0 && a.colorBal.b === 0 &&
                 a.shadows === 0 && a.highlights === 0) return;
 
+            if (window.dispatchAction) dispatchAction({ type: 'RESET_ADJUSTMENTS', payload: {} });
             resetAllAdjustments();
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
@@ -569,6 +571,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         els.resetLevelsBtn.addEventListener('click', () => {
             const l = state.adjustments.levels;
             if (l.black === 0 && l.mid === 1.0 && l.white === 255) return;
+            if (window.dispatchAction) dispatchAction({ type: 'RESET_LEVELS', payload: {} });
             state.adjustments.levels = { black: 0, mid: 1.0, white: 255 };
             updateSlider('adj-l-black', 0);
             updateSlider('adj-l-mid', 1.0);
@@ -580,6 +583,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
         document.getElementById('resetSatBtn').addEventListener('click', () => {
              if (state.adjustments.saturation === 0 && state.adjustments.vibrance === 0) return;
+             if (window.dispatchAction) dispatchAction({ type: 'RESET_SATURATION', payload: {} });
              state.adjustments.saturation = 0;
              state.adjustments.vibrance = 0;
              updateSlider('adj-sat', 0);
@@ -592,6 +596,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         els.resetColorBtn.addEventListener('click', () => {
              const a = state.adjustments;
              if (a.wb === 0 && a.colorBal.r === 0 && a.colorBal.g === 0 && a.colorBal.b === 0) return;
+             if (window.dispatchAction) dispatchAction({ type: 'RESET_COLOR_BALANCE', payload: {} });
              state.adjustments.wb = 0;
              state.adjustments.colorBal = { r:0, g:0, b:0 };
              updateSlider('adj-wb', 0);
@@ -739,6 +744,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             el.addEventListener('change', (e) => {
                 const val = e.target.value;
                 const oldVal = el.dataset.startVal || "unknown";
+                if (window.dispatchAction) dispatchAction({ type: 'TUNE_COLOR', payload: { band: state.activeColorBand, key: param.key, value: parseFloat(val) } });
                 Logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
@@ -754,6 +760,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (resetBandBtn) {
             resetBandBtn.addEventListener('click', () => {
                 const band = state.activeColorBand;
+                if (window.dispatchAction) dispatchAction({ type: 'RESET_TUNING_BAND', payload: { band } });
                 state.adjustments.colorTuning[band] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
                 refreshTuningSliders();
                 updateColorTuningLUT();
@@ -766,6 +773,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         const resetTuningBtn = document.getElementById('resetTuningBtn');
         if (resetTuningBtn) {
             resetTuningBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'RESET_TUNING_ALL', payload: {} });
                 for (let b of bands) {
                     if (state.adjustments.colorTuning[b]) {
                          state.adjustments.colorTuning[b] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };

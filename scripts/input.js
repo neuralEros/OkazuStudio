@@ -233,132 +233,34 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function drawBrushStamp(x, y, context = maskCtx) {
-        const size = getBrushPixelSize();
-        const radius = size / 2;
-        const softness = getSoftnessForSize(size, state.featherMode ? state.featherPx : state.feather, state.featherMode);
-        if (isEraseMode()) {
-            context.globalCompositeOperation = 'source-over';
-            if (softness === 0) {
-                context.fillStyle = 'white';
-                context.beginPath();
-                context.arc(x, y, radius, 0, Math.PI * 2);
-                context.fill();
-            } else {
-                const grad = context.createRadialGradient(x, y, radius * (1 - softness), x, y, radius);
-                grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-                grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                context.fillStyle = grad;
-                context.beginPath();
-                context.arc(x, y, radius, 0, Math.PI * 2);
-                context.fill();
-            }
-        } else {
-            context.globalCompositeOperation = 'destination-out';
-            if (softness === 0) {
-                context.fillStyle = 'black';
-                context.beginPath();
-                context.arc(x, y, radius, 0, Math.PI * 2);
-                context.fill();
-            } else {
-                const grad = context.createRadialGradient(x, y, radius * (1 - softness), x, y, radius);
-                grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
-                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                context.fillStyle = grad;
-                context.beginPath();
-                context.arc(x, y, radius, 0, Math.PI * 2);
-                context.fill();
-            }
-        }
+        BrushKernel.paintStampAt(
+            context,
+            x,
+            y,
+            getBrushPixelSize(),
+            state.featherMode ? state.featherPx : state.feather,
+            state.featherMode,
+            isEraseMode()
+        );
     }
 
-    function drawStrokeDistance(x, y, context = maskCtx, isPreview = false) {
-        const startX = state.lastDrawX;
-        const startY = state.lastDrawY;
-        if (startX === null || startY === null) {
-            drawBrushStamp(x, y, context);
-            if (!isPreview) {
-                state.lastDrawX = x;
-                state.lastDrawY = y;
-            }
-            return;
-        }
-        const dx = x - startX;
-        const dy = y - startY;
-        const dist = Math.hypot(dx, dy);
-        const size = getBrushPixelSize();
-        const spacing = Math.max(1, size * 0.15);
-        drawBrushStamp(startX, startY, context);
-        if (dist >= spacing) {
-            const steps = dist / spacing;
-            const stepX = dx / steps;
-            const stepY = dy / steps;
-            for (let i = 1; i <= steps; i++) {
-                const drawX = startX + stepX * i;
-                const drawY = startY + stepY * i;
-                drawBrushStamp(drawX, drawY, context);
-            }
-        }
-        drawBrushStamp(x, y, context);
-        if (!isPreview) {
-            state.lastDrawX = x;
-            state.lastDrawY = y;
-        }
-    }
-
-    function paintStampAt(context, x, y, size, feather, featherMode, isErasing) {
-        const radius = size / 2;
-        const softness = getSoftnessForSize(size, feather, featherMode);
-        context.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
-        if (softness === 0) {
-            context.fillStyle = isErasing ? 'white' : 'black';
-            context.beginPath();
-            context.arc(x, y, radius, 0, Math.PI * 2);
-            context.fill();
-            return;
-        }
-        const grad = context.createRadialGradient(x, y, radius * (1 - softness), x, y, radius);
-        grad.addColorStop(0, isErasing ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)');
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        context.fillStyle = grad;
-        context.beginPath();
-        context.arc(x, y, radius, 0, Math.PI * 2);
-        context.fill();
-    }
-
-    function paintStrokeSegment(context, lastStamp, point, size, feather, featherMode, isErasing) {
-        // Returns the new lastStamp position
-        if (!lastStamp) {
-            paintStampAt(context, point.x, point.y, size, feather, featherMode, isErasing);
-            return { x: point.x, y: point.y };
-        }
-
-        const spacing = Math.max(1, size * 0.15);
-        const dx = point.x - lastStamp.x;
-        const dy = point.y - lastStamp.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist < spacing) {
-            return lastStamp;
-        }
-
-        const steps = Math.floor(dist / spacing);
-        const stepX = (dx / dist) * spacing;
-        const stepY = (dy / dist) * spacing;
-
-        let currentX = lastStamp.x;
-        let currentY = lastStamp.y;
-
-        for (let i = 1; i <= steps; i++) {
-            currentX += stepX;
-            currentY += stepY;
-            paintStampAt(context, currentX, currentY, size, feather, featherMode, isErasing);
-        }
-
-        return { x: currentX, y: currentY };
-    }
 
     function commitPolyline(shouldFill = false) {
         if (state.polylinePoints.length === 0) return;
+
+        if (window.dispatchAction) {
+             dispatchAction({
+                 type: 'POLYLINE',
+                 payload: {
+                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
+                     shouldFill,
+                     brushSize: getBrushPixelSize(),
+                     feather: state.featherMode ? state.featherPx : state.feather,
+                     featherMode: state.featherMode,
+                     mode: isEraseMode() ? 'erase' : 'repair'
+                 }
+             });
+        }
 
         const pts = state.polylinePoints;
 
@@ -393,7 +295,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              const p1 = pts[i];
              const p2 = pts[i+1];
              // Walk from p1 to p2, resetting spacing at p1
-             paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+             BrushKernel.paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
              // Draw Node p2
              drawBrushStamp(p2.x, p2.y, maskCtx);
          }
@@ -450,22 +352,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              effectiveFeather = stroke.feather * state.fastMaskScale;
         }
 
-        const newStamp = paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, stroke.brushSize * state.fastMaskScale, effectiveFeather, stroke.featherMode, stroke.isErasing);
+        const newStamp = BrushKernel.paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, stroke.brushSize * state.fastMaskScale, effectiveFeather, stroke.featherMode, stroke.isErasing);
         state.fastPreviewLastStamp = newStamp;
     }
 
     function replayStrokeToFullMask() {
         const stroke = state.activeStroke;
         if (!stroke || stroke.points.length === 0) return;
-        let lastStamp = null;
-        for (const pt of stroke.points) {
-            lastStamp = paintStrokeSegment(maskCtx, lastStamp, pt, stroke.brushSize, stroke.feather, stroke.featherMode, stroke.isErasing);
-        }
-        // Ensure End Cap is drawn
-        if (stroke.points.length > 0) {
-            const lastPt = stroke.points[stroke.points.length - 1];
-            drawBrushStamp(lastPt.x, lastPt.y, maskCtx);
-        }
+        BrushKernel.drawStroke(maskCtx, stroke.points, {
+            size: stroke.brushSize,
+            feather: stroke.feather,
+            featherMode: stroke.featherMode,
+            isErasing: stroke.isErasing
+        });
     }
 
     function handlePointerDown(e) {
@@ -654,6 +553,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 }
             }
 
+            if (state.activeStroke && window.dispatchAction) {
+                dispatchAction({ type: 'STROKE', payload: { ...state.activeStroke } });
+            }
+
             state.previewMaskCanvas = null;
             state.previewMaskScale = 1;
             state.isPreviewing = false;
@@ -722,7 +625,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              for (let i = 0; i < state.polylinePoints.length - 1; i++) {
                  const p1 = state.polylinePoints[i];
                  const p2 = state.polylinePoints[i+1];
-                 paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+                 BrushKernel.paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
                  drawBrushStamp(p2.x, p2.y, pCtx);
              }
         }
@@ -731,7 +634,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
              const start = {x: state.lastDrawX, y: state.lastDrawY};
              const end = {x: state.currentPointerX, y: state.currentPointerY};
-             paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+             BrushKernel.paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
              // Draw cursor node
              drawBrushStamp(end.x, end.y, pCtx);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {
@@ -951,14 +854,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
-    function getSoftnessForSize(size, featherValue, featherMode) {
-        const radius = size / 2;
-        if (radius <= 0) return 0;
-        if (featherMode) {
-            return Math.min(1, featherValue / radius);
-        }
-        return Math.max(0, Math.min(1, featherValue / HARDNESS_MAX));
-    }
 
     return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue };
 }

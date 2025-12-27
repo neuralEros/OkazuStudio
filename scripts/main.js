@@ -29,7 +29,7 @@
         const HARDNESS_MAX = 20;
 
         const state = {
-            imgA: null, imgB: null, nameA: '', nameB: '', isAFront: true,
+            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', isAFront: true,
             opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
             maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
@@ -443,6 +443,7 @@
         }
 
         function rotateView() {
+            if (window.dispatchAction) dispatchAction({ type: 'ROTATE_VIEW', payload: {} });
             scheduleHeavyTask(() => {
                 state.rotation = (state.rotation + 90) % 360;
                 updateCanvasDimensions(true); // Preserve crop
@@ -700,13 +701,16 @@
         }
 
         function clearLayer(slot) {
+             if (window.dispatchAction) dispatchAction({ type: 'CLEAR_LAYER', payload: { slot } });
              if (slot === 'A') {
                  state.imgA = null; state.sourceA = null; state.workingA = null;
+                 state.assetIdA = null;
                  state.nameA = "";
                  updateLoadButton(els.btnA, "Load", "front");
                  els.btnA.classList.remove('border-accent-strong', 'text-accent');
              } else {
                  state.imgB = null; state.sourceB = null; state.workingB = null;
+                 state.assetIdB = null;
                  state.nameB = "";
                  updateLoadButton(els.btnB, "Load", "back");
                  els.btnB.classList.remove('border-accent-strong', 'text-accent');
@@ -820,9 +824,11 @@
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
                 Logger.interaction("Swap Button", "clicked");
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
+                [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
                 [state.workingA, state.workingB] = [state.workingB, state.workingA];
                 [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
                 [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
@@ -880,6 +886,7 @@
             const finalizeOpacityRender = () => {
                 if (!isOpacityDragging) return;
                 isOpacityDragging = false;
+                if (window.dispatchAction) dispatchAction({ type: 'SET_OPACITY', payload: { value: state.opacity } });
                 scheduleOpacityRender(true);
             };
             els.opacitySlider.addEventListener('pointerdown', () => {
@@ -903,6 +910,7 @@
             els.patchMode.addEventListener('click', () => setMode('patch'));
             
             els.clearMask.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                 state.maskVisible = true;
                 state.backVisible = true;
@@ -925,18 +933,21 @@
             els.rotateBtn.addEventListener('click', rotateView);
 
             els.toggleMaskBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_MASK', payload: { visible: !state.maskVisible } });
                 state.maskVisible = !state.maskVisible;
                 Logger.interaction("Toggle Mask Visibility", state.maskVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleBackBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_BACK', payload: { visible: !state.backVisible } });
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
             });
             els.toggleAdjBtn.addEventListener('click', () => {
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_ADJUSTMENTS', payload: { visible: !state.adjustmentsVisible } });
                 state.adjustmentsVisible = !state.adjustmentsVisible;
                 Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
@@ -1293,6 +1304,7 @@
         // --- Crop Logic ---
         function acceptCrop() {
             if (!state.isCropping) return;
+            if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: state.cropRect } });
             state.cropRectSnapshot = null;
             toggleCropMode();
         }
@@ -1502,7 +1514,15 @@
         }
 
         function assignLayer(img, slot, name) {
-             Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height}`);
+             let assetId = null;
+             if (window.AssetManager) {
+                 assetId = window.AssetManager.addAsset(img, name);
+             }
+             if (slot === 'A') state.assetIdA = assetId;
+             else state.assetIdB = assetId;
+
+             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload: { slot, name, width: img.width, height: img.height, assetId } });
+             Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height} (Asset: ${assetId})`);
              if (slot === 'A') {
                 setLayerSource('A', img);
                 state.nameA = name;
@@ -1853,6 +1873,13 @@
 
                  const imgCensored = await loadImageSource(tempCanvas.toDataURL('image/png'));
 
+                 let assetId = null;
+                 if (window.AssetManager) {
+                     assetId = window.AssetManager.addAsset(imgCensored, "Censored Layer");
+                 }
+                 state.assetIdB = assetId;
+                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId } });
+
                  setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
 
                  // Re-init full dims
@@ -1911,6 +1938,14 @@
                 const dataURL = els.mainCanvas.toDataURL('image/png');
 
                 const newImg = await loadImageSource(dataURL);
+
+                let assetId = null;
+                if (window.AssetManager) {
+                    assetId = window.AssetManager.addAsset(newImg, "Merged Layer");
+                }
+                state.assetIdA = assetId;
+                state.assetIdB = null;
+                if (window.dispatchAction) dispatchAction({ type: 'MERGE_LAYERS', payload: { assetId, targetSlot: 'A' } });
 
                 setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
                 state.nameA = "Merged Layer"; state.nameB = "";

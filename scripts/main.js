@@ -136,7 +136,10 @@
                 const overlay = document.getElementById('modal-overlay');
                 const msg = document.getElementById('modal-message');
                 const choiceContainer = document.getElementById('modal-choices');
-                const cancelBtn = document.getElementById('modal-cancel');
+                const cancelContainer = document.querySelector('#modal-box > .border-t');
+
+                // Hide legacy separate cancel container if it exists
+                if (cancelContainer) cancelContainer.style.display = 'none';
 
                 msg.textContent = message;
                 choiceContainer.innerHTML = '';
@@ -156,29 +159,41 @@
                      }, 200);
                 };
 
-                choices.forEach(choice => {
+                // Helper for button creation
+                const createBtn = (text, onClick, isCancel = false) => {
                     const btn = document.createElement('button');
-                    btn.className = "w-full py-3 px-4 bg-panel-strong border border-panel-border hover:bg-panel-border text-gray-200 hover:text-white rounded transition-colors text-sm font-bold uppercase tracking-wide flex items-center justify-between group";
+                    // "accent color... one dialog-spanning column... same width... smaller corner rounding"
+                    // Using accent-action class which provides bg-accent-dark, border-accent, white text
+                    // Adding w-full, py-2 (less padding), rounded-sm (smaller rounding)
+                    // If Cancel, maybe less emphasis? The user said "they should be the accent color, as well", implying uniformity.
+                    // But usually Cancel is distinct. I will make Cancel same shape/size but maybe outlined or slightly different shade
+                    // to avoid dangerous confusion, OR follow strictly "they should be the accent color".
+                    // Let's use accent-action for choices, and a similar but distinct style for Cancel to be safe,
+                    // OR if interpreted literally: "The cancel button and option buttons... should be the accent color".
+                    // I'll make them all accent-action but maybe Cancel is outlined.
 
-                    const span = document.createElement('span');
-                    span.textContent = choice.label;
-                    btn.appendChild(span);
+                    if (isCancel) {
+                         btn.className = "w-full py-2.5 px-4 bg-transparent border border-accent-border text-accent-soft hover:bg-accent-dark hover:text-white hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
+                    } else {
+                         btn.className = "w-full py-2.5 px-4 bg-accent-dark border border-accent-border text-white hover:bg-accent-strong hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
+                    }
 
+                    btn.textContent = text;
                     btn.onclick = () => {
                         cleanup();
-                        resolve(choice.value);
+                        onClick();
                     };
-                    choiceContainer.appendChild(btn);
+                    return btn;
+                };
+
+                choices.forEach(choice => {
+                    choiceContainer.appendChild(createBtn(choice.label, () => resolve(choice.value)));
                 });
 
                 if (cancellable) {
-                    cancelBtn.style.display = 'block';
-                    cancelBtn.onclick = () => {
-                        cleanup();
-                        resolve(null);
-                    };
-                } else {
-                    cancelBtn.style.display = 'none';
+                    // "Cancel button and option buttons should all be in one dialog-spanning column"
+                    // Appending to same container
+                    choiceContainer.appendChild(createBtn("Cancel", () => resolve(null), true));
                 }
             });
         }

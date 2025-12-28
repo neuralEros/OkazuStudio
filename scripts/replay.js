@@ -1,0 +1,563 @@
+// Replay Engine - Phase 6
+// Centralized History, Keyframes, and Deterministic Replay
+
+(function() {
+
+    // --- Action History ---
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+    }
+
+    class ActionHistoryLog {
+        constructor() {
+            this.actions = [];
+            this.cursor = -1;
+        }
+
+        logAction(action) {
+            // Truncate future if we are in the middle of history
+            if (this.cursor < this.actions.length - 1) {
+                this.actions.splice(this.cursor + 1);
+            }
+
+            const entry = {
+                id: generateId(),
+                timestamp: Date.now(),
+                type: action.type,
+                payload: action.payload // Payload should be immutable-ish
+            };
+
+            this.actions.push(entry);
+            this.cursor = this.actions.length - 1;
+
+            console.log(`[ActionHistory] Logged: ${entry.type} (Cursor: ${this.cursor})`, entry.payload);
+            return this.cursor;
+        }
+
+        getLog() {
+            return this.actions;
+        }
+    }
+
+    // --- Keyframe Manager ---
+    class KeyframeManager {
+        constructor(state, maskCtx, maskCanvas) {
+            this.state = state;
+            this.maskCtx = maskCtx;
+            this.maskCanvas = maskCanvas;
+            this.keyframes = new Map(); // index -> snapshot
+        }
+
+        createSnapshot() {
+            return {
+                timestamp: Date.now(),
+                // Mask Pixel Data
+                maskData: this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height),
+
+                // Deep Copy mutable simple state
+                adjustments: JSON.parse(JSON.stringify(this.state.adjustments)),
+                cropRect: this.state.cropRect ? { ...this.state.cropRect } : null,
+                fullDims: { ...this.state.fullDims },
+                rotation: this.state.rotation,
+                brushSettings: JSON.parse(JSON.stringify(this.state.brushSettings)),
+                opacity: this.state.opacity,
+                isAFront: this.state.isAFront,
+
+                // References (IDs) to Heavy Assets
+                assetIdA: this.state.assetIdA,
+                assetIdB: this.state.assetIdB,
+                nameA: this.state.nameA,
+                nameB: this.state.nameB,
+
+                // Toggles
+                maskVisible: this.state.maskVisible,
+                backVisible: this.state.backVisible,
+                adjustmentsVisible: this.state.adjustmentsVisible,
+                brushMode: this.state.brushMode,
+                feather: this.state.feather,
+                featherPx: this.state.featherPx,
+                featherMode: this.state.featherMode,
+                brushPercent: this.state.brushPercent
+            };
+        }
+
+        saveKeyframe(actionIndex) {
+            const snap = this.createSnapshot();
+            this.keyframes.set(actionIndex, snap);
+            this.pruneKeyframes(actionIndex);
+        }
+
+        pruneKeyframes(currentIndex) {
+            // Policy: Keep Base (-1) and last M keyframes
+            // Also keep current index if it is a keyframe?
+            const buffer = (this.state.settings && this.state.settings.keyframeBuffer) || 5;
+
+            // Get all indices, sorted
+            const indices = Array.from(this.keyframes.keys()).sort((a, b) => a - b);
+
+            // Keep -1 (Base)
+            // Keep last 'buffer' amount
+            const toKeep = new Set();
+            if (this.keyframes.has(-1)) toKeep.add(-1);
+
+            // Add the last 'buffer' indices
+            const recent = indices.slice(-buffer);
+            recent.forEach(i => toKeep.add(i));
+
+            // Delete others
+            indices.forEach(i => {
+                if (!toKeep.has(i)) {
+                    this.keyframes.delete(i);
+                    // console.log(`[KeyframeManager] Pruned keyframe ${i}`);
+                }
+            });
+        }
+
+        restoreKeyframe(snapshot) {
+            if (!snapshot) return;
+
+            // 1. Restore Simple State
+            this.state.adjustments = JSON.parse(JSON.stringify(snapshot.adjustments));
+            this.state.cropRect = snapshot.cropRect ? { ...snapshot.cropRect } : null;
+            this.state.fullDims = { ...snapshot.fullDims };
+            this.state.rotation = snapshot.rotation;
+            this.state.brushSettings = JSON.parse(JSON.stringify(snapshot.brushSettings));
+            this.state.opacity = snapshot.opacity;
+            this.state.isAFront = snapshot.isAFront;
+            this.state.maskVisible = snapshot.maskVisible;
+            this.state.backVisible = snapshot.backVisible;
+            this.state.adjustmentsVisible = snapshot.adjustmentsVisible;
+            this.state.nameA = snapshot.nameA;
+            this.state.nameB = snapshot.nameB;
+            this.state.brushMode = snapshot.brushMode;
+            this.state.feather = snapshot.feather;
+            this.state.featherPx = snapshot.featherPx;
+            this.state.featherMode = snapshot.featherMode;
+            this.state.brushPercent = snapshot.brushPercent;
+
+            this.state.assetIdA = snapshot.assetIdA;
+            this.state.assetIdB = snapshot.assetIdB;
+
+            // 2. Re-hydrate Heavy Objects from Asset IDs
+            // Critical Step: Restore imgA/imgB/sourceA/sourceB
+            this.hydrateLayer('A', snapshot.assetIdA);
+            this.hydrateLayer('B', snapshot.assetIdB);
+
+            // 3. Restore Mask
+            if (this.maskCanvas.width !== snapshot.maskData.width || this.maskCanvas.height !== snapshot.maskData.height) {
+                this.maskCanvas.width = snapshot.maskData.width;
+                this.maskCanvas.height = snapshot.maskData.height;
+            }
+            this.maskCtx.putImageData(snapshot.maskData, 0, 0);
+        }
+
+        hydrateLayer(slot, assetId) {
+            if (!assetId) {
+                if (slot === 'A') {
+                    this.state.imgA = null; this.state.sourceA = null; this.state.workingA = null;
+                } else {
+                    this.state.imgB = null; this.state.sourceB = null; this.state.workingB = null;
+                }
+                return;
+            }
+
+            const asset = window.AssetManager.getAsset(assetId);
+            if (asset) {
+                const copy = cloneCanvas(asset.source);
+                if (slot === 'A') {
+                    this.state.imgA = copy; this.state.sourceA = copy;
+                    // working copy will be rebuilt by replay engine loop end
+                } else {
+                    this.state.imgB = copy; this.state.sourceB = copy;
+                }
+            } else {
+                console.warn(`[Replay] Missing asset ${assetId} for slot ${slot}`);
+            }
+        }
+
+        getNearestKeyframe(targetIndex) {
+            let bestIndex = -2;
+            for (const k of this.keyframes.keys()) {
+                if (k <= targetIndex && k > bestIndex) {
+                    bestIndex = k;
+                }
+            }
+            return { index: bestIndex, snapshot: this.keyframes.get(bestIndex) };
+        }
+    }
+
+    // --- Replay Engine ---
+    class ReplayEngine {
+        constructor(state, maskCtx, maskCanvas, renderFn, updateUIFn, rebuildWorkingCopiesFn) {
+            this.state = state;
+            this.maskCtx = maskCtx;
+            this.maskCanvas = maskCanvas;
+            this.render = renderFn;
+            this.updateUI = updateUIFn;
+            this.rebuildWorkingCopies = rebuildWorkingCopiesFn;
+
+            this.history = new ActionHistoryLog();
+            this.keyframeManager = new KeyframeManager(state, maskCtx, maskCanvas);
+
+            // Expose globally for legacy access if needed
+            window.ActionHistory = this.history;
+
+            // Initialize base keyframe
+            this.keyframeManager.saveKeyframe(-1);
+        }
+
+        // Main Entry Point for New Actions
+        logAction(action) {
+            const index = this.history.logAction(action);
+
+            // Check for keyframe creation
+            const interval = (this.state.settings && this.state.settings.keyframeInterval) || 10;
+            if (index >= 0 && index % interval === 0) {
+                this.keyframeManager.saveKeyframe(index);
+            }
+
+            // Update UI State (Undo/Redo buttons)
+            if (this.updateUI) this.updateUI();
+        }
+
+        undo() {
+            if (this.history.cursor >= 0) {
+                this.history.cursor--;
+                this.replayTo(this.history.cursor);
+            }
+        }
+
+        redo() {
+            if (this.history.cursor < this.history.actions.length - 1) {
+                this.history.cursor++;
+                this.replayTo(this.history.cursor);
+            }
+        }
+
+        async replayTo(targetIndex) {
+            const startTime = performance.now();
+            const log = this.history.getLog();
+
+            // 1. Find and Restore Keyframe
+            const { index: kIndex, snapshot } = this.keyframeManager.getNearestKeyframe(targetIndex);
+
+            if (snapshot) {
+                this.keyframeManager.restoreKeyframe(snapshot);
+            } else {
+                console.warn("[Replay] Critical: No base keyframe found. State may be corrupt.");
+            }
+
+            // 2. Replay Actions
+            for (let i = kIndex + 1; i <= targetIndex; i++) {
+                const action = log[i];
+                if (action) {
+                    this.applyAction(action.type, action.payload);
+                }
+            }
+
+            // 3. Finalize
+            if (typeof this.rebuildWorkingCopies === 'function') {
+                this.rebuildWorkingCopies(true); // force version bump
+            }
+
+            if (this.updateCanvasDimensionsFn) {
+                this.updateCanvasDimensionsFn();
+            }
+
+            if (typeof this.updateUI === 'function') {
+                this.updateUI();
+            }
+
+            if (typeof this.render === 'function') {
+                this.render();
+            }
+
+            console.log(`[ReplayEngine] Replay to ${targetIndex} (from ${kIndex}) took ${(performance.now() - startTime).toFixed(1)}ms`);
+        }
+
+        // Simulation Helper for baking rotation (Load, Merge, Censor)
+        performBakeRotation() {
+            if (this.state.rotation === 0) return;
+            const rot = this.state.rotation;
+
+            // Rotate Layers
+            if (this.state.imgA) {
+                this.state.imgA = rotateCanvas(this.state.imgA, rot);
+                this.state.sourceA = this.state.imgA;
+            }
+            if (this.state.imgB) {
+                this.state.imgB = rotateCanvas(this.state.imgB, rot);
+                this.state.sourceB = this.state.imgB;
+            }
+
+            // Rotate Mask
+            const rotatedMask = rotateCanvas(this.maskCanvas, rot);
+            this.maskCanvas.width = rotatedMask.width;
+            this.maskCanvas.height = rotatedMask.height;
+            this.maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+            this.maskCtx.drawImage(rotatedMask, 0, 0);
+
+            // Update Full Dims
+            const oldFullW = this.state.fullDims.w;
+            const oldFullH = this.state.fullDims.h;
+            if (rot % 180 !== 0) {
+                this.state.fullDims = { w: oldFullH, h: oldFullW };
+            }
+
+            // Update Crop Rect
+            if (this.state.cropRect) {
+                this.state.cropRect = rotateRect(this.state.cropRect, oldFullW, oldFullH, rot);
+            } else {
+                this.state.cropRect = { x: 0, y: 0, w: this.state.fullDims.w, h: this.state.fullDims.h };
+            }
+
+            this.state.rotation = 0;
+        }
+
+        applyAction(type, payload) {
+            switch (type) {
+                case 'LOAD_IMAGE':
+                case 'MERGE_LAYERS':
+                case 'APPLY_CENSOR':
+                    // These actions trigger a bake in Live, so they must in Replay
+                    this.performBakeRotation();
+
+                    const assetId = payload.assetId;
+                    const asset = window.AssetManager.getAsset(assetId);
+
+                    if (asset) {
+                        // Determine Slot
+                        let slot = payload.slot || payload.targetSlot;
+                        if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
+
+                        // Logic
+                        if (slot === 'A') {
+                            this.state.assetIdA = assetId;
+                            this.state.imgA = cloneCanvas(asset.source);
+                            this.state.sourceA = this.state.imgA;
+                            if (payload.name) this.state.nameA = payload.name;
+                            else if (type === 'MERGE_LAYERS') this.state.nameA = "Merged Layer";
+                        } else {
+                            this.state.assetIdB = assetId;
+                            this.state.imgB = cloneCanvas(asset.source);
+                            this.state.sourceB = this.state.imgB;
+                            if (payload.name) this.state.nameB = payload.name;
+                            else if (type === 'APPLY_CENSOR') this.state.nameB = "Censored Layer";
+                        }
+
+                        // Side Effects
+                        if (type === 'LOAD_IMAGE') {
+                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             this.state.rotation = 0;
+                        } else if (type === 'MERGE_LAYERS') {
+                             // Merge clears B
+                             this.state.assetIdB = null;
+                             this.state.imgB = null;
+                             this.state.sourceB = null;
+                             this.state.nameB = "";
+
+                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             // Preserve Crop Logic roughly
+                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             }
+                        } else if (type === 'APPLY_CENSOR') {
+                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             }
+                             // Censor resets UI state usually
+                             this.state.opacity = 1.0;
+                             this.state.isAFront = true;
+                        }
+                    }
+                    break;
+
+                case 'SWAP_LAYERS':
+                    [this.state.imgA, this.state.imgB] = [this.state.imgB, this.state.imgA];
+                    [this.state.sourceA, this.state.sourceB] = [this.state.sourceB, this.state.sourceA];
+                    [this.state.assetIdA, this.state.assetIdB] = [this.state.assetIdB, this.state.assetIdA];
+                    [this.state.nameA, this.state.nameB] = [this.state.nameB, this.state.nameA];
+                    break;
+
+                case 'STROKE':
+                    if (window.BrushKernel) {
+                        window.BrushKernel.drawStroke(this.maskCtx, payload.points, {
+                            size: payload.brushSize || payload.size,
+                            feather: payload.feather,
+                            featherMode: payload.featherMode,
+                            isErasing: payload.isErasing
+                        });
+                    }
+                    break;
+
+                case 'POLYLINE':
+                    if (window.BrushKernel && payload.points) {
+                        const { points, brushSize, feather, featherMode, mode, shouldFill } = payload;
+                        const isErasing = mode === 'erase';
+
+                        if (shouldFill) {
+                             this.maskCtx.save();
+                             this.maskCtx.beginPath();
+                             this.maskCtx.moveTo(points[0].x, points[0].y);
+                             for (let i = 1; i < points.length; i++) this.maskCtx.lineTo(points[i].x, points[i].y);
+                             this.maskCtx.closePath();
+                             this.maskCtx.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
+                             this.maskCtx.fillStyle = isErasing ? 'white' : 'black';
+                             this.maskCtx.fill();
+                             this.maskCtx.restore();
+                        }
+
+                        if (points.length > 0) {
+                             window.BrushKernel.paintStampAt(this.maskCtx, points[0].x, points[0].y, brushSize, feather, featherMode, isErasing);
+                             for (let i = 0; i < points.length - 1; i++) {
+                                 window.BrushKernel.paintStrokeSegment(this.maskCtx, points[i], points[i+1], brushSize, feather, featherMode, isErasing);
+                                 window.BrushKernel.paintStampAt(this.maskCtx, points[i+1].x, points[i+1].y, brushSize, feather, featherMode, isErasing);
+                             }
+                        }
+                    }
+                    break;
+
+                case 'CROP':
+                    if (payload.rect) this.state.cropRect = { ...payload.rect };
+                    break;
+
+                case 'ROTATE_VIEW':
+                    this.state.rotation = (this.state.rotation + 90) % 360;
+                    break;
+
+                case 'ADJUST':
+                    if (payload.subkey) this.state.adjustments[payload.key][payload.subkey] = payload.value;
+                    else this.state.adjustments[payload.key] = payload.value;
+                    break;
+
+                case 'TUNE_COLOR':
+                    if (this.state.adjustments.colorTuning[payload.band]) {
+                        this.state.adjustments.colorTuning[payload.band][payload.key] = payload.value;
+                    }
+                    break;
+
+                case 'CLEAR_LAYER':
+                    if (payload.slot === 'A') {
+                        this.state.imgA = null; this.state.sourceA = null; this.state.assetIdA = null; this.state.nameA = "";
+                    } else {
+                        this.state.imgB = null; this.state.sourceB = null; this.state.assetIdB = null; this.state.nameB = "";
+                    }
+                    break;
+
+                case 'RESET_ALL':
+                    this.maskCtx.clearRect(0, 0, this.maskCanvas.width, this.maskCanvas.height);
+                    this.state.adjustments = this.getCleanAdjustments();
+                    this.state.maskVisible = true;
+                    this.state.backVisible = true;
+                    this.state.adjustmentsVisible = true;
+                    this.state.cropRect = { x:0, y:0, w:this.state.fullDims.w, h:this.state.fullDims.h };
+                    break;
+
+                case 'RESET_ADJUSTMENTS':
+                    this.state.adjustments = this.getCleanAdjustments();
+                    break;
+
+                case 'RESET_LEVELS':
+                    this.state.adjustments.levels = { black: 0, mid: 1.0, white: 255 };
+                    break;
+                case 'RESET_SATURATION':
+                    this.state.adjustments.saturation = 0;
+                    this.state.adjustments.vibrance = 0;
+                    break;
+                case 'RESET_COLOR_BALANCE':
+                    this.state.adjustments.wb = 0;
+                    this.state.adjustments.colorBal = { r: 0, g: 0, b: 0 };
+                    break;
+                case 'RESET_TUNING_BAND':
+                    this.state.adjustments.colorTuning[payload.band] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+                    break;
+                case 'RESET_TUNING_ALL':
+                    this.state.adjustments.colorTuning = this.createCleanColorTuning();
+                    break;
+
+                case 'SET_OPACITY':
+                    this.state.opacity = payload.value;
+                    break;
+
+                case 'TOGGLE_MASK': this.state.maskVisible = payload.visible; break;
+                case 'TOGGLE_BACK': this.state.backVisible = payload.visible; break;
+                case 'TOGGLE_ADJUSTMENTS': this.state.adjustmentsVisible = payload.visible; break;
+            }
+        }
+
+        getCleanAdjustments() {
+             return {
+                 gamma: 1.0,
+                 levels: { black: 0, mid: 1.0, white: 255 },
+                 shadows: 0, highlights: 0,
+                 saturation: 0, vibrance: 0,
+                 wb: 0, colorBal: { r: 0, g: 0, b: 0 },
+                 colorTuning: this.createCleanColorTuning()
+             };
+        }
+
+        createCleanColorTuning() {
+            const bands = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta', 'lights', 'mids', 'darks'];
+            const t = {};
+            bands.forEach(b => {
+                t[b] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+            });
+            return t;
+        }
+
+        setUpdateCanvasDimensionsFn(fn) {
+            this.updateCanvasDimensionsFn = fn;
+        }
+    }
+
+    // --- Helpers ---
+    function cloneCanvas(source) {
+        if (!source) return null;
+        const width = source.naturalWidth || source.width;
+        const height = source.naturalHeight || source.height;
+        const c = document.createElement('canvas');
+        c.width = width;
+        c.height = height;
+        c.getContext('2d').drawImage(source, 0, 0);
+        return c;
+    }
+
+    function rotateCanvas(canvas, rotation) {
+        if (rotation === 0 || !canvas) return canvas;
+        const w = canvas.width;
+        const h = canvas.height;
+        const newW = (rotation % 180 === 0) ? w : h;
+        const newH = (rotation % 180 === 0) ? h : w;
+        const temp = document.createElement('canvas');
+        temp.width = newW;
+        temp.height = newH;
+        const ctx = temp.getContext('2d');
+        ctx.translate(newW / 2, newH / 2);
+        ctx.rotate(rotation * Math.PI / 180);
+        ctx.drawImage(canvas, -w / 2, -h / 2);
+        return temp;
+    }
+
+    function rotateRect(rect, parentW, parentH, rotation) {
+        if (rotation === 0) return { ...rect };
+        if (rotation === 90) return { x: parentH - (rect.y + rect.h), y: rect.x, w: rect.h, h: rect.w };
+        if (rotation === 180) return { x: parentW - (rect.x + rect.w), y: parentH - (rect.y + rect.h), w: rect.w, h: rect.h };
+        if (rotation === 270) return { x: rect.y, y: parentW - (rect.x + rect.w), w: rect.h, h: rect.w };
+        return { ...rect };
+    }
+
+    // --- Factory ---
+    window.createReplayEngine = function(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies) {
+        return new ReplayEngine(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies);
+    };
+
+    // Global Dispatch shim is now handled in main.js via delegation,
+    // but we ensure the global object exists for safety if main.js calls it early.
+    window.dispatchAction = function(action) {
+        // Fallback if ReplayEngine isn't hooked yet
+        console.warn("Global dispatchAction called before ReplayEngine initialization");
+    };
+
+})();

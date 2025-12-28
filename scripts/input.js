@@ -248,20 +248,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function commitPolyline(shouldFill = false) {
         if (state.polylinePoints.length === 0) return;
 
-        if (window.dispatchAction) {
-             dispatchAction({
-                 type: 'POLYLINE',
-                 payload: {
-                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
-                     shouldFill,
-                     brushSize: getBrushPixelSize(),
-                     feather: state.featherMode ? state.featherPx : state.feather,
-                     featherMode: state.featherMode,
-                     mode: isEraseMode() ? 'erase' : 'repair'
-                 }
-             });
-        }
-
         const pts = state.polylinePoints;
 
         // Fill first if requested
@@ -300,8 +286,22 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
              drawBrushStamp(p2.x, p2.y, maskCtx);
          }
 
+         if (window.dispatchAction) {
+             dispatchAction({
+                 type: 'POLYLINE',
+                 payload: {
+                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
+                     shouldFill,
+                     brushSize: getBrushPixelSize(),
+                     feather: state.featherMode ? state.featherPx : state.feather,
+                     featherMode: state.featherMode,
+                     mode: isEraseMode() ? 'erase' : 'repair'
+                 }
+             });
+        }
+
          const actionType = state.currentPolylineAction || 'mask';
-         saveSnapshot(actionType);
+         // saveSnapshot(actionType);
          state.polylineDirty = false;
     }
 
@@ -564,11 +564,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.fastPreviewLastPoint = null;
             state.activeStroke = null;
             render();
-            saveSnapshot('draw');
+            // saveSnapshot('draw');
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;
-            saveSnapshot('crop');
+            // saveSnapshot('crop');
         }
         state.isPanning = false;
         state.isDrawing = false;
@@ -799,7 +799,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 if (e.key === '2') setBrushMode('repair');
                 if (e.key === '3') setBrushMode('patch');
             }
-            if ((e.ctrlKey || e.metaKey)) {
+            if ((e.ctrlKey || e.metaKey) && !state.isCropping) {
                 if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
                 else if (e.key === 'y') { e.preventDefault(); redo(); }
             }

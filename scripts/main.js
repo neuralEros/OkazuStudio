@@ -113,6 +113,7 @@
         const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true });
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
+        let replayEngine = null;
 
         function scheduleHeavyTask(taskFn) {
             if (!els.loadingOverlay) return taskFn();
@@ -202,6 +203,34 @@
 
         const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
 
+        if (window.createReplayEngine) {
+            replayEngine = window.createReplayEngine(state, maskCtx, maskCanvas, render, updateUI, updateWorkingCopiesAfterAdjustments);
+            replayEngine.setUpdateCanvasDimensionsFn(() => {
+                 if (!state.cropRect) {
+                     els.mainCanvas.classList.add('hidden');
+                     els.emptyState.style.display = '';
+                     return;
+                 }
+                 const isRotated = state.rotation % 180 !== 0;
+                 const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
+                 const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+                 const visualW = isRotated ? baseH : baseW;
+                 const visualH = isRotated ? baseW : baseH;
+                 resizeMainCanvas(visualW, visualH);
+                 els.mainCanvas.classList.remove('hidden');
+                 els.emptyState.style.display = 'none';
+                 els.canvasWrapper.style.width = visualW + 'px';
+                 els.canvasWrapper.style.height = visualH + 'px';
+            });
+
+            // Override dispatchAction to use ReplayEngine directly
+            window.dispatchAction = function(action) {
+                if (replayEngine) {
+                    replayEngine.logAction(action);
+                }
+            };
+        }
+
         const {
             applyMasterLUT,
             applyColorOps,
@@ -225,20 +254,22 @@
             Logger
         });
 
-        const { saveSnapshot, resetMaskAndHistory, resetMaskOnly, restoreState, undo, redo } = createUndoSystem({
-            state,
-            maskCtx,
-            maskCanvas,
-            resizeMainCanvas,
-            render,
-            resetAllAdjustments,
-            log,
-            updateUI,
-            rebuildWorkingCopies: updateWorkingCopiesAfterAdjustments,
-            recalculateColorTuning,
-            updateAllAdjustmentUI,
-            Logger
-        });
+        // Helper to reset mask only (for internal ops like merge)
+        function resetMaskOnly() {
+             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+        }
+
+        // Helper to reset both mask and history (for full reset)
+        function resetMaskAndHistory() {
+             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+             // History reset is handled by ReplayEngine via RESET_ALL action usually,
+             // but if we need manual force reset:
+             if (replayEngine) {
+                  // Actually, ReplayEngine history clearing is not exposed directly.
+                  // But creating a new ReplayEngine or logging a RESET action is the way.
+                  // For now, main logic assumes dispatchAction('RESET_ALL') handles state.
+             }
+        }
 
         const {
             canDraw,
@@ -257,9 +288,9 @@
             maskCtx,
             maskCanvas,
             render,
-            saveSnapshot,
-            undo,
-            redo,
+            saveSnapshot: () => {}, // Legacy shim
+            undo: () => replayEngine && replayEngine.undo(),
+            redo: () => replayEngine && replayEngine.redo(),
             showHints,
             scheduleHeavyTask,
             acceptCrop,
@@ -267,7 +298,7 @@
             setBrushMode: setMode
         });
 
-        setSaveSnapshotHandler(saveSnapshot);
+        setSaveSnapshotHandler(() => {}); // Legacy shim
         setUpdateWorkingCopiesHandler(updateWorkingCopiesAfterAdjustments);
 
         function hasActiveAdjustments() {
@@ -443,13 +474,13 @@
         }
 
         function rotateView() {
-            if (window.dispatchAction) dispatchAction({ type: 'ROTATE_VIEW', payload: {} });
             scheduleHeavyTask(() => {
                 state.rotation = (state.rotation + 90) % 360;
                 updateCanvasDimensions(true); // Preserve crop
                 resetView(); // Force fit to screen
                 render();
-                saveSnapshot('rotate_view');
+                // saveSnapshot('rotate_view');
+                if (window.dispatchAction) dispatchAction({ type: 'ROTATE_VIEW', payload: {} });
             });
         }
 
@@ -701,7 +732,6 @@
         }
 
         function clearLayer(slot) {
-             if (window.dispatchAction) dispatchAction({ type: 'CLEAR_LAYER', payload: { slot } });
              if (slot === 'A') {
                  state.imgA = null; state.sourceA = null; state.workingA = null;
                  state.assetIdA = null;
@@ -719,7 +749,7 @@
              if (!state.imgA && !state.imgB) {
                  // Full Reset
                  resetAllAdjustments();
-                 saveSnapshot('clear_all');
+                 // saveSnapshot('clear_all');
                  resetView();
                  els.mainCanvas.classList.add('hidden');
                  els.emptyState.style.display = '';
@@ -734,6 +764,8 @@
                  render();
                  updateUI();
              }
+
+             if (window.dispatchAction) dispatchAction({ type: 'CLEAR_LAYER', payload: { slot } });
         }
 
         function syncDrawerHeights() {
@@ -824,7 +856,6 @@
             setupDragAndDrop();
 
             els.swapBtn.addEventListener('click', () => {
-                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
                 Logger.interaction("Swap Button", "clicked");
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
@@ -846,6 +877,7 @@
                 updateCanvasDimensions(true);
                 updateUI();
                 render();
+                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
             });
 
             let opacityRenderTimer = null;
@@ -886,8 +918,8 @@
             const finalizeOpacityRender = () => {
                 if (!isOpacityDragging) return;
                 isOpacityDragging = false;
-                if (window.dispatchAction) dispatchAction({ type: 'SET_OPACITY', payload: { value: state.opacity } });
                 scheduleOpacityRender(true);
+                if (window.dispatchAction) dispatchAction({ type: 'SET_OPACITY', payload: { value: state.opacity } });
             };
             els.opacitySlider.addEventListener('pointerdown', () => {
                 isOpacityDragging = true;
@@ -910,48 +942,66 @@
             els.patchMode.addEventListener('click', () => setMode('patch'));
             
             els.clearMask.addEventListener('click', () => {
-                if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
                 maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
                 state.maskVisible = true;
                 state.backVisible = true;
                 state.adjustmentsVisible = true;
                 resetAllAdjustments();
-                saveSnapshot('full_reset'); 
+                // saveSnapshot('full_reset');
                 resetView(); 
                 updateVisibilityToggles();
                 render();
                 log("Reset All", "info");
+                if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
             });
 
             els.saveBtn.addEventListener('click', saveImage);
             els.mergeBtn.addEventListener('click', mergeDown);
             els.censorBtn.addEventListener('click', applyCensor);
-            els.undoBtn.addEventListener('click', undo);
-            els.redoBtn.addEventListener('click', redo);
+
+            els.undoBtn.addEventListener('click', () => {
+                if (state.isCropping) return;
+                // Double check root policy
+                const h = window.ActionHistory;
+                let min = -1;
+                const log = h ? h.getLog() : [];
+                for (let i = 0; i < log.length; i++) {
+                    if (log[i].type === 'LOAD_IMAGE') min = i;
+                    else break;
+                }
+                if (h && h.cursor <= min) return;
+
+                if (replayEngine) replayEngine.undo();
+            });
+
+            els.redoBtn.addEventListener('click', () => {
+                if (state.isCropping) return;
+                if (replayEngine) replayEngine.redo();
+            });
             
             els.cropBtn.addEventListener('click', toggleCropMode);
             els.rotateBtn.addEventListener('click', rotateView);
 
             els.toggleMaskBtn.addEventListener('click', () => {
-                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_MASK', payload: { visible: !state.maskVisible } });
                 state.maskVisible = !state.maskVisible;
                 Logger.interaction("Toggle Mask Visibility", state.maskVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_MASK', payload: { visible: state.maskVisible } });
             });
             els.toggleBackBtn.addEventListener('click', () => {
-                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_BACK', payload: { visible: !state.backVisible } });
                 state.backVisible = !state.backVisible;
                 Logger.interaction("Toggle Back Visibility", state.backVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_BACK', payload: { visible: state.backVisible } });
             });
             els.toggleAdjBtn.addEventListener('click', () => {
-                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_ADJUSTMENTS', payload: { visible: !state.adjustmentsVisible } });
                 state.adjustmentsVisible = !state.adjustmentsVisible;
                 Logger.interaction("Toggle Adjustments Visibility", state.adjustmentsVisible ? "Show" : "Hide");
                 updateVisibilityToggles();
                 render();
+                if (window.dispatchAction) dispatchAction({ type: 'TOGGLE_ADJUSTMENTS', payload: { visible: state.adjustmentsVisible } });
             });
 
             attachInputHandlers();
@@ -1304,9 +1354,10 @@
         // --- Crop Logic ---
         function acceptCrop() {
             if (!state.isCropping) return;
-            if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: state.cropRect } });
             state.cropRectSnapshot = null;
+            const finalRect = { ...state.cropRect };
             toggleCropMode();
+            if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: finalRect } });
         }
 
         function cancelCrop() {
@@ -1369,8 +1420,41 @@
             const enable = canDraw();
             els.mergeBtn.disabled = !enable;
             els.censorBtn.disabled = !state.imgA && !state.imgB;
-            els.undoBtn.disabled = state.historyIndex <= 0;
-            els.redoBtn.disabled = state.historyIndex >= state.history.length - 1;
+
+            if (replayEngine) replayEngine.isEnabled = true;
+            const cursor = window.ActionHistory ? window.ActionHistory.cursor : -1;
+            const total = window.ActionHistory ? window.ActionHistory.actions.length : 0;
+
+            // Root Undo Policy: Prevent undoing the setup phase (contiguous LOAD_IMAGE actions at start)
+            let minCursor = -1;
+            const history = window.ActionHistory ? window.ActionHistory.getLog() : [];
+            for (let i = 0; i < history.length; i++) {
+                if (history[i].type === 'LOAD_IMAGE') {
+                    minCursor = i;
+                } else {
+                    break;
+                }
+            }
+
+            els.undoBtn.disabled = cursor <= minCursor || state.isCropping;
+            els.redoBtn.disabled = cursor >= total - 1 || state.isCropping;
+
+            if (cursor < 0) {
+                els.mainCanvas.classList.add('hidden');
+                els.emptyState.style.display = '';
+            } else {
+                els.mainCanvas.classList.remove('hidden');
+                els.emptyState.style.display = 'none';
+            }
+
+            // Sync Button Text with State
+            updateLoadButton(els.btnA, state.nameA ? truncate(state.nameA) : "Load", "front");
+            if (state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
+            else els.btnA.classList.remove('border-accent-strong', 'text-accent');
+
+            updateLoadButton(els.btnB, state.nameB ? truncate(state.nameB) : "Load", "back");
+            if (state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
+            else els.btnB.classList.remove('border-accent-strong', 'text-accent');
             
             // Trash Buttons
             els.btnTrashA.disabled = !state.imgA;
@@ -1521,7 +1605,6 @@
              if (slot === 'A') state.assetIdA = assetId;
              else state.assetIdB = assetId;
 
-             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload: { slot, name, width: img.width, height: img.height, assetId } });
              Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height} (Asset: ${assetId})`);
              if (slot === 'A') {
                 setLayerSource('A', img);
@@ -1539,6 +1622,8 @@
              updateCanvasDimensions();
              render();
              updateUI();
+
+             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload: { slot, name, width: img.width, height: img.height, assetId } });
         }
 
         function handleFileLoad(file, slot) {
@@ -1878,7 +1963,6 @@
                      assetId = window.AssetManager.addAsset(imgCensored, "Censored Layer");
                  }
                  state.assetIdB = assetId;
-                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId } });
 
                  setLayerSource('B', imgCensored); state.nameB = "Censored Layer";
 
@@ -1920,6 +2004,7 @@
 
                  render(); updateUI();
                  log("Censor setup complete", "info");
+                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId } });
              });
         }
 
@@ -1945,7 +2030,6 @@
                 }
                 state.assetIdA = assetId;
                 state.assetIdB = null;
-                if (window.dispatchAction) dispatchAction({ type: 'MERGE_LAYERS', payload: { assetId, targetSlot: 'A' } });
 
                 setLayerSource('A', newImg); state.imgB = null; state.sourceB = null; state.workingVersionB = 0;
                 state.nameA = "Merged Layer"; state.nameB = "";
@@ -1982,6 +2066,7 @@
 
                 render(); updateUI();
                 log("Merge successful", "info");
+                if (window.dispatchAction) dispatchAction({ type: 'MERGE_LAYERS', payload: { assetId, targetSlot: 'A' } });
             });
         }
 

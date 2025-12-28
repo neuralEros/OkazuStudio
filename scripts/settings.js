@@ -10,7 +10,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         adjustmentPreviewResolution: 1080,
         apiKey: '',
         keyframeInterval: 10,
-        keyframeBuffer: 5
+        keyframeBuffer: 5,
+        useReplay: true
     };
 
     let lastStaticHue = defaults.hue;

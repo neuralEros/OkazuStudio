@@ -1,11 +1,26 @@
 function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapshot, undo, redo, showHints, scheduleHeavyTask, acceptCrop, cancelCrop, setBrushMode }) {
-    const BRUSH_MIN = 0.2;
-    const BRUSH_MAX = 30;
+    // Brush Size as Proportion of Height
+    const BRUSH_MIN = 0.002; // 0.2%
+    const BRUSH_MAX = 0.3;   // 30%
     const BRUSH_SLIDER_STEPS = 1000;
+
+    // Feather Size as Proportion of Height (Fixed Mode)
+    // Range: 0.05% to 5.0%
+    const FEATHER_SIZE_MIN = 0.0005;
+    const FEATHER_SIZE_MAX = 0.05;
+
+    // Hardness (Legacy Abstract Units 0-20)
     const HARDNESS_MIN = 0;
     const HARDNESS_MAX = 20;
-    const FEATHER_PX_MIN = 1;
-    const FEATHER_PX_MAX = 20;
+
+    function toProportion(val, total) {
+        if (!total || total === 0) return 0;
+        return val / total;
+    }
+
+    function toPixels(prop, total) {
+        return prop * total;
+    }
 
     function canDraw() { return (state.imgA || state.imgB) && state.cropRect; }
 
@@ -29,7 +44,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function getBrushPixelSize() {
         if (state.fullDims.h === 0) return 20;
-        return (state.brushPercent / 100) * state.fullDims.h;
+        return toPixels(state.brushSize, state.fullDims.h);
     }
 
     function getCanvasCoordinates(e) {
@@ -37,13 +52,34 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
+        // Visual Canvas Coordinates (Pixels)
         const canvasX = (mouseX - state.view.x) / state.view.scale;
         const canvasY = (mouseY - state.view.y) / state.view.scale;
 
+        // Convert to Truth Proportions
+        const fullH = state.fullDims.h || 1; // Avoid divide by zero
+
         if (!state.isCropping && state.cropRect) {
-            return { x: canvasX + state.cropRect.x, y: canvasY + state.cropRect.y };
+            // Offset by Crop Rect (which is in Proportions)
+            // Need to convert CropRect to pixels to add, OR convert canvas coords to props.
+            // Let's convert canvas coords to props.
+            // cropRect is {x: prop, y: prop, ...}
+
+            // canvasX is pixels from top-left of View (which is top-left of CropRect)
+            // So TruthX_pixels = canvasX + (state.cropRect.x * fullH)
+            // TruthX_prop = TruthX_pixels / fullH
+
+            // Or simpler: TruthX_prop = (canvasX / fullH) + state.cropRect.x
+            const xProp = (canvasX / fullH) + state.cropRect.x;
+            const yProp = (canvasY / fullH) + state.cropRect.y;
+            return { x: xProp, y: yProp };
         }
-        return { x: canvasX, y: canvasY };
+
+        // If cropping, canvas (0,0) matches Truth (0,0) visually?
+        // No, if cropping, we render full image?
+        // When state.isCropping is true, render uses sX=0, sY=0 (Full Image).
+        // So canvasX is pixels from top-left of Full Image.
+        return { x: canvasX / fullH, y: canvasY / fullH };
     }
 
     function resetView() {
@@ -65,50 +101,74 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         forceCropHandleUpdate();
     }
 
-    function clampBrushPercent(val) {
+    function clampBrushSize(val) {
         return Math.min(BRUSH_MAX, Math.max(BRUSH_MIN, val));
     }
 
-    function sliderValueToBrushPercent(sliderVal) {
+    function sliderToBrushSize(sliderVal) {
         const normalized = sliderVal / BRUSH_SLIDER_STEPS;
         return BRUSH_MIN + normalized * (BRUSH_MAX - BRUSH_MIN);
     }
 
-    function brushPercentToSliderValue(percent) {
-        const normalized = (clampBrushPercent(percent) - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN);
+    function brushSizeToSliderValue(size) {
+        const normalized = (clampBrushSize(size) - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN);
         return Math.round(normalized * BRUSH_SLIDER_STEPS);
     }
 
-    function formatBrushPercent(val) {
-        return parseFloat(val.toFixed(1));
+    function formatBrushSize(val) {
+        // Display as Percentage of Height (0.1 -> 10.0%)
+        return (val * 100).toFixed(1);
     }
 
-    function setBrushPercent(newPercent) {
-        const clamped = clampBrushPercent(newPercent);
-        state.brushPercent = clamped;
+    function setBrushPercent(newSize) {
+        const clamped = clampBrushSize(newSize);
+        state.brushSize = clamped;
         const activeKey = getActiveBrushKey();
         if (state.brushSettings && state.brushSettings[activeKey]) {
-            state.brushSettings[activeKey].brushPercent = clamped;
+            state.brushSettings[activeKey].brushSize = clamped;
         }
-        els.brushSize.value = brushPercentToSliderValue(clamped);
-        els.brushSizeVal.textContent = formatBrushPercent(clamped);
+        els.brushSize.value = brushSizeToSliderValue(clamped);
+        els.brushSizeVal.textContent = formatBrushSize(clamped);
         updateCursorSize();
     }
 
     function setBrushPercentFromSlider(sliderVal) {
         const numericVal = parseInt(sliderVal, 10) || 0;
-        const percent = sliderValueToBrushPercent(numericVal);
-        setBrushPercent(percent);
+        const size = sliderToBrushSize(numericVal);
+        setBrushPercent(size);
+    }
+
+    function sliderToFeatherSize(sliderVal) {
+        const normalized = sliderVal / BRUSH_SLIDER_STEPS;
+        return FEATHER_SIZE_MIN + normalized * (FEATHER_SIZE_MAX - FEATHER_SIZE_MIN);
+    }
+
+    function featherSizeToSliderValue(size) {
+        const clamped = Math.max(FEATHER_SIZE_MIN, Math.min(FEATHER_SIZE_MAX, size));
+        const normalized = (clamped - FEATHER_SIZE_MIN) / (FEATHER_SIZE_MAX - FEATHER_SIZE_MIN);
+        return Math.round(normalized * BRUSH_SLIDER_STEPS);
     }
 
     function setFeatherFromSlider(sliderVal) {
         const numericVal = parseInt(sliderVal, 10) || 0;
         if (state.featherMode) {
-            setFeather(numericVal);
+            // Map 0-1000 to FEATHER_SIZE_MIN - MAX
+            const size = sliderToFeatherSize(numericVal);
+            setFeather(size);
         } else {
-            // Invert the slider value for Hardness mode so Right is Hard (0) and Left is Soft (20)
-            // Slider 0 (Left) -> 20 (Softest)
-            // Slider 20 (Right) -> 0 (Hardest)
+            // Map 0-20 (Hardness Slider is 0-20 in HTML?)
+            // Wait, standard feather logic was: Invert 0-20 slider.
+            // HTML slider max is 20 for feather?
+            // "els.feather.max = HARDNESS_MAX" (20).
+            // "els.feather.max = FEATHER_PX_MAX" (20) in old code.
+            // We need to change the HTML Slider MAX if we want higher precision for FeatherSize?
+            // The user requested slider steps of 0.005h (0.5%).
+            // Range 0.5% to 5.0%. (0.005 to 0.05).
+            // 10 steps? That's low resolution.
+            // I will use 0-1000 for Feather Size Mode to give smooth control.
+
+            // Legacy Hardness Mode: Uses the 0-20 range from the HTML slider directly?
+            // We'll update the slider attributes dynamically in updateFeatherUI.
             const inverted = HARDNESS_MAX - numericVal;
             setFeather(inverted);
         }
@@ -116,19 +176,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function setFeather(val) {
         if (state.featherMode) {
-            const clamped = Math.max(FEATHER_PX_MIN, Math.min(FEATHER_PX_MAX, val));
-            state.featherPx = clamped;
-        const activeKey = getActiveBrushKey();
-        if (state.brushSettings && state.brushSettings[activeKey]) {
-            state.brushSettings[activeKey].featherPx = clamped;
-        }
+            const clamped = Math.max(FEATHER_SIZE_MIN, Math.min(FEATHER_SIZE_MAX, val));
+            state.featherSize = clamped;
+            const activeKey = getActiveBrushKey();
+            if (state.brushSettings && state.brushSettings[activeKey]) {
+                state.brushSettings[activeKey].featherSize = clamped;
+            }
         } else {
             const clamped = Math.max(HARDNESS_MIN, Math.min(HARDNESS_MAX, val));
             state.feather = clamped;
-        const activeKey = getActiveBrushKey();
-        if (state.brushSettings && state.brushSettings[activeKey]) {
-            state.brushSettings[activeKey].feather = clamped;
-        }
+            const activeKey = getActiveBrushKey();
+            if (state.brushSettings && state.brushSettings[activeKey]) {
+                state.brushSettings[activeKey].feather = clamped;
+            }
         }
         updateFeatherUI();
     }
@@ -136,14 +196,21 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function updateFeatherUI() {
         if (!els.feather) return;
         if (state.featherMode) {
-            els.feather.min = FEATHER_PX_MIN;
-            els.feather.max = FEATHER_PX_MAX;
-            els.feather.value = state.featherPx;
+            // Use high precision for Proportional Feather
+            els.feather.min = 0;
+            els.feather.max = BRUSH_SLIDER_STEPS;
+            els.feather.step = 1;
+            els.feather.value = featherSizeToSliderValue(state.featherSize);
+
             if (els.featherLabel) els.featherLabel.textContent = 'Feather';
-            els.featherVal.textContent = `${state.featherPx}px`;
+            // Display as % of Height
+            els.featherVal.textContent = `${(state.featherSize * 100).toFixed(2)}%`;
         } else {
+            // Use 0-20 for Hardness
             els.feather.min = HARDNESS_MIN;
             els.feather.max = HARDNESS_MAX;
+            els.feather.step = 1;
+
             // Invert value for UI: 0 (Hard) -> 20 (Right), 20 (Soft) -> 0 (Left)
             els.feather.value = HARDNESS_MAX - state.feather;
             if (els.featherLabel) els.featherLabel.textContent = 'Hardness';
@@ -175,23 +242,27 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         state.featherMode = Boolean(enabled);
         const activeKey = getActiveBrushKey();
         const activeSettings = state.brushSettings && state.brushSettings[activeKey];
+
+        // Load settings from active brush if available
         if (state.featherMode) {
-            if (activeSettings && typeof activeSettings.featherPx === 'number') {
-                state.featherPx = activeSettings.featherPx;
+            if (activeSettings && typeof activeSettings.featherSize === 'number') {
+                state.featherSize = activeSettings.featherSize;
             }
         } else if (activeSettings && typeof activeSettings.feather === 'number') {
             state.feather = activeSettings.feather;
         }
+
+        // Apply overrides if provided
         if (state.featherMode && typeof options.value === 'number') {
-            const clamped = Math.max(FEATHER_PX_MIN, Math.min(FEATHER_PX_MAX, options.value));
-            state.featherPx = clamped;
+            const clamped = Math.max(FEATHER_SIZE_MIN, Math.min(FEATHER_SIZE_MAX, options.value));
+            state.featherSize = clamped;
             if (options.applyToAll && state.brushSettings) {
                 Object.values(state.brushSettings).forEach((settings) => {
-                    settings.featherPx = clamped;
+                    settings.featherSize = clamped;
                 });
             } else {
                 if (state.brushSettings && state.brushSettings[activeKey]) {
-                    state.brushSettings[activeKey].featherPx = clamped;
+                    state.brushSettings[activeKey].featherSize = clamped;
                 }
             }
         }
@@ -232,13 +303,24 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
-    function drawBrushStamp(x, y, context = maskCtx) {
+    function drawBrushStamp(propX, propY, context = maskCtx) {
+        // propX, propY are Proportions.
+        // Convert to Pixels for drawing
+        const fullH = state.fullDims.h || 1;
+        const x = propX * fullH;
+        const y = propY * fullH;
+
+        // Feather Mode:
+        // if featherMode is true, featherSize is proportion. Need pixels.
+        // if featherMode is false, feather is hardness (0-20). Keep as is.
+        const featherVal = state.featherMode ? (state.featherSize * fullH) : state.feather;
+
         BrushKernel.paintStampAt(
             context,
             x,
             y,
-            getBrushPixelSize(),
-            state.featherMode ? state.featherPx : state.feather,
+            getBrushPixelSize(), // Returns pixels
+            featherVal,
             state.featherMode,
             isEraseMode()
         );
@@ -248,15 +330,16 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function commitPolyline(shouldFill = false) {
         if (state.polylinePoints.length === 0) return;
 
-        const pts = state.polylinePoints;
+        const pts = state.polylinePoints; // Props
+        const fullH = state.fullDims.h || 1;
 
         // Fill first if requested
         if (shouldFill) {
              maskCtx.save();
              maskCtx.beginPath();
-             maskCtx.moveTo(pts[0].x, pts[0].y);
+             maskCtx.moveTo(pts[0].x * fullH, pts[0].y * fullH);
              for (let i = 1; i < pts.length; i++) {
-                 maskCtx.lineTo(pts[i].x, pts[i].y);
+                 maskCtx.lineTo(pts[i].x * fullH, pts[i].y * fullH);
              }
              maskCtx.closePath();
 
@@ -277,23 +360,29 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
          drawBrushStamp(pts[0].x, pts[0].y, maskCtx);
 
          // 2. Draw Segments
+         // Note: PaintStrokeSegment expects PIXELS for points.
+         // pts are PROPS.
+         const featherVal = state.featherMode ? (state.featherSize * fullH) : state.feather;
+         const brushPx = getBrushPixelSize();
+
          for (let i = 0; i < pts.length - 1; i++) {
-             const p1 = pts[i];
-             const p2 = pts[i+1];
+             const p1 = { x: pts[i].x * fullH, y: pts[i].y * fullH };
+             const p2 = { x: pts[i+1].x * fullH, y: pts[i+1].y * fullH };
+
              // Walk from p1 to p2, resetting spacing at p1
-             BrushKernel.paintStrokeSegment(maskCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+             BrushKernel.paintStrokeSegment(maskCtx, p1, p2, brushPx, featherVal, state.featherMode, isEraseMode());
              // Draw Node p2
-             drawBrushStamp(p2.x, p2.y, maskCtx);
+             drawBrushStamp(pts[i+1].x, pts[i+1].y, maskCtx);
          }
 
          if (window.dispatchAction) {
              dispatchAction({
                  type: 'POLYLINE',
                  payload: {
-                     points: JSON.parse(JSON.stringify(state.polylinePoints)),
+                     points: JSON.parse(JSON.stringify(state.polylinePoints)), // Props
                      shouldFill,
-                     brushSize: getBrushPixelSize(),
-                     feather: state.featherMode ? state.featherPx : state.feather,
+                     brushSize: state.brushSize, // Prop
+                     feather: state.featherMode ? state.featherSize : state.feather, // Prop or Value
                      featherMode: state.featherMode,
                      mode: isEraseMode() ? 'erase' : 'repair'
                  }
@@ -341,27 +430,66 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         state.fastPreviewLastStamp = null;
     }
 
+    function beginFastStrokeSession() {
+        ensureFastMaskCanvas();
+        state.previewMaskCanvas = state.fastMaskCanvas;
+        state.previewMaskScale = state.fastMaskScale;
+        state.isPreviewing = true;
+        state.useFastPreview = true;
+
+        // Active Stroke stores PROPS
+        state.activeStroke = {
+            points: [],
+            brushSize: state.brushSize, // Prop
+            feather: state.featherMode ? state.featherSize : state.feather, // Prop or 0-20
+            featherMode: state.featherMode,
+            isErasing: isEraseMode()
+        };
+        state.fastPreviewLastStamp = null;
+    }
+
     function addFastStrokePoint(coords) {
+        // coords are PROPS
         if (!state.activeStroke) return;
         const stroke = state.activeStroke;
         stroke.points.push({ x: coords.x, y: coords.y });
-        const scaledPoint = { x: coords.x * state.fastMaskScale, y: coords.y * state.fastMaskScale };
 
-        let effectiveFeather = stroke.feather;
+        // FastMaskCtx needs PIXELS (Scaled)
+        // Scaled Point = (Prop * FullH) * FastScale
+        const fullH = state.fullDims.h || 1;
+        const scaledPoint = {
+            x: coords.x * fullH * state.fastMaskScale,
+            y: coords.y * fullH * state.fastMaskScale
+        };
+
+        // Brush Size (Px) = Prop * FullH
+        const brushPx = stroke.brushSize * fullH;
+        const brushPxScaled = brushPx * state.fastMaskScale;
+
+        let effectiveFeather = stroke.feather; // 0-20 or Prop
         if (stroke.featherMode) {
-             effectiveFeather = stroke.feather * state.fastMaskScale;
+             // Prop * FullH * Scale
+             effectiveFeather = stroke.feather * fullH * state.fastMaskScale;
         }
 
-        const newStamp = BrushKernel.paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, stroke.brushSize * state.fastMaskScale, effectiveFeather, stroke.featherMode, stroke.isErasing);
+        const newStamp = BrushKernel.paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, brushPxScaled, effectiveFeather, stroke.featherMode, stroke.isErasing);
         state.fastPreviewLastStamp = newStamp;
     }
 
     function replayStrokeToFullMask() {
         const stroke = state.activeStroke;
         if (!stroke || stroke.points.length === 0) return;
-        BrushKernel.drawStroke(maskCtx, stroke.points, {
-            size: stroke.brushSize,
-            feather: stroke.feather,
+
+        const fullH = state.fullDims.h || 1;
+        const brushPx = stroke.brushSize * fullH;
+        const featherVal = stroke.featherMode ? (stroke.feather * fullH) : stroke.feather;
+
+        // Convert points Prop->Px
+        const pointsPx = stroke.points.map(p => ({ x: p.x * fullH, y: p.y * fullH }));
+
+        BrushKernel.drawStroke(maskCtx, pointsPx, {
+            size: brushPx,
+            feather: featherVal,
             featherMode: stroke.featherMode,
             isErasing: stroke.isErasing
         });
@@ -510,8 +638,14 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 }
             }
 
-            // Convert back to Truth Space for state
-            state.cropRect = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
+            // Convert back to Truth Space for state (TruthPixels -> TruthProps)
+            const truthPx = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
+            state.cropRect = {
+                x: truthPx.x / state.fullDims.h,
+                y: truthPx.y / state.fullDims.h,
+                w: truthPx.w / state.fullDims.h,
+                h: truthPx.h / state.fullDims.h
+            };
             render();
             forceCropHandleUpdate();
         } else if (state.isDrawing) {
@@ -616,27 +750,38 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         pCtx.save();
         pCtx.scale(scale, scale);
 
-        // Draw already committed points in this sequence? No, they are in polylinePoints but NOT in maskCanvas
+        const fullH = state.fullDims.h || 1;
+        const brushPx = getBrushPixelSize();
+        const featherVal = state.featherMode ? (state.featherSize * fullH) : state.feather;
+
+        // Note: pCtx is scaled by `scale`.
+        // We are drawing into a 1:1 context space (which is scaled up by context transform?)
+        // Wait, pCtx.scale(scale, scale) means drawing coordinates should be in full-resolution pixels.
+        // And the context scales them down. Correct.
+        // So we need to feed Pixels (Prop * FullH) to the functions.
+
+        // Draw already committed points in this sequence
         if (state.polylinePoints.length > 0) {
+             const pts = state.polylinePoints;
              // Draw Start
-             drawBrushStamp(state.polylinePoints[0].x, state.polylinePoints[0].y, pCtx);
+             drawBrushStamp(pts[0].x, pts[0].y, pCtx);
 
              // Draw Segments
-             for (let i = 0; i < state.polylinePoints.length - 1; i++) {
-                 const p1 = state.polylinePoints[i];
-                 const p2 = state.polylinePoints[i+1];
-                 BrushKernel.paintStrokeSegment(pCtx, p1, p2, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
-                 drawBrushStamp(p2.x, p2.y, pCtx);
+             for (let i = 0; i < pts.length - 1; i++) {
+                 const p1 = { x: pts[i].x * fullH, y: pts[i].y * fullH };
+                 const p2 = { x: pts[i+1].x * fullH, y: pts[i+1].y * fullH };
+                 BrushKernel.paintStrokeSegment(pCtx, p1, p2, brushPx, featherVal, state.featherMode, isEraseMode());
+                 drawBrushStamp(pts[i+1].x, pts[i+1].y, pCtx);
              }
         }
 
         // Draw rubber band line from last point to current cursor
         if (state.lastDrawX !== null && state.currentPointerX !== null) {
-             const start = {x: state.lastDrawX, y: state.lastDrawY};
-             const end = {x: state.currentPointerX, y: state.currentPointerY};
-             BrushKernel.paintStrokeSegment(pCtx, start, end, getBrushPixelSize(), state.featherMode ? state.featherPx : state.feather, state.featherMode, isEraseMode());
+             const start = {x: state.lastDrawX * fullH, y: state.lastDrawY * fullH};
+             const end = {x: state.currentPointerX * fullH, y: state.currentPointerY * fullH};
+             BrushKernel.paintStrokeSegment(pCtx, start, end, brushPx, featherVal, state.featherMode, isEraseMode());
              // Draw cursor node
-             drawBrushStamp(end.x, end.y, pCtx);
+             drawBrushStamp(state.currentPointerX, state.currentPointerY, pCtx);
         } else if (state.isPolylineStart && state.lastDrawX !== null) {
              // Just start dot
              drawBrushStamp(state.lastDrawX, state.lastDrawY, pCtx);
@@ -729,7 +874,18 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             h.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
                 // Store Visual Start Rect for consistent dragging
-                const startVisualRect = truthToVisualRect(state.cropRect, state.rotation, state.fullDims.w, state.fullDims.h);
+                // CropRect is Prop. Convert to Truth Pixels first.
+                // Truth Pixels = Prop * FullH
+                const fullH = state.fullDims.h;
+                const fullW = state.fullDims.w;
+                const truthRectPx = {
+                    x: state.cropRect.x * fullH,
+                    y: state.cropRect.y * fullH,
+                    w: state.cropRect.w * fullH,
+                    h: state.cropRect.h * fullH
+                };
+
+                const startVisualRect = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
                 state.cropDrag = {
                     type: 'handle',
                     h: h.dataset.handle,
@@ -745,13 +901,21 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
             const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
 
-            const startVisualRect = truthToVisualRect(state.cropRect, state.rotation, state.fullDims.w, state.fullDims.h);
+            const fullH = state.fullDims.h;
+            const fullW = state.fullDims.w;
+            const truthRectPx = {
+                x: state.cropRect.x * fullH,
+                y: state.cropRect.y * fullH,
+                w: state.cropRect.w * fullH,
+                h: state.cropRect.h * fullH
+            };
+
+            const startVisualRect = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
 
             state.cropDrag = {
                 type: 'box',
                 startX: mx,
                 startY: my,
-                startRect: { ...state.cropRect }, // Legacy field, might remove if unused
                 startVisualRect
             };
         });
@@ -846,14 +1010,14 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const activeKey = getActiveBrushKey();
         const activeSettings = state.brushSettings && state.brushSettings[activeKey];
         if (!activeSettings) return;
-        setBrushPercent(activeSettings.brushPercent);
+        setBrushPercent(activeSettings.brushSize);
         if (state.featherMode) {
-            setFeather(activeSettings.featherPx);
+            setFeather(activeSettings.featherSize);
         } else {
             setFeather(activeSettings.feather);
         }
     }
 
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue };
+    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue: brushSizeToSliderValue };
 }

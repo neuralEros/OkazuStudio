@@ -21,16 +21,16 @@
             }, 6000);
         }
 
-        const DEFAULT_ERASE_BRUSH = 10;
+        const DEFAULT_BRUSH_SIZE = 0.1;
         const DEFAULT_FEATHER = 1;
-        const DEFAULT_FEATHER_PX = 5;
-        const DEFAULT_REPAIR_BRUSH = DEFAULT_ERASE_BRUSH / 2;
-        const DEFAULT_PATCH_FEATHER = 10;
+        const DEFAULT_FEATHER_SIZE = 0.015;
+        const DEFAULT_REPAIR_BRUSH_SIZE = DEFAULT_BRUSH_SIZE / 2;
+        const DEFAULT_PATCH_FEATHER = 10; // For Hardness mode
         const HARDNESS_MAX = 20;
 
         const state = {
             imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', isAFront: true,
-            opacity: 0.8, brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX, featherMode: false, brushMode: 'erase', isDrawing: false,
+            opacity: 0.8, brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE, featherMode: false, brushMode: 'erase', isDrawing: false,
             maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
             isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
@@ -38,9 +38,9 @@
             activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
             rotation: 0,
             brushSettings: {
-                erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                patch: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_PATCH_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                erase: { brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                repair: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                patch: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_PATCH_FEATHER, featherSize: DEFAULT_FEATHER_SIZE }
             },
             adjustments: {
                 gamma: 1.0,
@@ -1006,7 +1006,7 @@
 
             attachInputHandlers();
 
-            setBrushPercent(state.brushPercent);
+            setBrushPercent(state.brushSize);
             setFeatherMode(state.featherMode);
             setFeather(state.feather);
 
@@ -1042,10 +1042,18 @@
             const backImg = backLayer.img;
 
             // Adjust draw args for crop logic
-            const sX = state.isCropping ? 0 : state.cropRect.x;
-            const sY = state.isCropping ? 0 : state.cropRect.y;
-            const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+            // cropRect is now Proportional. Convert to Pixels relative to state.fullDims.h (Truth Height)
+            // But wait, fullDims tracks source image dims.
+            // If cropping (state.isCropping), we draw full source (sX=0, sY=0, sW=fullW, sH=fullH).
+            // If not cropping (state.cropRect valid), we draw cropped region.
+
+            const fullH = state.fullDims.h || 1;
+            const fullW = state.fullDims.w || 1;
+
+            const sX = state.isCropping ? 0 : (state.cropRect.x * fullH);
+            const sY = state.isCropping ? 0 : (state.cropRect.y * fullH);
+            const sW = state.isCropping ? fullW : (state.cropRect.w * fullH);
+            const sH = state.isCropping ? fullH : (state.cropRect.h * fullH);
 
             const isRotated = state.rotation % 180 !== 0;
             // Determine effective draw dimensions (Truth space)
@@ -1134,10 +1142,14 @@
 
             // If cropping, draw full source image, then overlay
             // When !isCropping, the main canvas is sized to cropRect, so sX/Y is just cropRect.x/y
-            const sX = state.isCropping ? 0 : state.cropRect.x;
-            const sY = state.isCropping ? 0 : state.cropRect.y;
-            const sW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const sH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+
+            const fullH = state.fullDims.h || 1;
+            const fullW = state.fullDims.w || 1;
+
+            const sX = state.isCropping ? 0 : (state.cropRect.x * fullH);
+            const sY = state.isCropping ? 0 : (state.cropRect.y * fullH);
+            const sW = state.isCropping ? fullW : (state.cropRect.w * fullH);
+            const sH = state.isCropping ? fullH : (state.cropRect.h * fullH);
 
             // Effective Draw Dimensions (Truth Space)
             const drawW = isRotated ? ch : cw;
@@ -1299,40 +1311,32 @@
                 els.cropOverlayDom.style.display = 'block';
                 const r = state.cropRect;
 
-                // Calculate Visual Rect for the DOM overlay
-                // Truth Rect (r.x, r.y, r.w, r.h) -> Visual Rect (vx, vy, vw, vh)
-                // Using the visual dimension 'sH' (visual Width) and 'sW' (visual Height) which are confusingly named due to swap above
-                // Let's use clean derivation based on state.rotation and truth dims.
-
-                let vx = r.x, vy = r.y, vw = r.w, vh = r.h;
+                // r is Prop. Convert to Truth Pixels.
                 const truthW = state.fullDims.w;
                 const truthH = state.fullDims.h;
 
+                const tRect = {
+                    x: r.x * truthH,
+                    y: r.y * truthH,
+                    w: r.w * truthH,
+                    h: r.h * truthH
+                };
+
+                let vx = tRect.x, vy = tRect.y, vw = tRect.w, vh = tRect.h;
+
                 if (state.rotation === 90) {
-                    // 90 CW: Top-Left (x,y) -> Visual Top-Right relative.
-                    // Visual Top-Left is derived from Truth Bottom-Left (x, y+h).
-                    // T(x, y+h) -> V(vx, vy).
-                    // vx = H - (y+h) => truthH - (r.y + r.h)
-                    // vy = x => r.x
-                    vx = truthH - (r.y + r.h);
-                    vy = r.x;
-                    vw = r.h;
-                    vh = r.w;
+                    vx = truthH - (tRect.y + tRect.h);
+                    vy = tRect.x;
+                    vw = tRect.h;
+                    vh = tRect.w;
                 } else if (state.rotation === 180) {
-                    // 180: T(x+w, y+h) -> V(vx, vy) (Top-Left)
-                    // vx = W - (x+w) => truthW - (r.x + r.w)
-                    // vy = H - (y+h) => truthH - (r.y + r.h)
-                    vx = truthW - (r.x + r.w);
-                    vy = truthH - (r.y + r.h);
-                    // vw, vh same
+                    vx = truthW - (tRect.x + tRect.w);
+                    vy = truthH - (tRect.y + tRect.h);
                 } else if (state.rotation === 270) {
-                    // 270: T(x+w, y) -> V(vx, vy)
-                    // vx = y => r.y
-                    // vy = W - (x+w) => truthW - (r.x + r.w)
-                    vx = r.y;
-                    vy = truthW - (r.x + r.w);
-                    vw = r.h;
-                    vh = r.w;
+                    vx = tRect.y;
+                    vy = truthW - (tRect.x + tRect.w);
+                    vw = tRect.h;
+                    vh = tRect.w;
                 }
 
                 els.cropBox.style.left = vx + 'px';
@@ -1849,7 +1853,9 @@
             // Set Full Dims
             state.fullDims = { w: targetW, h: targetH };
             if (!preserveView || !state.cropRect) {
-                 state.cropRect = { x: 0, y: 0, w: targetW, h: targetH };
+                 // Default Crop is Full Image.
+                 // In Proportions: x=0, y=0, w=Aspect, h=1
+                 state.cropRect = { x: 0, y: 0, w: targetW / targetH, h: 1.0 };
             }
 
             if (maskCanvas.width !== targetW || maskCanvas.height !== targetH) {
@@ -1861,13 +1867,17 @@
 
             const isRotated = state.rotation % 180 !== 0;
 
-            const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-            const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;
+            // Calculate Base Pixels for View
+            // If cropping: Full Dims
+            // If normal: CropRect * Height
+            const baseW = state.isCropping ? state.fullDims.w : (state.cropRect.w * state.fullDims.h);
+            const baseH = state.isCropping ? state.fullDims.h : (state.cropRect.h * state.fullDims.h);
 
             const visualW = isRotated ? baseH : baseW;
             const visualH = isRotated ? baseW : baseH;
 
-            resizeMainCanvas(visualW, visualH);
+            // Note: Resize canvas takes integer pixels
+            resizeMainCanvas(Math.round(visualW), Math.round(visualH));
 
             els.mainCanvas.classList.remove('hidden');
             els.emptyState.style.display = 'none';
@@ -1909,11 +1919,15 @@
                  // Temporarily render full, uncropped frame for processing
                  const wasCropping = state.isCropping;
                  const prevCropRect = state.cropRect ? { ...state.cropRect } : null;
-                 const fullFrame = { x: 0, y: 0, w: state.fullDims.w, h: state.fullDims.h };
+
+                 // Full Frame Proportions
+                 const fullAspect = state.fullDims.w / state.fullDims.h;
+                 const fullFrameProp = { x: 0, y: 0, w: fullAspect, h: 1.0 };
 
                  state.isCropping = true;
-                 state.cropRect = fullFrame;
-                 resizeMainCanvas(fullFrame.w, fullFrame.h);
+                 state.cropRect = fullFrameProp;
+                 // Resize canvas to full pixels
+                 resizeMainCanvas(state.fullDims.w, state.fullDims.h);
 
                  render(true, true); // Final, Skip Adjustments
                  const baseData = els.mainCanvas.toDataURL('image/png');
@@ -1922,7 +1936,12 @@
                  state.isCropping = wasCropping;
                  state.cropRect = prevCropRect;
                  if (wasCropping) resizeMainCanvas(state.fullDims.w, state.fullDims.h);
-                 else if (prevCropRect) resizeMainCanvas(prevCropRect.w, prevCropRect.h);
+                 else if (prevCropRect) {
+                     // Convert prop rect back to pixels for resizing
+                     const rw = Math.round(prevCropRect.w * state.fullDims.h);
+                     const rh = Math.round(prevCropRect.h * state.fullDims.h);
+                     resizeMainCanvas(rw, rh);
+                 }
 
                  const imgBase = await loadImageSource(baseData);
 
@@ -1970,28 +1989,37 @@
                  const newW = imgCensored.width;
                  const newH = imgCensored.height;
                  state.fullDims = { w: newW, h: newH };
+
                  // Preserve Crop if valid, else reset
-                 if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
-                     state.cropRect = { x: 0, y: 0, w: newW, h: newH };
+                 // Check if cropRect (props) is valid for new aspect?
+                 // Usually Censor/Merge keeps same aspect.
+                 // If cropRect is null, set to Full.
+                 if (!state.cropRect) {
+                     state.cropRect = { x: 0, y: 0, w: newW/newH, h: 1.0 };
                  }
 
                  resetMaskOnly(); // Don't reset adjustments
 
                  // Restore view state
                  state.isCropping = wasCropping;
-                 if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
-                 else resizeMainCanvas(newW, newH);
+                 if (!wasCropping) {
+                     const rw = Math.round(state.cropRect.w * newH);
+                     const rh = Math.round(state.cropRect.h * newH);
+                     resizeMainCanvas(rw, rh);
+                 } else {
+                     resizeMainCanvas(newW, newH);
+                 }
 
                  state.maskVisible = true;
                  els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
                  state.backVisible = true;
                  els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
                  state.brushSettings = {
-                     erase: { brushPercent: DEFAULT_ERASE_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX },
-                     repair: { brushPercent: DEFAULT_REPAIR_BRUSH, feather: DEFAULT_FEATHER, featherPx: DEFAULT_FEATHER_PX }
+                     erase: { brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                     repair: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE }
                  };
                  setMode('erase');
-                 setFeatherMode(true, { value: 5, applyToAll: true });
+                 setFeatherMode(true, { value: DEFAULT_FEATHER_SIZE, applyToAll: true });
                  syncBrushUIToActive();
                  state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
                  state.isAFront = true;
@@ -2040,15 +2068,19 @@
                 state.fullDims = { w: newW, h: newH };
 
                 // Preserve Crop
-                if (!state.cropRect || state.cropRect.w > newW || state.cropRect.h > newH) {
-                        state.cropRect = { x: 0, y: 0, w: newW, h: newH };
+                if (!state.cropRect) {
+                        state.cropRect = { x: 0, y: 0, w: newW/newH, h: 1.0 };
                 }
 
                 resetMaskOnly(); // Don't reset adjustments
 
                 // Restore view
                 state.isCropping = wasCropping;
-                if (!wasCropping) resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+                if (!wasCropping) {
+                    const rw = Math.round(state.cropRect.w * newH);
+                    const rh = Math.round(state.cropRect.h * newH);
+                    resizeMainCanvas(rw, rh);
+                }
                 else resizeMainCanvas(newW, newH);
 
                 maskCanvas.width = newW; maskCanvas.height = newH;
@@ -2078,7 +2110,12 @@
                 // Render CROP area for export
                 const wasCropping = state.isCropping;
                 state.isCropping = false; 
-                resizeMainCanvas(state.cropRect.w, state.cropRect.h);
+
+                // Calculate Pixel Crop
+                const rw = Math.round(state.cropRect.w * state.fullDims.h);
+                const rh = Math.round(state.cropRect.h * state.fullDims.h);
+
+                resizeMainCanvas(rw, rh);
                 
                 render(true); // Final render with adjustments
                 

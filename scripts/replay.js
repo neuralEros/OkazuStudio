@@ -75,9 +75,9 @@
                 adjustmentsVisible: this.state.adjustmentsVisible,
                 brushMode: this.state.brushMode,
                 feather: this.state.feather,
-                featherPx: this.state.featherPx,
+                featherSize: this.state.featherSize, // Prop
                 featherMode: this.state.featherMode,
-                brushPercent: this.state.brushPercent
+                brushSize: this.state.brushSize // Prop
             };
         }
 
@@ -131,9 +131,9 @@
             this.state.nameB = snapshot.nameB;
             this.state.brushMode = snapshot.brushMode;
             this.state.feather = snapshot.feather;
-            this.state.featherPx = snapshot.featherPx;
+            this.state.featherSize = snapshot.featherSize;
             this.state.featherMode = snapshot.featherMode;
-            this.state.brushPercent = snapshot.brushPercent;
+            this.state.brushSize = snapshot.brushSize;
 
             this.state.assetIdA = snapshot.assetIdA;
             this.state.assetIdB = snapshot.assetIdB;
@@ -348,7 +348,8 @@
                         // Side Effects
                         if (type === 'LOAD_IMAGE') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             // Default Crop: Full Image Prop
+                             this.state.cropRect = { x: 0, y: 0, w: asset.width / asset.height, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B
@@ -358,14 +359,14 @@
                              this.state.nameB = "";
 
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             // Preserve Crop Logic roughly
-                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             // Preserve Crop if valid prop, else default
+                             if (!this.state.cropRect) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
                              }
                         } else if (type === 'APPLY_CENSOR') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             if (!this.state.cropRect) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
                              }
                              // Censor resets UI state usually
                              this.state.opacity = 1.0;
@@ -383,9 +384,16 @@
 
                 case 'STROKE':
                     if (window.BrushKernel) {
-                        window.BrushKernel.drawStroke(this.maskCtx, payload.points, {
-                            size: payload.brushSize || payload.size,
-                            feather: payload.feather,
+                        const fullH = this.state.fullDims.h || 1;
+                        const brushPx = (payload.brushSize || payload.size) * fullH;
+                        const featherVal = payload.featherMode ? (payload.feather * fullH) : payload.feather;
+
+                        // Convert payload points (props) to pixels
+                        const pointsPx = payload.points.map(p => ({ x: p.x * fullH, y: p.y * fullH }));
+
+                        window.BrushKernel.drawStroke(this.maskCtx, pointsPx, {
+                            size: brushPx,
+                            feather: featherVal,
                             featherMode: payload.featherMode,
                             isErasing: payload.isErasing
                         });
@@ -396,12 +404,16 @@
                     if (window.BrushKernel && payload.points) {
                         const { points, brushSize, feather, featherMode, mode, shouldFill } = payload;
                         const isErasing = mode === 'erase';
+                        const fullH = this.state.fullDims.h || 1;
+
+                        const brushPx = brushSize * fullH;
+                        const featherVal = featherMode ? (feather * fullH) : feather;
 
                         if (shouldFill) {
                              this.maskCtx.save();
                              this.maskCtx.beginPath();
-                             this.maskCtx.moveTo(points[0].x, points[0].y);
-                             for (let i = 1; i < points.length; i++) this.maskCtx.lineTo(points[i].x, points[i].y);
+                             this.maskCtx.moveTo(points[0].x * fullH, points[0].y * fullH);
+                             for (let i = 1; i < points.length; i++) this.maskCtx.lineTo(points[i].x * fullH, points[i].y * fullH);
                              this.maskCtx.closePath();
                              this.maskCtx.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
                              this.maskCtx.fillStyle = isErasing ? 'white' : 'black';
@@ -410,10 +422,13 @@
                         }
 
                         if (points.length > 0) {
-                             window.BrushKernel.paintStampAt(this.maskCtx, points[0].x, points[0].y, brushSize, feather, featherMode, isErasing);
+                             // Note: Paint functions take pixels
+                             window.BrushKernel.paintStampAt(this.maskCtx, points[0].x * fullH, points[0].y * fullH, brushPx, featherVal, featherMode, isErasing);
                              for (let i = 0; i < points.length - 1; i++) {
-                                 window.BrushKernel.paintStrokeSegment(this.maskCtx, points[i], points[i+1], brushSize, feather, featherMode, isErasing);
-                                 window.BrushKernel.paintStampAt(this.maskCtx, points[i+1].x, points[i+1].y, brushSize, feather, featherMode, isErasing);
+                                 const p1 = { x: points[i].x * fullH, y: points[i].y * fullH };
+                                 const p2 = { x: points[i+1].x * fullH, y: points[i+1].y * fullH };
+                                 window.BrushKernel.paintStrokeSegment(this.maskCtx, p1, p2, brushPx, featherVal, featherMode, isErasing);
+                                 window.BrushKernel.paintStampAt(this.maskCtx, p2.x, p2.y, brushPx, featherVal, featherMode, isErasing);
                              }
                         }
                     }
@@ -452,7 +467,8 @@
                     this.state.maskVisible = true;
                     this.state.backVisible = true;
                     this.state.adjustmentsVisible = true;
-                    this.state.cropRect = { x:0, y:0, w:this.state.fullDims.w, h:this.state.fullDims.h };
+                    const aspect = (this.state.fullDims.w || 1) / (this.state.fullDims.h || 1);
+                    this.state.cropRect = { x:0, y:0, w:aspect, h:1.0 };
                     break;
 
                 case 'RESET_ADJUSTMENTS':

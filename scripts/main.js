@@ -99,7 +99,8 @@
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             rotateBtn: document.getElementById('rotateBtn'),
-            cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
+            cropBtn: document.getElementById('cropBtn'), newBtn: document.getElementById('newBtn'),
+            cursor: document.getElementById('brush-cursor'),
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
@@ -978,6 +979,7 @@
             
             els.cropBtn.addEventListener('click', toggleCropMode);
             els.rotateBtn.addEventListener('click', rotateView);
+            els.newBtn.addEventListener('click', resetWorkspace);
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
@@ -2102,6 +2104,77 @@
                 log("Save failed");
                 Logger.error("Export Failed", e);
             }
+        }
+
+        async function resetWorkspace() {
+            const confirm = await showModal("Confirm Reset", "This will clear all images and history. Start over?", [
+                { label: "Yes, Start Over", value: true }
+            ], true);
+
+            if (!confirm) return;
+
+            log("Resetting workspace...", "info");
+
+            // 1. Clear Images & Cache
+            state.imgA = null; state.sourceA = null; state.workingA = null; state.previewWorkingA = null;
+            state.imgB = null; state.sourceB = null; state.workingB = null; state.previewWorkingB = null;
+            state.assetIdA = null; state.assetIdB = null;
+            state.nameA = ""; state.nameB = "";
+            state.isAFront = true;
+            state.opacity = 0.8;
+            els.opacitySlider.value = 80;
+            els.opacityVal.textContent = "80%";
+
+            // 2. Clear History
+            state.history = [];
+            state.historyIndex = -1;
+            if (replayEngine && replayEngine.clear) replayEngine.clear();
+            // Also need to clear global ActionHistory
+            if (window.ActionHistory) {
+                window.ActionHistory.actions = [];
+                window.ActionHistory.cursor = -1;
+            }
+
+            // 3. Reset Adjustments
+            resetAllAdjustments();
+
+            // 4. Reset Modes & Tools
+            setMode('erase');
+            setFeatherMode(false);
+
+            // 5. Exit Crop
+            if (state.isCropping) {
+                state.isCropping = false;
+                state.cropRect = null;
+                state.cropRectSnapshot = null;
+                state.cropDrag = null;
+                els.cropBtn.classList.remove('active', 'text-yellow-400');
+                els.viewport.classList.remove('cropping');
+            }
+            state.cropRect = null;
+            state.fullDims = { w: 0, h: 0 }; // Reset dims too
+
+            // 6. Reset Toggles
+            state.maskVisible = true;
+            state.backVisible = true;
+            state.adjustmentsVisible = true;
+
+            // 7. Reset Mask
+            maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+            // 8. Reset View
+            resetView();
+            state.rotation = 0;
+
+            // 9. Update UI
+            updateVisibilityToggles();
+            updateUI();
+            els.mainCanvas.classList.add('hidden');
+            els.emptyState.style.display = '';
+            els.viewport.classList.add('disabled');
+            updateWorkspaceLabel();
+
+            log("Workspace cleared.", "info");
         }
 
         init();

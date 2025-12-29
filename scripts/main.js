@@ -29,7 +29,7 @@
         const HARDNESS_MAX = 20;
 
         const state = {
-            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', isAFront: true,
+            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', formatA: '', formatB: '', sourceA: null, sourceB: null, isAFront: true,
             opacity: 0.8, brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE, featherMode: false, brushMode: 'erase', isDrawing: false,
             maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
@@ -741,13 +741,13 @@
              if (slot === 'A') {
                  state.imgA = null; state.sourceA = null; state.workingA = null;
                  state.assetIdA = null;
-                 state.nameA = "";
+                 state.nameA = ""; state.formatA = "";
                  updateLoadButton(els.btnA, "Load", "front");
                  els.btnA.classList.remove('border-accent-strong', 'text-accent');
              } else {
                  state.imgB = null; state.sourceB = null; state.workingB = null;
                  state.assetIdB = null;
-                 state.nameB = "";
+                 state.nameB = ""; state.formatB = "";
                  updateLoadButton(els.btnB, "Load", "back");
                  els.btnB.classList.remove('border-accent-strong', 'text-accent');
              }
@@ -852,6 +852,74 @@
                 Logger.interaction("File Input B", "selected file");
                 handleFileLoad(e.target.files[0], 'B');
             });
+
+            // Preview Panel Logic
+            const previewPanel = document.getElementById('preview-panel-overlay');
+            const previewText = document.getElementById('preview-panel-text');
+            const toolbox = document.getElementById('vertical-toolbox');
+
+            const showPreview = (slot, btn) => {
+                const img = slot === 'A' ? state.imgA : state.imgB;
+                if (!img) return;
+                const source = slot === 'A' ? state.sourceA : state.sourceB;
+
+                // Generate Thumbnail
+                const h = 200;
+                const scale = h / source.height;
+                const w = Math.round(source.width * scale);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(source, 0, 0, w, h);
+
+                // Swap image in panel
+                const container = previewPanel.querySelector('.relative');
+                container.innerHTML = '';
+                canvas.className = "max-w-full max-h-full object-contain";
+                container.appendChild(canvas);
+
+                const dims = `${source.width}x${source.height}`;
+                const fmt = slot === 'A' ? (state.formatA || 'IMG') : (state.formatB || 'IMG');
+                previewText.textContent = `${dims} ${fmt}`;
+
+                previewPanel.classList.remove('hidden');
+
+                // Calculate Position
+                const btnRect = btn.getBoundingClientRect();
+                const topBarEl = document.querySelector('.h-12');
+                const topBarBottom = topBarEl ? topBarEl.getBoundingClientRect().bottom : 48;
+                const margin = 12;
+
+                const panelTop = topBarBottom + margin;
+
+                // Center horizontally under button initially
+                const panelRect = previewPanel.getBoundingClientRect();
+                let left = btnRect.left + (btnRect.width / 2) - (panelRect.width / 2);
+
+                // Collision Check
+                if (toolbox) {
+                    const toolboxRect = toolbox.getBoundingClientRect();
+                    if (panelTop + panelRect.height > toolboxRect.top) {
+                         if (left < toolboxRect.right + margin) {
+                             left = toolboxRect.right + margin;
+                         }
+                    }
+                }
+
+                previewPanel.style.top = panelTop + 'px';
+                previewPanel.style.left = left + 'px';
+            };
+
+            const hidePreview = () => {
+                previewPanel.classList.add('hidden');
+            };
+
+            els.btnA.addEventListener('mouseenter', () => showPreview('A', els.btnA));
+            els.btnA.addEventListener('mouseleave', hidePreview);
+            els.btnB.addEventListener('mouseenter', () => showPreview('B', els.btnB));
+            els.btnB.addEventListener('mouseleave', hidePreview);
 
             els.btnTrashA.addEventListener('click', () => clearLayer('A'));
             els.btnTrashB.addEventListener('click', () => clearLayer('B'));
@@ -1667,15 +1735,8 @@
                  els.featherModeBtn.disabled = false;
             }
 
-            const swapEnabled = state.imgA && state.imgB;
+            const swapEnabled = state.imgA || state.imgB;
             els.swapBtn.disabled = !swapEnabled;
-            if (swapEnabled) {
-                els.swapBtn.classList.add('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.remove('bg-gray-800', 'border-gray-600');
-            } else {
-                els.swapBtn.classList.remove('bg-accent-dark', 'border-accent-strong');
-                els.swapBtn.classList.add('bg-gray-800', 'border-gray-600');
-            }
             
             // Opacity slider logic
             const bothLoaded = state.imgA && state.imgB;
@@ -1777,15 +1838,20 @@
              if (slot === 'A') state.assetIdA = assetId;
              else state.assetIdB = assetId;
 
+             // Extract Format
+             const format = (name && name.includes('.')) ? name.split('.').pop().toUpperCase() : 'PNG';
+
              Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height} (Asset: ${assetId})`);
              if (slot === 'A') {
                 setLayerSource('A', img);
                 state.nameA = name;
+                state.formatA = format;
                 updateLoadButton(els.btnA, truncate(name), "front");
                 els.btnA.classList.add('border-accent-strong', 'text-accent');
              } else {
                 setLayerSource('B', img);
                 state.nameB = name;
+                state.formatB = format;
                 updateLoadButton(els.btnB, truncate(name), "back");
                 els.btnB.classList.add('border-accent-strong', 'text-accent');
              }
@@ -2413,7 +2479,7 @@
             state.imgA = null; state.sourceA = null; state.workingA = null; state.previewWorkingA = null;
             state.imgB = null; state.sourceB = null; state.workingB = null; state.previewWorkingB = null;
             state.assetIdA = null; state.assetIdB = null;
-            state.nameA = ""; state.nameB = "";
+            state.nameA = ""; state.nameB = ""; state.formatA = ""; state.formatB = "";
             state.isAFront = true;
             state.opacity = 0.8;
             els.opacitySlider.value = 80;

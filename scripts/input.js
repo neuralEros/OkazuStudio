@@ -551,7 +551,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 } else {
                     // Deferred Drawing Mode: Store points, do not draw to maskCtx yet
                     // Check close loop
-                    const threshold = getBrushPixelSize();
+                    const threshold = state.brushSize; // Proportions
                     const startPt = state.polylinePoints[0];
                     const dist = Math.hypot(coords.x - startPt.x, coords.y - startPt.y);
 

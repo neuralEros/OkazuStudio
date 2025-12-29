@@ -862,6 +862,11 @@
 
             els.swapBtn.addEventListener('click', () => {
                 Logger.interaction("Swap Button", "clicked");
+
+                const preFront = state.isAFront ? state.imgA : state.imgB;
+                const preBack = state.isAFront ? state.imgB : state.imgA;
+                Logger.info(`[Swap] Pre-Swap Resolution - Front: ${preFront ? preFront.width + 'x' + preFront.height : 'None'}, Back: ${preBack ? preBack.width + 'x' + preBack.height : 'None'}`);
+
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
                 [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
@@ -897,6 +902,10 @@
                 updateUI();
                 render();
                 if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
+
+                const postFront = state.isAFront ? state.imgA : state.imgB;
+                const postBack = state.isAFront ? state.imgB : state.imgA;
+                Logger.info(`[Swap] Post-Swap Resolution - Front: ${postFront ? postFront.width + 'x' + postFront.height : 'None'}, Back: ${postBack ? postBack.width + 'x' + postBack.height : 'None'}`);
             });
 
             let opacityRenderTimer = null;

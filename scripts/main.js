@@ -134,16 +134,15 @@
             });
         }
 
-        function showModal(message, choices, cancellable = true) {
+        function showModal(title, message, choices, cancellable = true) {
             return new Promise((resolve) => {
                 const overlay = document.getElementById('modal-overlay');
+                const titleEl = document.getElementById('modal-title');
                 const msg = document.getElementById('modal-message');
                 const choiceContainer = document.getElementById('modal-choices');
-                const cancelContainer = document.querySelector('#modal-box > .border-t');
+                const closeBtn = document.getElementById('modal-close');
 
-                // Hide legacy separate cancel container if it exists
-                if (cancelContainer) cancelContainer.style.display = 'none';
-
+                titleEl.textContent = title;
                 msg.textContent = message;
                 choiceContainer.innerHTML = '';
 
@@ -161,6 +160,15 @@
                          overlay.classList.add('hidden');
                      }, 200);
                 };
+
+                closeBtn.classList.toggle('hidden', !cancellable);
+                closeBtn.onclick = null;
+                if (cancellable) {
+                    closeBtn.onclick = () => {
+                        cleanup();
+                        resolve(null);
+                    };
+                }
 
                 // Helper for button creation
                 const createBtn = (text, onClick, isCancel = false) => {
@@ -192,12 +200,6 @@
                 choices.forEach(choice => {
                     choiceContainer.appendChild(createBtn(choice.label, () => resolve(choice.value)));
                 });
-
-                if (cancellable) {
-                    // "Cancel button and option buttons should all be in one dialog-spanning column"
-                    // Appending to same container
-                    choiceContainer.appendChild(createBtn("Cancel", () => resolve(null), true));
-                }
             });
         }
 
@@ -619,6 +621,7 @@
                  // If Both Occupied -> Ask User
                  if (state.imgA && state.imgB) {
                      const choice = await showModal(
+                         "Select Destination",
                          "Both slots are already occupied. Where would you like to load the image?",
                          [
                              { label: "Load to Front", value: 'A' },

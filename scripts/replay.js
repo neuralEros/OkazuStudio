@@ -349,7 +349,10 @@
                         if (type === 'LOAD_IMAGE') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
                              // Default Crop: Full Image Prop
-                             this.state.cropRect = { x: 0, y: 0, w: asset.width / asset.height, h: 1.0 };
+                             // If fullDims are invalid, fallback
+                             const w = asset.width || 1;
+                             const h = asset.height || 1;
+                             this.state.cropRect = { x: 0, y: 0, w: w / h, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B

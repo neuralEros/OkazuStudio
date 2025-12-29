@@ -1443,7 +1443,7 @@
             els.undoBtn.disabled = cursor <= minCursor || state.isCropping;
             els.redoBtn.disabled = cursor >= total - 1 || state.isCropping;
 
-            if (cursor < 0) {
+            if (!state.imgA && !state.imgB) {
                 els.mainCanvas.classList.add('hidden');
                 els.emptyState.style.display = '';
             } else {

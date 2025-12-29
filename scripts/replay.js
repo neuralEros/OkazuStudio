@@ -405,9 +405,29 @@
                              }
                              this.state.fullDims = { w: newW, h: newH };
 
-                             // Default Crop: Full Union (to match Live behavior and avoid crop jumps on undo)
-                             // x=0, y=0, w=Aspect, h=1.0 covers the full Union canvas
-                             this.state.cropRect = { x: 0, y: 0, w: newW / newH, h: 1.0 };
+                             // Default Crop: Frame the Loaded Image (Centered in Union)
+                             // Note: In case of smart-slotting (A->B, New->A), we want to frame New A.
+                             // Logic here assumes 'asset' is the one we want to see.
+                             // If we loaded to B (Back), and A exists, maybe we shouldn't re-frame?
+                             // But standard behavior: Load -> Show what you loaded (or the composition context).
+                             // User preference: "Frame Front".
+                             // If we loaded to A: Asset is A. Frame it.
+                             // If we loaded to B: Asset is B. A exists. Frame A?
+                             // Current Replay logic applies to 'asset' (the payload).
+                             // If payload slot is B, this frames B.
+                             // To strictly "Frame Front":
+                             const targetImg = (slot === 'A') ? this.state.imgA : (this.state.imgA || this.state.imgB);
+                             const targetW = targetImg ? targetImg.width : 1;
+                             const targetH = targetImg ? targetImg.height : 1;
+
+                             const scale = (newH / targetH) || 1;
+                             const visW = targetW * scale;
+                             const offX = (newW - visW) / 2;
+
+                             const propX = offX / newH;
+                             const propW = visW / newH;
+
+                             this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B

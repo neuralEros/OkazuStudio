@@ -590,7 +590,7 @@
 #modal-close {
     width: 24px;
     height: 24px;
-    border-radius: 2px; /* Matching rounded-sm */
+    border-radius: 0.25rem; /* Matching rounded */
     background-color: var(--accent-strong);
     border: 1px solid var(--accent-strong);
     color: var(--accent-ink);

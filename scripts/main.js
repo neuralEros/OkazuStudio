@@ -166,10 +166,10 @@
                     const btn = document.createElement('button');
                     if (isCancel) {
                          // Fallback for cancel style if used in future
-                         btn.className = "w-full py-1 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-base font-bold shadow-sm";
+                         btn.className = "w-full py-1 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded transition-all text-base font-bold shadow";
                     } else {
                          // Using accent-action style (Export button style) with text-base
-                         btn.className = "w-full py-1 px-4 accent-action rounded-sm transition-all text-base font-bold shadow-sm";
+                         btn.className = "w-full py-1 px-4 accent-action rounded transition-all text-base font-bold shadow";
                     }
 
                     btn.textContent = text;

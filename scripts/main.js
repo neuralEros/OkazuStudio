@@ -874,7 +874,14 @@
                 else els.btnB.classList.remove('border-accent-strong', 'text-accent');
                 markAdjustmentsDirty();
                 rebuildWorkingCopies();
-                updateCanvasDimensions(true);
+
+                // Recalculate crop for new front image
+                if (state.imgA) {
+                    const aspect = state.imgA.width / state.imgA.height;
+                    state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                }
+
+                updateCanvasDimensions(false); // Reset view
                 updateUI();
                 render();
                 if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });

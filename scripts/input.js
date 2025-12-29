@@ -47,10 +47,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return toPixels(state.brushSize, state.fullDims.h);
     }
 
-    function visualToTruthCoords(vx, vy) {
+    function visualToTruthCoords(vx, vy, overrideW, overrideH) {
         const rot = state.rotation;
-        const fw = state.fullDims.w || 1;
-        const fh = state.fullDims.h || 1;
+        const fw = (overrideW !== undefined) ? overrideW : (state.fullDims.w || 1);
+        const fh = (overrideH !== undefined) ? overrideH : (state.fullDims.h || 1);
 
         let tx = vx;
         let ty = vy;
@@ -81,118 +81,14 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const canvasX = (mouseX - state.view.x) / state.view.scale;
         const canvasY = (mouseY - state.view.y) / state.view.scale;
 
-        // Convert to Truth Pixels
-        const truthPx = visualToTruthCoords(canvasX, canvasY);
         const fullH = state.fullDims.h || 1;
 
         if (!state.isCropping && state.cropRect) {
-            // truthPx is relative to the "Visual Top-Left" which is the crop rect's top-left in truth space?
-            // No. state.view.x/y aligns the Canvas (Visual) to the Viewport.
-            // The Canvas contains the Rendered Image.
-            // If Not Cropping: The rendered image is the Crop Rect region.
-            // So canvasX/Y (0,0) corresponds to CropRect Top-Left (Visual).
-
-            // We need to rotate the CropRect offset to match visual space to add it?
-            // OR: visualToTruthCoords assumed (0,0) visual is (0,0) truth.
-            // But here (0,0) visual is (CropRect.x, CropRect.y) truth.
-            // So we effectively calculated the offset *within* the crop rect in truth space?
-
-            // Let's trace:
-            // 90 deg.
-            // View shows a cropped region.
-            // User clicks at canvas (10, 10).
-            // visualToTruthCoords(10, 10) -> returns Truth Vector relative to the rotated frame's origin?
-            // No, visualToTruthCoords assumes full frame rotation logic.
-            // But we are operating on a subset (CropRect).
-            // This is complex.
-
-            // Simplify:
-            // The Render output (Visual) is the CropRect (Truth) rotated.
-            // So (0,0) Visual corresponds to...
-            // If 0 deg: (CropRect.x, CropRect.y) Truth.
-            // If 90 deg:
-            // CropRect (x,y,w,h) Truth.
-            // Visual Rect (vx, vy, vw, vh) is derived from CropRect.
-            // Visual (0,0) corresponds to Visual Rect Top-Left.
-            // We want to find the Truth point T.
-
-            // Let's use `visualToTruthRect` logic but for a point.
-            // We have `canvasX, canvasY`. This is a point V relative to the Visual Rect Top-Left.
-            // We want T relative to Truth Origin.
-
-            // Let's look at `visualToTruthRect` again.
-            // It converts a Visual Rect (absolute visual coords if we were viewing full image) to Truth.
-            // But here we are viewing a *cropped* image.
-            // Does `canvasX` align with `visualFullImageX`? No.
-            // `canvasX` is relative to the *rendered canvas*.
-            // The rendered canvas REPRESENTS the CropRect.
-            // So `canvasX` is `VisualPoint.x - VisualRect.x`? No.
-            // The canvas IS the Visual Rect.
-
-            // So we have a point P_visual inside the Visual Rect.
-            // We want P_truth inside the Truth Rect.
-            // AND we want P_truth absolute.
-
-            // 90 Deg:
-            // Visual Width = Truth Height (of the rect).
-            // P_visual (x, y).
-            // P_truth_local (relative to rect origin)?
-            // Rotated 90 CW.
-            // P_truth_local.x = P_visual.y
-            // P_truth_local.y = VisualRect.width - P_visual.x?
-            // (Since Visual Width corresponds to Truth Height segment).
-            // Actually, `visualToTruthCoords` does exactly this for the full frame.
-            // `tx = vy`, `ty = fh - vx`.
-            // Here `fh` should be the height of the *space we are in*.
-            // The space is the CropRect.
-            // So `ty = RectHeight_visual - vx`. (RectHeight_visual = TruthWidth_crop).
-
-            // Let's try to map:
-            // 1. Convert Canvas Point (Visual Local) to Truth Local (using Crop dimensions).
-            // 2. Add Truth Local to CropRect.x/y.
-
-            // Dimensions of the "Mini Universe" (The Crop):
-            // Visual W, Visual H.
-            // Truth W = state.cropRect.w * fullH.
-            // Truth H = state.cropRect.h * fullH.
-
-            // Rot 0: tx = vx, ty = vy.
-            // Rot 90: tx = vy, ty = (TruthH) - vx.  Wait.
-            // Rot 90: Visual W = Truth H. Visual H = Truth W.
-            // Map (vx, vy) -> (tx, ty).
-            // (0,0) Vis -> (0, H) Truth Local? No.
-            // 90 CW: Top-Left Truth -> Top-Right Visual.
-            // So Top-Left Visual corresponds to Bottom-Left Truth?
-            // Truth (0,H) -> Visual (0,0).
-            // Truth (0,0) -> Visual (H, 0).
-            // Truth (W,H) -> Visual (0, W).
-            // So (vx=0, vy=0) -> (tx=0, ty=H)? No.
-            // Let's check `visualToTruthCoords`:
-            // `tx = vy`. `ty = fh - vx`.
-            // If vx=0, vy=0 -> tx=0, ty=fh.
-            // Yes! That matches Bottom-Left Truth (0, H) (if H is max Y).
-            // So `visualToTruthCoords` works LOCALLY if we pass the LOCAL dimensions.
-
-            // Local Truth Dimensions (Pixels):
+            // Local Truth Dimensions (Pixels)
             const localTruthW = state.cropRect.w * fullH;
             const localTruthH = state.cropRect.h * fullH;
 
-            // We need to use `visualToTruthCoords` logic but with `localTruthW/H` instead of fullDims.
-            // Let's instantiate a local helper or call with overrides.
-            // I'll make visualToTruthCoords accept dimensions.
-
             const localP = visualToTruthCoords(canvasX, canvasY, localTruthW, localTruthH);
-
-            // Now add the CropRect offset (Truth).
-            // localP is relative to the CropRect's internal origin?
-            // No, `visualToTruthCoords` assumes rotation around the frame.
-            // If we rotate the crop rect, does it rotate around the center of the image or the center of the rect?
-            // `render` uses `applyRotation`. `applyRotation` uses `ctx.rotate`.
-            // `renderToContext`: `applyRotation(targetCtx, w, h, state.rotation);`
-            // `w, h` are the CANVAS dimensions (Visual).
-            // `ctx.translate(w, 0)` for 90 deg.
-            // This rotates the *content* around the visual center/origin logic.
-            // So yes, the "Mini Universe" rotation logic holds.
 
             const absoluteTx = localP.x + (state.cropRect.x * fullH);
             const absoluteTy = localP.y + (state.cropRect.y * fullH);
@@ -202,7 +98,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
         // If Cropping (showing full image, just overlay on top):
         // `canvasX` corresponds to Visual Full Image.
-        const absP = visualToTruthCoords(canvasX, canvasY, state.fullDims.w, state.fullDims.h);
+        const absP = visualToTruthCoords(canvasX, canvasY);
         return { x: absP.x / fullH, y: absP.y / fullH };
     }
 

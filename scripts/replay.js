@@ -347,7 +347,37 @@
 
                         // Side Effects
                         if (type === 'LOAD_IMAGE') {
-                             this.state.fullDims = { w: asset.width, h: asset.height };
+                             // Calculate Union Dimensions
+                             const union = getUnionDims(this.state.imgA, this.state.imgB);
+                             const newW = union.w;
+                             const newH = union.h;
+
+                             if (this.state.fullDims.w !== newW || this.state.fullDims.h !== newH) {
+                                 // Resize Mask Preserving Center
+                                 if (this.maskCanvas.width > 0 && this.maskCanvas.height > 0) {
+                                     const temp = document.createElement('canvas');
+                                     temp.width = this.maskCanvas.width;
+                                     temp.height = this.maskCanvas.height;
+                                     temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+
+                                     // Center old mask
+                                     const sY = newH / temp.height;
+                                     const sX = sY;
+                                     const projW = temp.width * sX;
+                                     const offX = (newW - projW) / 2;
+
+                                     this.maskCtx.clearRect(0, 0, newW, newH);
+                                     this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
+                                 } else {
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+                                 }
+                             }
+                             this.state.fullDims = { w: newW, h: newH };
+
                              // Default Crop: Full Image Prop
                              // If fullDims are invalid, fallback
                              const w = asset.width || 1;
@@ -385,23 +415,31 @@
                     [this.state.nameA, this.state.nameB] = [this.state.nameB, this.state.nameA];
 
                     // Update dimensions and reset crop to ensure correct view
-                    const active = this.state.imgA || this.state.imgB;
-                    if (active) {
-                        // If dimensions changed, resize mask and scale content to preserve paint
-                        if (active.width !== this.maskCanvas.width || active.height !== this.maskCanvas.height) {
+                    const union = getUnionDims(this.state.imgA, this.state.imgB);
+                    if (union.w > 0) {
+                        const newW = union.w;
+                        const newH = union.h;
+
+                        // If dimensions changed, resize mask and center content to preserve paint
+                        if (newW !== this.maskCanvas.width || newH !== this.maskCanvas.height) {
                             const temp = document.createElement('canvas');
                             temp.width = this.maskCanvas.width;
                             temp.height = this.maskCanvas.height;
                             temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
 
-                            this.maskCanvas.width = active.width;
-                            this.maskCanvas.height = active.height;
+                            this.maskCanvas.width = newW;
+                            this.maskCanvas.height = newH;
 
-                            // Scale old mask to new dimensions
-                            this.maskCtx.clearRect(0, 0, active.width, active.height);
-                            this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, 0, 0, active.width, active.height);
+                            // Center old mask
+                            const sY = newH / temp.height;
+                            const sX = sY;
+                            const projW = temp.width * sX;
+                            const offX = (newW - projW) / 2;
+
+                            this.maskCtx.clearRect(0, 0, newW, newH);
+                            this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
                         }
-                        this.state.fullDims = { w: active.width, h: active.height };
+                        this.state.fullDims = { w: newW, h: newH };
                     }
 
                     if (this.state.imgA) {
@@ -560,6 +598,18 @@
     }
 
     // --- Helpers ---
+    function getUnionDims(imgA, imgB) {
+        if (!imgA && !imgB) return { w: 0, h: 0 };
+        if (!imgA) return { w: imgB.width, h: imgB.height };
+        if (!imgB) return { w: imgA.width, h: imgA.height };
+
+        const unionH = Math.max(imgA.height, imgB.height);
+        const scaleA = unionH / imgA.height;
+        const scaleB = unionH / imgB.height;
+        const unionW = Math.max(imgA.width * scaleA, imgB.width * scaleB);
+        return { w: Math.round(unionW), h: unionH };
+    }
+
     function cloneCanvas(source) {
         if (!source) return null;
         const width = source.naturalWidth || source.width;

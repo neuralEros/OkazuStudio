@@ -52,6 +52,7 @@
         .accent-action:hover {
             background-color: var(--accent-strong);
             border-color: var(--accent-strong);
+            color: var(--accent-ink);
         }
 
         /* Panels */

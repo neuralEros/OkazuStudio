@@ -1315,8 +1315,38 @@
                     }
                     frontLayerCtx.clearRect(0, 0, pDrawW, pDrawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pDrawW, pDrawH);
+
+                    // Fast Preview: Map Union-Space Crop to Source/Buffer Coordinates
+                    // frontImg might be Source (Full Res) or Buffer (Downscaled)
+
+                    // 1. Calculate Offsets in Union Space
+                    // We assume heights match (Scaling Logic)
+                    // Visual Scale of Front Image relative to Union Height
+                    // Note: If frontImg IS the buffer, frontLayer.scale is Source->Buffer ratio.
+                    // We need Truth->Buffer ratio.
+
+                    // Visual Height of Front Image (in Truth Space) should match fullDims.h (Union H).
+                    // But Source might be smaller/larger.
+                    // If Source is A. Buffer is B = A * bufScale.
+                    // Truth T = A * (UnionH / A.h).
+                    // So B = T * (A.h / UnionH) * bufScale.
+                    // And A.h * bufScale = B.h (Buffer Height).
+                    // So B = T * (B.h / UnionH).
+
+                    const truthToBufferScale = frontImg.height / state.fullDims.h;
+
+                    // Calculate Visual Width in Truth Space
+                    // VisualW = BufferW / truthToBufferScale
+                    const frontVisualW = frontImg.width / truthToBufferScale;
+                    const frontOffX = (state.fullDims.w - frontVisualW) / 2;
+
+                    // 2. Map Crop Rect (sX...) to Buffer Source Rect
+                    const fSrcX = (sX - frontOffX) * truthToBufferScale;
+                    const fSrcY = (sY - 0) * truthToBufferScale; // Aligned Top
+                    const fSrcW = sW * truthToBufferScale;
+                    const fSrcH = sH * truthToBufferScale;
+
+                    frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, pDrawW, pDrawH);
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {

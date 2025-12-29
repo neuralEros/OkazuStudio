@@ -583,16 +583,22 @@
 
 /* Modal Header */
 .bg-panel-header {
-    background-color: var(--panel-strong); /* Using strong for seamless look, or could be slightly lighter */
-    /* If we want it distinct, maybe just transparent or same as body */
+    background-color: #252525; /* Distinct dark gray header */
+    border-bottom: 1px solid var(--panel-border);
 }
 
 /* Modal Close Button */
 #modal-close {
-    padding: 4px;
+    width: 24px;
+    height: 24px;
     border-radius: 4px;
-    margin-right: -4px; /* Pull right slightly */
+    background-color: #333;
+    border: 1px solid #444;
+    color: #bbb;
+    transition: all 0.1s;
 }
 #modal-close:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: #dd2222; /* Red danger hover for close */
+    border-color: #ff4444;
+    color: white;
 }

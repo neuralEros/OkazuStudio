@@ -23,7 +23,7 @@
 
         const DEFAULT_BRUSH_SIZE = 0.1;
         const DEFAULT_FEATHER = 1;
-        const DEFAULT_FEATHER_SIZE = 0.015;
+        const DEFAULT_FEATHER_SIZE = 0.0012; // ~0.12% (5px at 4320p)
         const DEFAULT_REPAIR_BRUSH_SIZE = DEFAULT_BRUSH_SIZE / 2;
         const DEFAULT_PATCH_FEATHER = 10; // For Hardness mode
         const HARDNESS_MAX = 20;
@@ -656,6 +656,9 @@
                      updateLoadButton(els.btnA, "Load", "front"); // Temp clear visual
                      els.btnA.classList.remove('border-accent-strong', 'text-accent');
 
+                     // Record the implicit swap in history so replay works correctly
+                     if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
+
                      // Now Load New into A
                      assignLayer(img, 'A', name);
                  } else {
@@ -867,41 +870,45 @@
                 const preBack = state.isAFront ? state.imgB : state.imgA;
                 Logger.info(`[Swap] Pre-Swap Resolution - Front: ${preFront ? preFront.width + 'x' + preFront.height : 'None'}, Back: ${preBack ? preBack.width + 'x' + preBack.height : 'None'}`);
 
-                [state.imgA, state.imgB] = [state.imgB, state.imgA];
-                [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
-                [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
-                [state.workingA, state.workingB] = [state.workingB, state.workingA];
-                [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
-                [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
-                [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
-                [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
-                [state.nameA, state.nameB] = [state.nameB, state.nameA];
-                updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "front");
-                updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "back");
-                if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
-                else els.btnA.classList.remove('border-accent-strong', 'text-accent');
-                if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
-                else els.btnB.classList.remove('border-accent-strong', 'text-accent');
-                markAdjustmentsDirty();
-                rebuildWorkingCopies();
-
-                // Recalculate crop for new front image
-                if (state.imgA) {
-                    const aspect = state.imgA.width / state.imgA.height;
-                    state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
-                }
-
-                // Update dimensions but PRESERVE history so we can replay the mask strokes
-                updateCanvasDimensions(false, true);
-
-                // Replay history to redraw mask at new scale
                 if (replayEngine) {
+                    // Phase 6: Delegate Swap to ReplayEngine to ensure consistency
+                    // Dispatch first to log and increment cursor
+                    dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
+
+                    // Then replay to apply the action (and any previous state including crop reset)
                     await replayEngine.replayTo(window.ActionHistory.cursor);
+                } else {
+                    // Legacy manual swap logic
+                    [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                    [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
+                    [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
+                    [state.workingA, state.workingB] = [state.workingB, state.workingA];
+                    [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
+                    [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
+                    [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
+                    [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
+                    [state.nameA, state.nameB] = [state.nameB, state.nameA];
+                    updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "front");
+                    updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "back");
+                    if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
+                    else els.btnA.classList.remove('border-accent-strong', 'text-accent');
+                    if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
+                    else els.btnB.classList.remove('border-accent-strong', 'text-accent');
+                    markAdjustmentsDirty();
+                    rebuildWorkingCopies();
+
+                    // Recalculate crop for new front image
+                    if (state.imgA) {
+                        const aspect = state.imgA.width / state.imgA.height;
+                        state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                    }
+
+                    // Update dimensions but PRESERVE history so we can replay the mask strokes
+                    updateCanvasDimensions(false, true);
                 }
 
                 updateUI();
                 render();
-                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
 
                 const postFront = state.isAFront ? state.imgA : state.imgB;
                 const postBack = state.isAFront ? state.imgB : state.imgA;
@@ -1125,8 +1132,57 @@
                     fCtx.clearRect(0, 0, drawW, drawH);
 
                     fCtx.globalCompositeOperation = 'source-over';
-                    const frontScale = frontLayer.scale || 1;
-                    fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
+
+                    // Render Front Image Centered in Union Dims
+                    // Calculate visual size of front image relative to FullDims
+                    // Scale factor for front image to match FullH?
+                    // Actually, sX, sY, sW, sH are crop rects relative to FullDims.
+                    // But frontImg is smaller than FullDims (potentially).
+                    // We need to map FrontImg pixels to Canvas pixels.
+
+                    // Basic Logic:
+                    // Back Image is centered. Scale = FullH / BackH.
+                    // Front Image: Scale = FullH / FrontH (if we match heights).
+                    // This is consistent.
+
+                    // Calculate Source Rect relative to Front Image
+                    // sX, sY are pixels in FullDims (Union) space.
+                    // We need to subtract the offset of Front Image in Union Space.
+
+                    const frontScale = (state.fullDims.h / frontImg.height) || 1; // Visual Scale
+                    const frontVisualW = frontImg.width * frontScale;
+                    const frontOffX = (state.fullDims.w - frontVisualW) / 2;
+                    const frontOffY = 0; // Vertically aligned
+
+                    // Map Crop Rect (sX, sY, sW, sH) to Source Rect on Front Image
+                    // Dest Rect is 0,0, drawW, drawH (View)
+                    // We want to draw the portion of Front Image that overlaps with Crop Rect.
+
+                    // This is complex because standard drawImage takes Source Rect.
+                    // Source Rect is in Source Pixels.
+
+                    // Let's use a simpler approach for Front Layer Buffer:
+                    // 1. Draw Front Image Centered into Buffer (at Full Resolution / Union Dims).
+                    // 2. Then draw Crop from Buffer to View?
+                    // No, that's slow.
+
+                    // We need to calculate the intersection of CropRect and FrontImageRect.
+                    // CropRect: sX, sY, sW, sH (in Union Pixels).
+                    // FrontImageRect: frontOffX, frontOffY, frontVisualW, FullH (in Union Pixels).
+
+                    // Relative to Front Image Source:
+                    // SrcX = (sX - frontOffX) / frontScale
+                    // SrcY = (sY - frontOffY) / frontScale
+                    // SrcW = sW / frontScale
+                    // SrcH = sH / frontScale
+
+                    const fSrcX = (sX - frontOffX) / frontScale;
+                    const fSrcY = (sY - frontOffY) / frontScale;
+                    const fSrcW = sW / frontScale;
+                    const fSrcH = sH / frontScale;
+
+                    // Render
+                    fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
 
                     if (state.maskVisible) {
                         fCtx.globalCompositeOperation = 'destination-out';
@@ -1259,8 +1315,38 @@
                     }
                     frontLayerCtx.clearRect(0, 0, pDrawW, pDrawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, pDrawW, pDrawH);
+
+                    // Fast Preview: Map Union-Space Crop to Source/Buffer Coordinates
+                    // frontImg might be Source (Full Res) or Buffer (Downscaled)
+
+                    // 1. Calculate Offsets in Union Space
+                    // We assume heights match (Scaling Logic)
+                    // Visual Scale of Front Image relative to Union Height
+                    // Note: If frontImg IS the buffer, frontLayer.scale is Source->Buffer ratio.
+                    // We need Truth->Buffer ratio.
+
+                    // Visual Height of Front Image (in Truth Space) should match fullDims.h (Union H).
+                    // But Source might be smaller/larger.
+                    // If Source is A. Buffer is B = A * bufScale.
+                    // Truth T = A * (UnionH / A.h).
+                    // So B = T * (A.h / UnionH) * bufScale.
+                    // And A.h * bufScale = B.h (Buffer Height).
+                    // So B = T * (B.h / UnionH).
+
+                    const truthToBufferScale = frontImg.height / state.fullDims.h;
+
+                    // Calculate Visual Width in Truth Space
+                    // VisualW = BufferW / truthToBufferScale
+                    const frontVisualW = frontImg.width / truthToBufferScale;
+                    const frontOffX = (state.fullDims.w - frontVisualW) / 2;
+
+                    // 2. Map Crop Rect (sX...) to Buffer Source Rect
+                    const fSrcX = (sX - frontOffX) * truthToBufferScale;
+                    const fSrcY = (sY - 0) * truthToBufferScale; // Aligned Top
+                    const fSrcW = sW * truthToBufferScale;
+                    const fSrcH = sH * truthToBufferScale;
+
+                    frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, pDrawW, pDrawH);
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1319,9 +1405,20 @@
                     }
                     frontLayerCtx.clearRect(0, 0, drawW, drawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
-                    // Draw clipped portion of front image
-                    const frontScale = frontLayer.scale || 1;
-                    frontLayerCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
+
+                    // Render Front Image Centered in Union Dims
+                    const frontScale = (state.fullDims.h / frontImg.height) || 1;
+                    const frontVisualW = frontImg.width * frontScale;
+                    const frontOffX = (state.fullDims.w - frontVisualW) / 2;
+
+                    // Map Crop Rect (sX...sH) to Front Image Source
+                    // sX/Y are in Union Pixels.
+                    const fSrcX = (sX - frontOffX) / frontScale;
+                    const fSrcY = (sY - 0) / frontScale;
+                    const fSrcW = sW / frontScale;
+                    const fSrcH = sH / frontScale;
+
+                    frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1414,6 +1511,40 @@
 
         function toggleCropMode() {
             if (!canDraw()) return;
+
+            // Clamp cropRect to valid bounds before entering crop mode
+            if (!state.isCropping && state.cropRect) {
+                const aspect = (state.fullDims.w || 1) / (state.fullDims.h || 1);
+
+                // 1. Clamp X, Y to be non-negative
+                if (state.cropRect.x < 0) state.cropRect.x = 0;
+                if (state.cropRect.y < 0) state.cropRect.y = 0;
+
+                // 2. Ensure Width fits within Aspect
+                if (state.cropRect.x + state.cropRect.w > aspect) {
+                    // Try to shrink width first
+                    state.cropRect.w = aspect - state.cropRect.x;
+                    // If width became too small, maybe X was too far right?
+                    if (state.cropRect.w < 0.01) {
+                         state.cropRect.x = Math.max(0, aspect - 0.1); // Shift X back
+                         state.cropRect.w = aspect - state.cropRect.x;
+                    }
+                }
+
+                // 3. Ensure Height fits within 1.0
+                if (state.cropRect.y + state.cropRect.h > 1.0) {
+                    state.cropRect.h = 1.0 - state.cropRect.y;
+                    if (state.cropRect.h < 0.01) {
+                         state.cropRect.y = Math.max(0, 1.0 - 0.1);
+                         state.cropRect.h = 1.0 - state.cropRect.y;
+                    }
+                }
+
+                // 4. Sanity check zero dimensions
+                state.cropRect.w = Math.max(0.001, state.cropRect.w);
+                state.cropRect.h = Math.max(0.001, state.cropRect.h);
+            }
+
             state.isCropping = !state.isCropping;
             
             if (state.isCropping) {
@@ -1880,14 +2011,77 @@
             });
         }
 
+        // Helper to calculate Union Dimensions of the composition
+        function getUnionDims(imgA, imgB) {
+            if (!imgA && !imgB) return { w: 0, h: 0 };
+            if (!imgA) return { w: imgB.width, h: imgB.height };
+            if (!imgB) return { w: imgA.width, h: imgA.height };
+
+            // Height Match Strategy: Union Height is max height
+            const unionH = Math.max(imgA.height, imgB.height);
+
+            // Scale widths based on matching heights
+            const scaleA = unionH / imgA.height;
+            const scaleB = unionH / imgB.height;
+
+            const visWA = imgA.width * scaleA;
+            const visWB = imgB.width * scaleB;
+
+            const unionW = Math.max(visWA, visWB);
+            return { w: Math.round(unionW), h: unionH };
+        }
+
+        // Helper to resize mask preserving centered content
+        function resizeMaskCanvas(newW, newH) {
+            if (maskCanvas.width === newW && maskCanvas.height === newH) return;
+
+            const oldW = maskCanvas.width;
+            const oldH = maskCanvas.height;
+
+            // Snapshot old mask
+            const temp = document.createElement('canvas');
+            temp.width = oldW;
+            temp.height = oldH;
+            temp.getContext('2d').drawImage(maskCanvas, 0, 0);
+
+            // Resize
+            maskCanvas.width = newW;
+            maskCanvas.height = newH;
+
+            // Draw centered
+            // Assuming Height matches (or scales uniformly)
+            // Vertical scale:
+            const sY = newH / oldH;
+            const sX = sY; // Maintain aspect
+
+            const projW = oldW * sX;
+            // Center horizontally
+            const offX = (newW - projW) / 2;
+
+            maskCtx.clearRect(0, 0, newW, newH);
+            maskCtx.drawImage(temp, 0, 0, oldW, oldH, offX, 0, projW, newH);
+        }
+
         function updateCanvasDimensions(preserveView = false, preserveMask = false) {
             if (!state.imgA && !state.imgB) return;
-            const frontImg = state.isAFront ? state.imgA : state.imgB;
-            const activeImg = frontImg || (state.isAFront ? state.imgB : state.imgA);
-            if (!activeImg) return;
-            const targetW = activeImg.width;
-            const targetH = activeImg.height;
             
+            const union = getUnionDims(state.imgA, state.imgB);
+            const targetW = union.w;
+            const targetH = union.h;
+
+            // Check if dims changed
+            if (state.fullDims.w !== targetW || state.fullDims.h !== targetH) {
+                // If mask needs resize, do it with preservation if requested OR if standard flow
+                // Note: preserveMask arg usually prevents HISTORY reset.
+                // But we must preserve PIXELS if resizing due to Union change.
+                if (maskCanvas.width > 0 && maskCanvas.height > 0) {
+                     resizeMaskCanvas(targetW, targetH);
+                } else {
+                     maskCanvas.width = targetW;
+                     maskCanvas.height = targetH;
+                }
+            }
+
             // Set Full Dims
             state.fullDims = { w: targetW, h: targetH };
             if (!preserveView || !state.cropRect) {
@@ -1896,14 +2090,10 @@
                  state.cropRect = { x: 0, y: 0, w: targetW / targetH, h: 1.0 };
             }
 
-            if (maskCanvas.width !== targetW || maskCanvas.height !== targetH) {
-                maskCanvas.width = targetW;
-                maskCanvas.height = targetH;
-                maskCtx.clearRect(0,0,targetW,targetH); 
-                // Only reset history if we are NOT preserving the mask (e.g. new load)
-                if (!preserveMask) {
-                    resetMaskAndHistory();
-                }
+            if (!preserveMask) {
+                // Legacy: Only clear history if requested (e.g. New Load)
+                // Note: maskCanvas already resized/preserved above
+                if (state.history.length > 0) resetMaskAndHistory();
             }
 
             const isRotated = state.rotation % 180 !== 0;
@@ -1985,6 +2175,13 @@
                  }
 
                  const imgBase = await loadImageSource(baseData);
+
+                 // Register Base Image
+                 let baseId = null;
+                 if (window.AssetManager) {
+                     baseId = window.AssetManager.addAsset(imgBase, "Base Layer");
+                 }
+                 state.assetIdA = baseId;
 
                  setLayerSource('A', imgBase); state.nameA = "Base Layer";
                  const w = imgBase.width; const h = imgBase.height;
@@ -2073,7 +2270,7 @@
 
                  render(); updateUI();
                  log("Censor setup complete", "info");
-                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId } });
+                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId, baseId } });
              });
         }
 

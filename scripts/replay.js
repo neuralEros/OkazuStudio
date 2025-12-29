@@ -322,11 +322,24 @@
                     // These actions trigger a bake in Live, so they must in Replay
                     this.performBakeRotation();
 
+                    // 1. Handle Censor Layer (Slot B)
                     const assetId = payload.assetId;
                     const asset = window.AssetManager.getAsset(assetId);
 
+                    // 2. Handle Base Layer (Slot A) - if provided
+                    const baseId = payload.baseId;
+                    if (baseId) {
+                        const baseAsset = window.AssetManager.getAsset(baseId);
+                        if (baseAsset) {
+                            this.state.assetIdA = baseId;
+                            this.state.imgA = cloneCanvas(baseAsset.source);
+                            this.state.sourceA = this.state.imgA;
+                            this.state.nameA = "Base Layer";
+                        }
+                    }
+
                     if (asset) {
-                        // Determine Slot
+                        // Determine Slot (Legacy fallback)
                         let slot = payload.slot || payload.targetSlot;
                         if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
 
@@ -347,12 +360,48 @@
 
                         // Side Effects
                         if (type === 'LOAD_IMAGE') {
-                             this.state.fullDims = { w: asset.width, h: asset.height };
-                             // Default Crop: Full Image Prop
-                             // If fullDims are invalid, fallback
-                             const w = asset.width || 1;
-                             const h = asset.height || 1;
-                             this.state.cropRect = { x: 0, y: 0, w: w / h, h: 1.0 };
+                             // Calculate Union Dimensions
+                             const union = getUnionDims(this.state.imgA, this.state.imgB);
+                             const newW = union.w;
+                             const newH = union.h;
+
+                             if (this.state.fullDims.w !== newW || this.state.fullDims.h !== newH) {
+                                 // Resize Mask Preserving Center
+                                 if (this.maskCanvas.width > 0 && this.maskCanvas.height > 0) {
+                                     const temp = document.createElement('canvas');
+                                     temp.width = this.maskCanvas.width;
+                                     temp.height = this.maskCanvas.height;
+                                     temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+
+                                     // Center old mask
+                                     const sY = newH / temp.height;
+                                     const sX = sY;
+                                     const projW = temp.width * sX;
+                                     const offX = (newW - projW) / 2;
+
+                                     this.maskCtx.clearRect(0, 0, newW, newH);
+                                     this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
+                                 } else {
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+                                 }
+                             }
+                             this.state.fullDims = { w: newW, h: newH };
+
+                             // Default Crop: Frame the Loaded Image (Centered in Union)
+                             const assetW = asset.width || 1;
+                             const assetH = asset.height || 1;
+                             const scale = (newH / assetH) || 1;
+                             const visW = assetW * scale;
+                             const offX = (newW - visW) / 2;
+
+                             const propX = offX / newH;
+                             const propW = visW / newH;
+
+                             this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B
@@ -383,6 +432,58 @@
                     [this.state.sourceA, this.state.sourceB] = [this.state.sourceB, this.state.sourceA];
                     [this.state.assetIdA, this.state.assetIdB] = [this.state.assetIdB, this.state.assetIdA];
                     [this.state.nameA, this.state.nameB] = [this.state.nameB, this.state.nameA];
+
+                    // Update dimensions and reset crop to ensure correct view
+                    const union = getUnionDims(this.state.imgA, this.state.imgB);
+                    if (union.w > 0) {
+                        const newW = union.w;
+                        const newH = union.h;
+
+                        // If dimensions changed, resize mask and center content to preserve paint
+                        if (newW !== this.maskCanvas.width || newH !== this.maskCanvas.height) {
+                            const temp = document.createElement('canvas');
+                            temp.width = this.maskCanvas.width;
+                            temp.height = this.maskCanvas.height;
+                            temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                            this.maskCanvas.width = newW;
+                            this.maskCanvas.height = newH;
+
+                            // Center old mask
+                            const sY = newH / temp.height;
+                            const sX = sY;
+                            const projW = temp.width * sX;
+                            const offX = (newW - projW) / 2;
+
+                            this.maskCtx.clearRect(0, 0, newW, newH);
+                            this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
+                        }
+                        this.state.fullDims = { w: newW, h: newH };
+                    }
+
+                    if (this.state.imgA) {
+                        // Frame Front Image (Centered)
+                        const h = this.state.imgA.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgA.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+                    } else if (this.state.imgB) {
+                        // Frame Back Image (Centered) if A is missing
+                        const h = this.state.imgB.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgB.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+                    }
                     break;
 
                 case 'STROKE':
@@ -532,6 +633,18 @@
     }
 
     // --- Helpers ---
+    function getUnionDims(imgA, imgB) {
+        if (!imgA && !imgB) return { w: 0, h: 0 };
+        if (!imgA) return { w: imgB.width, h: imgB.height };
+        if (!imgB) return { w: imgA.width, h: imgA.height };
+
+        const unionH = Math.max(imgA.height, imgB.height);
+        const scaleA = unionH / imgA.height;
+        const scaleB = unionH / imgB.height;
+        const unionW = Math.max(imgA.width * scaleA, imgB.width * scaleB);
+        return { w: Math.round(unionW), h: unionH };
+    }
+
     function cloneCanvas(source) {
         if (!source) return null;
         const width = source.naturalWidth || source.width;

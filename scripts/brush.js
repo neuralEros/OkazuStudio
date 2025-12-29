@@ -14,6 +14,11 @@
     }
 
     function paintStampAt(ctx, x, y, size, feather, featherMode, isErasing) {
+        // Safety guard for non-finite values to prevent canvas crashes
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(size) || !Number.isFinite(feather)) {
+            return;
+        }
+
         const radius = size / 2;
         const softness = getSoftness(size, feather, featherMode);
 

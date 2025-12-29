@@ -723,6 +723,14 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.activeStroke = null;
             render();
             // saveSnapshot('draw');
+        } else {
+             // Explicit cleanup for any lingering preview state if isDrawing was false but preview active
+             if (state.isPreviewing) {
+                  state.previewMaskCanvas = null;
+                  state.isPreviewing = false;
+                  state.useFastPreview = false;
+                  render();
+             }
         }
         if (state.isCropping && state.cropDrag) {
             state.cropDrag = null;

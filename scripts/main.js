@@ -1132,13 +1132,6 @@
                     targetCtx.drawImage(state.previewFrontLayer, 0, 0);
                 }
             }
-                // Use forceOpacity for adjustments preview (so we see true pixels)
-                // Also force opacity if only one layer is present
-                const singleLayer = !state.imgA || !state.imgB;
-                const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
-                targetCtx.globalAlpha = effectiveOpacity; 
-                targetCtx.drawImage(state.previewFrontLayer, 0, 0);
-            }
             targetCtx.restore();
         }
         

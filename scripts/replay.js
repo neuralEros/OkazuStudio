@@ -113,6 +113,16 @@
             });
         }
 
+        invalidateFutureKeyframes(currentIndex) {
+            const indices = Array.from(this.keyframes.keys());
+            indices.forEach(i => {
+                if (i > currentIndex) {
+                    this.keyframes.delete(i);
+                    // console.log(`[KeyframeManager] Invalidated future keyframe ${i}`);
+                }
+            });
+        }
+
         restoreKeyframe(snapshot) {
             if (!snapshot) return;
 
@@ -208,6 +218,10 @@
 
         // Main Entry Point for New Actions
         logAction(action) {
+            // Invalidate any keyframes ahead of the current cursor before branching
+            // The history.logAction will increment cursor, so we check cursor BEFORE log
+            this.keyframeManager.invalidateFutureKeyframes(this.history.cursor);
+
             const index = this.history.logAction(action);
 
             // Check for keyframe creation
@@ -391,17 +405,9 @@
                              }
                              this.state.fullDims = { w: newW, h: newH };
 
-                             // Default Crop: Frame the Loaded Image (Centered in Union)
-                             const assetW = asset.width || 1;
-                             const assetH = asset.height || 1;
-                             const scale = (newH / assetH) || 1;
-                             const visW = assetW * scale;
-                             const offX = (newW - visW) / 2;
-
-                             const propX = offX / newH;
-                             const propW = visW / newH;
-
-                             this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+                             // Default Crop: Full Union (to match Live behavior and avoid crop jumps on undo)
+                             // x=0, y=0, w=Aspect, h=1.0 covers the full Union canvas
+                             this.state.cropRect = { x: 0, y: 0, w: newW / newH, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B

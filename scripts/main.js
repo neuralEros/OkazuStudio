@@ -99,7 +99,8 @@
             mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
             undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
             rotateBtn: document.getElementById('rotateBtn'),
-            cropBtn: document.getElementById('cropBtn'), cursor: document.getElementById('brush-cursor'),
+            cropBtn: document.getElementById('cropBtn'), newBtn: document.getElementById('newBtn'),
+            cursor: document.getElementById('brush-cursor'),
             resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
             resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
@@ -134,16 +135,15 @@
             });
         }
 
-        function showModal(message, choices, cancellable = true) {
+        function showModal(title, message, choices, cancellable = true) {
             return new Promise((resolve) => {
                 const overlay = document.getElementById('modal-overlay');
+                const titleEl = document.getElementById('modal-title');
+                const closeBtn = document.getElementById('modal-close');
                 const msg = document.getElementById('modal-message');
                 const choiceContainer = document.getElementById('modal-choices');
-                const cancelContainer = document.querySelector('#modal-box > .border-t');
 
-                // Hide legacy separate cancel container if it exists
-                if (cancelContainer) cancelContainer.style.display = 'none';
-
+                titleEl.textContent = title || "Confirm";
                 msg.textContent = message;
                 choiceContainer.innerHTML = '';
 
@@ -165,20 +165,12 @@
                 // Helper for button creation
                 const createBtn = (text, onClick, isCancel = false) => {
                     const btn = document.createElement('button');
-                    // "accent color... one dialog-spanning column... same width... smaller corner rounding"
-                    // Using accent-action class which provides bg-accent-dark, border-accent, white text
-                    // Adding w-full, py-2 (less padding), rounded-sm (smaller rounding)
-                    // If Cancel, maybe less emphasis? The user said "they should be the accent color, as well", implying uniformity.
-                    // But usually Cancel is distinct. I will make Cancel same shape/size but maybe outlined or slightly different shade
-                    // to avoid dangerous confusion, OR follow strictly "they should be the accent color".
-                    // Let's use accent-action for choices, and a similar but distinct style for Cancel to be safe,
-                    // OR if interpreted literally: "The cancel button and option buttons... should be the accent color".
-                    // I'll make them all accent-action but maybe Cancel is outlined.
-
                     if (isCancel) {
-                         btn.className = "w-full py-2.5 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
+                         // Fallback for cancel style if used in future
+                         btn.className = "w-full py-1 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-base font-bold shadow-sm";
                     } else {
-                         btn.className = "w-full py-2.5 px-4 bg-accent border-accent hover:brightness-110 hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
+                         // Using accent-action style (Export button style) with text-base
+                         btn.className = "w-full py-1 px-4 accent-action rounded-sm transition-all text-base font-bold shadow-sm";
                     }
 
                     btn.textContent = text;
@@ -194,9 +186,14 @@
                 });
 
                 if (cancellable) {
-                    // "Cancel button and option buttons should all be in one dialog-spanning column"
-                    // Appending to same container
-                    choiceContainer.appendChild(createBtn("Cancel", () => resolve(null), true));
+                    closeBtn.style.display = '';
+                    closeBtn.onclick = () => {
+                        cleanup();
+                        resolve(null);
+                    };
+                } else {
+                    closeBtn.style.display = 'none';
+                    closeBtn.onclick = null;
                 }
             });
         }
@@ -619,6 +616,7 @@
                  // If Both Occupied -> Ask User
                  if (state.imgA && state.imgB) {
                      const choice = await showModal(
+                         "Slot Conflict",
                          "Both slots are already occupied. Where would you like to load the image?",
                          [
                              { label: "Load to Front", value: 'A' },
@@ -981,6 +979,7 @@
             
             els.cropBtn.addEventListener('click', toggleCropMode);
             els.rotateBtn.addEventListener('click', rotateView);
+            els.newBtn.addEventListener('click', resetWorkspace);
 
             els.toggleMaskBtn.addEventListener('click', () => {
                 state.maskVisible = !state.maskVisible;
@@ -2105,6 +2104,77 @@
                 log("Save failed");
                 Logger.error("Export Failed", e);
             }
+        }
+
+        async function resetWorkspace() {
+            const confirm = await showModal("New Edit", "This will clear your canvas and edits. Are you sure?", [
+                { label: "Start New Edit", value: true }
+            ], true);
+
+            if (!confirm) return;
+
+            log("Resetting workspace...", "info");
+
+            // 1. Clear Images & Cache
+            state.imgA = null; state.sourceA = null; state.workingA = null; state.previewWorkingA = null;
+            state.imgB = null; state.sourceB = null; state.workingB = null; state.previewWorkingB = null;
+            state.assetIdA = null; state.assetIdB = null;
+            state.nameA = ""; state.nameB = "";
+            state.isAFront = true;
+            state.opacity = 0.8;
+            els.opacitySlider.value = 80;
+            els.opacityVal.textContent = "80%";
+
+            // 2. Clear History
+            state.history = [];
+            state.historyIndex = -1;
+            if (replayEngine && replayEngine.clear) replayEngine.clear();
+            // Also need to clear global ActionHistory
+            if (window.ActionHistory) {
+                window.ActionHistory.actions = [];
+                window.ActionHistory.cursor = -1;
+            }
+
+            // 3. Reset Adjustments
+            resetAllAdjustments();
+
+            // 4. Reset Modes & Tools
+            setMode('erase');
+            setFeatherMode(false);
+
+            // 5. Exit Crop
+            if (state.isCropping) {
+                state.isCropping = false;
+                state.cropRect = null;
+                state.cropRectSnapshot = null;
+                state.cropDrag = null;
+                els.cropBtn.classList.remove('active', 'text-yellow-400');
+                els.viewport.classList.remove('cropping');
+            }
+            state.cropRect = null;
+            state.fullDims = { w: 0, h: 0 }; // Reset dims too
+
+            // 6. Reset Toggles
+            state.maskVisible = true;
+            state.backVisible = true;
+            state.adjustmentsVisible = true;
+
+            // 7. Reset Mask
+            maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+            // 8. Reset View
+            resetView();
+            state.rotation = 0;
+
+            // 9. Update UI
+            updateVisibilityToggles();
+            updateUI();
+            els.mainCanvas.classList.add('hidden');
+            els.emptyState.style.display = '';
+            els.viewport.classList.add('disabled');
+            updateWorkspaceLabel();
+
+            log("Workspace cleared.", "info");
         }
 
         init();

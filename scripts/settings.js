@@ -150,9 +150,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[500px] max-w-[90vw] rounded-lg shadow-2xl p-6 transition-all duration-300 ease-in-out">
-                    <h2 class="text-xl font-bold text-gray-200 mb-6 border-b border-panel-divider pb-2">Settings</h2>
+                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[500px] max-w-[90vw] rounded-lg shadow-2xl p-0 overflow-hidden transition-all duration-300 ease-in-out">
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header">
+                        <h3 class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
+                        <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
 
+                    <div class="p-4">
                     <!-- UI Hue -->
                     <div class="mb-6">
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue/Saturation</label>
@@ -211,6 +217,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                             Copy Session Logs
                         </button>
                     </div>
+                    </div> <!-- End Body -->
 
                 </div>
             </div>
@@ -224,6 +231,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         // Wiring
         btn.addEventListener('click', openSettings);
+        document.getElementById('settings-close').addEventListener('click', closeSettings);
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) closeSettings();
         });

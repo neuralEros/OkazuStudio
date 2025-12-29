@@ -52,6 +52,7 @@
         .accent-action:hover {
             background-color: var(--accent-strong);
             border-color: var(--accent-strong);
+            color: var(--accent-ink);
         }
 
         /* Panels */
@@ -565,7 +566,7 @@
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     background-color: var(--panel-strong);
     border: 1px solid var(--panel-border);
-    padding: 16px; /* Tighter padding */
+    /* Padding removed here to allow full-width header; handled by inner containers */
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
 }
 #modal-overlay.visible #modal-box {
@@ -573,10 +574,22 @@
 }
 #modal-message {
     color: #e5e5e5;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     line-height: 1.5;
     margin-bottom: 20px;
     /* Use system font stack but optimized */
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Modal Header */
+.bg-panel-header {
+    background-color: #252525; /* Distinct dark gray header */
+    border-bottom: 1px solid var(--panel-border);
+}
+
+/* Modal Close Button */
+#modal-close {
+    width: 24px;
+    height: 24px;
 }

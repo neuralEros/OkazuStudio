@@ -322,11 +322,24 @@
                     // These actions trigger a bake in Live, so they must in Replay
                     this.performBakeRotation();
 
+                    // 1. Handle Censor Layer (Slot B)
                     const assetId = payload.assetId;
                     const asset = window.AssetManager.getAsset(assetId);
 
+                    // 2. Handle Base Layer (Slot A) - if provided
+                    const baseId = payload.baseId;
+                    if (baseId) {
+                        const baseAsset = window.AssetManager.getAsset(baseId);
+                        if (baseAsset) {
+                            this.state.assetIdA = baseId;
+                            this.state.imgA = cloneCanvas(baseAsset.source);
+                            this.state.sourceA = this.state.imgA;
+                            this.state.nameA = "Base Layer";
+                        }
+                    }
+
                     if (asset) {
-                        // Determine Slot
+                        // Determine Slot (Legacy fallback)
                         let slot = payload.slot || payload.targetSlot;
                         if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
 

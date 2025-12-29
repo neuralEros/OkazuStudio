@@ -23,7 +23,7 @@
 
         const DEFAULT_BRUSH_SIZE = 0.1;
         const DEFAULT_FEATHER = 1;
-        const DEFAULT_FEATHER_SIZE = 0.015;
+        const DEFAULT_FEATHER_SIZE = 0.15; // 15%
         const DEFAULT_REPAIR_BRUSH_SIZE = DEFAULT_BRUSH_SIZE / 2;
         const DEFAULT_PATCH_FEATHER = 10; // For Hardness mode
         const HARDNESS_MAX = 20;
@@ -2176,6 +2176,13 @@
 
                  const imgBase = await loadImageSource(baseData);
 
+                 // Register Base Image
+                 let baseId = null;
+                 if (window.AssetManager) {
+                     baseId = window.AssetManager.addAsset(imgBase, "Base Layer");
+                 }
+                 state.assetIdA = baseId;
+
                  setLayerSource('A', imgBase); state.nameA = "Base Layer";
                  const w = imgBase.width; const h = imgBase.height;
                  const blurRadius = Math.max(1, h * 0.01);
@@ -2263,7 +2270,7 @@
 
                  render(); updateUI();
                  log("Censor setup complete", "info");
-                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId } });
+                 if (window.dispatchAction) dispatchAction({ type: 'APPLY_CENSOR', payload: { assetId, baseId } });
              });
         }
 

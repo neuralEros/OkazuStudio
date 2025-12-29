@@ -5,9 +5,9 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     const BRUSH_SLIDER_STEPS = 1000;
 
     // Feather Size as Proportion of Height (Fixed Mode)
-    // Range: 0.05% to 5.0%
-    const FEATHER_SIZE_MIN = 0.0005;
-    const FEATHER_SIZE_MAX = 0.05;
+    // Range: 5% to 50% (0.05h to 0.50h) as requested
+    const FEATHER_SIZE_MIN = 0.05;
+    const FEATHER_SIZE_MAX = 0.50;
 
     // Hardness (Legacy Abstract Units 0-20)
     const HARDNESS_MIN = 0;
@@ -333,7 +333,12 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         // Feather Mode:
         // if featherMode is true, featherSize is proportion. Need pixels.
         // if featherMode is false, feather is hardness (0-20). Keep as is.
-        const featherVal = state.featherMode ? (state.featherSize * fullH) : state.feather;
+        let featherVal = state.featherMode ? (state.featherSize * fullH) : state.feather;
+
+        // Ensure at least 1px feather in fixed mode
+        if (state.featherMode) {
+            featherVal = Math.max(1.0, featherVal);
+        }
 
         BrushKernel.paintStampAt(
             context,
@@ -490,6 +495,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (stroke.featherMode) {
              // Prop * FullH * Scale
              effectiveFeather = stroke.feather * fullH * state.fastMaskScale;
+             // Ensure at least 1px (scaled)
+             effectiveFeather = Math.max(1.0, effectiveFeather);
         }
 
         const newStamp = BrushKernel.paintStrokeSegment(state.fastMaskCtx, state.fastPreviewLastStamp, scaledPoint, brushPxScaled, effectiveFeather, stroke.featherMode, stroke.isErasing);

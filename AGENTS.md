@@ -20,6 +20,12 @@
 - **Rendering pipeline**: image load updates canvas dimensions, the render routine composites the front/back images through the mask with optional opacity, applies LUT-driven adjustments and color operations, and refreshes previews during slider drags. Snapshot history enables undo/redo of mask and adjustment changes.
 - **Exports & utilities**: export saves the adjusted composition as PNG; merge moves the visible composite into slot A; censor creates blurred/mosaicked background mask; clear/reset helpers wipe mask and adjustments.
 
+## Universal Coordinate System
+- **Height-Based Proportions**: All stored spatial data—including crop rectangles, brush strokes, polyline points, brush sizes, and feather radii—are normalized as **proportions of the uncropped image height** (0.0 to 1.0+). This ensures resolution independence, allowing mask history to be deterministically replayed even if the underlying image is swapped for a higher/lower resolution version or a different asset.
+- **Truth Space**: The coordinate system operates in "Truth Space", which corresponds to the pixel grid of the **unrotated, uncropped source image**.
+- **Rotation Handling**: The application supports non-destructive 90/180/270-degree rotations. Input handlers (`scripts/input.js`) transform visual screen coordinates (which may be rotated and cropped) back into Truth Space before normalizing them to proportions. The renderer (`scripts/main.js`) performs the inverse transformation to display the content correctly.
+- **Crop Logic**: The crop rectangle is stored as `{ x, y, w, h }` proportions in Truth Space. When rendering, these proportions are converted to pixels relative to the current source image height.
+
 ## Contribution expectations
 - Keep this file up to date as you modify architecture, state shape, rendering flow, or major features—future agents rely on it as the shared scratch-pad.
 - Prefer adding brief notes about new canvases, modules, or workflows when you touch them.

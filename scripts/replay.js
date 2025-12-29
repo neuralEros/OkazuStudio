@@ -75,9 +75,9 @@
                 adjustmentsVisible: this.state.adjustmentsVisible,
                 brushMode: this.state.brushMode,
                 feather: this.state.feather,
-                featherPx: this.state.featherPx,
+                featherSize: this.state.featherSize, // Prop
                 featherMode: this.state.featherMode,
-                brushPercent: this.state.brushPercent
+                brushSize: this.state.brushSize // Prop
             };
         }
 
@@ -131,9 +131,9 @@
             this.state.nameB = snapshot.nameB;
             this.state.brushMode = snapshot.brushMode;
             this.state.feather = snapshot.feather;
-            this.state.featherPx = snapshot.featherPx;
+            this.state.featherSize = snapshot.featherSize;
             this.state.featherMode = snapshot.featherMode;
-            this.state.brushPercent = snapshot.brushPercent;
+            this.state.brushSize = snapshot.brushSize;
 
             this.state.assetIdA = snapshot.assetIdA;
             this.state.assetIdB = snapshot.assetIdB;
@@ -322,11 +322,24 @@
                     // These actions trigger a bake in Live, so they must in Replay
                     this.performBakeRotation();
 
+                    // 1. Handle Censor Layer (Slot B)
                     const assetId = payload.assetId;
                     const asset = window.AssetManager.getAsset(assetId);
 
+                    // 2. Handle Base Layer (Slot A) - if provided
+                    const baseId = payload.baseId;
+                    if (baseId) {
+                        const baseAsset = window.AssetManager.getAsset(baseId);
+                        if (baseAsset) {
+                            this.state.assetIdA = baseId;
+                            this.state.imgA = cloneCanvas(baseAsset.source);
+                            this.state.sourceA = this.state.imgA;
+                            this.state.nameA = "Base Layer";
+                        }
+                    }
+
                     if (asset) {
-                        // Determine Slot
+                        // Determine Slot (Legacy fallback)
                         let slot = payload.slot || payload.targetSlot;
                         if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
 
@@ -347,8 +360,48 @@
 
                         // Side Effects
                         if (type === 'LOAD_IMAGE') {
-                             this.state.fullDims = { w: asset.width, h: asset.height };
-                             this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             // Calculate Union Dimensions
+                             const union = getUnionDims(this.state.imgA, this.state.imgB);
+                             const newW = union.w;
+                             const newH = union.h;
+
+                             if (this.state.fullDims.w !== newW || this.state.fullDims.h !== newH) {
+                                 // Resize Mask Preserving Center
+                                 if (this.maskCanvas.width > 0 && this.maskCanvas.height > 0) {
+                                     const temp = document.createElement('canvas');
+                                     temp.width = this.maskCanvas.width;
+                                     temp.height = this.maskCanvas.height;
+                                     temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+
+                                     // Center old mask
+                                     const sY = newH / temp.height;
+                                     const sX = sY;
+                                     const projW = temp.width * sX;
+                                     const offX = (newW - projW) / 2;
+
+                                     this.maskCtx.clearRect(0, 0, newW, newH);
+                                     this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
+                                 } else {
+                                     this.maskCanvas.width = newW;
+                                     this.maskCanvas.height = newH;
+                                 }
+                             }
+                             this.state.fullDims = { w: newW, h: newH };
+
+                             // Default Crop: Frame the Loaded Image (Centered in Union)
+                             const assetW = asset.width || 1;
+                             const assetH = asset.height || 1;
+                             const scale = (newH / assetH) || 1;
+                             const visW = assetW * scale;
+                             const offX = (newW - visW) / 2;
+
+                             const propX = offX / newH;
+                             const propW = visW / newH;
+
+                             this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B
@@ -358,14 +411,14 @@
                              this.state.nameB = "";
 
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             // Preserve Crop Logic roughly
-                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             // Preserve Crop if valid prop, else default
+                             if (!this.state.cropRect) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
                              }
                         } else if (type === 'APPLY_CENSOR') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             if (!this.state.cropRect || this.state.cropRect.w > asset.width || this.state.cropRect.h > asset.height) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width, h: asset.height };
+                             if (!this.state.cropRect) {
+                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
                              }
                              // Censor resets UI state usually
                              this.state.opacity = 1.0;
@@ -379,13 +432,72 @@
                     [this.state.sourceA, this.state.sourceB] = [this.state.sourceB, this.state.sourceA];
                     [this.state.assetIdA, this.state.assetIdB] = [this.state.assetIdB, this.state.assetIdA];
                     [this.state.nameA, this.state.nameB] = [this.state.nameB, this.state.nameA];
+
+                    // Update dimensions and reset crop to ensure correct view
+                    const union = getUnionDims(this.state.imgA, this.state.imgB);
+                    if (union.w > 0) {
+                        const newW = union.w;
+                        const newH = union.h;
+
+                        // If dimensions changed, resize mask and center content to preserve paint
+                        if (newW !== this.maskCanvas.width || newH !== this.maskCanvas.height) {
+                            const temp = document.createElement('canvas');
+                            temp.width = this.maskCanvas.width;
+                            temp.height = this.maskCanvas.height;
+                            temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                            this.maskCanvas.width = newW;
+                            this.maskCanvas.height = newH;
+
+                            // Center old mask
+                            const sY = newH / temp.height;
+                            const sX = sY;
+                            const projW = temp.width * sX;
+                            const offX = (newW - projW) / 2;
+
+                            this.maskCtx.clearRect(0, 0, newW, newH);
+                            this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, offX, 0, projW, newH);
+                        }
+                        this.state.fullDims = { w: newW, h: newH };
+                    }
+
+                    if (this.state.imgA) {
+                        // Frame Front Image (Centered)
+                        const h = this.state.imgA.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgA.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+                    } else if (this.state.imgB) {
+                        // Frame Back Image (Centered) if A is missing
+                        const h = this.state.imgB.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgB.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+                    }
                     break;
 
                 case 'STROKE':
                     if (window.BrushKernel) {
-                        window.BrushKernel.drawStroke(this.maskCtx, payload.points, {
-                            size: payload.brushSize || payload.size,
-                            feather: payload.feather,
+                        const fullH = this.state.fullDims.h || 1;
+                        const brushPx = (payload.brushSize || payload.size) * fullH;
+                        const featherVal = payload.featherMode ? (payload.feather * fullH) : payload.feather;
+
+                        // Convert payload points (props) to pixels
+                        const pointsPx = payload.points.map(p => ({ x: p.x * fullH, y: p.y * fullH }));
+
+                        window.BrushKernel.drawStroke(this.maskCtx, pointsPx, {
+                            size: brushPx,
+                            feather: featherVal,
                             featherMode: payload.featherMode,
                             isErasing: payload.isErasing
                         });
@@ -396,12 +508,16 @@
                     if (window.BrushKernel && payload.points) {
                         const { points, brushSize, feather, featherMode, mode, shouldFill } = payload;
                         const isErasing = mode === 'erase';
+                        const fullH = this.state.fullDims.h || 1;
+
+                        const brushPx = brushSize * fullH;
+                        const featherVal = featherMode ? (feather * fullH) : feather;
 
                         if (shouldFill) {
                              this.maskCtx.save();
                              this.maskCtx.beginPath();
-                             this.maskCtx.moveTo(points[0].x, points[0].y);
-                             for (let i = 1; i < points.length; i++) this.maskCtx.lineTo(points[i].x, points[i].y);
+                             this.maskCtx.moveTo(points[0].x * fullH, points[0].y * fullH);
+                             for (let i = 1; i < points.length; i++) this.maskCtx.lineTo(points[i].x * fullH, points[i].y * fullH);
                              this.maskCtx.closePath();
                              this.maskCtx.globalCompositeOperation = isErasing ? 'source-over' : 'destination-out';
                              this.maskCtx.fillStyle = isErasing ? 'white' : 'black';
@@ -410,10 +526,13 @@
                         }
 
                         if (points.length > 0) {
-                             window.BrushKernel.paintStampAt(this.maskCtx, points[0].x, points[0].y, brushSize, feather, featherMode, isErasing);
+                             // Note: Paint functions take pixels
+                             window.BrushKernel.paintStampAt(this.maskCtx, points[0].x * fullH, points[0].y * fullH, brushPx, featherVal, featherMode, isErasing);
                              for (let i = 0; i < points.length - 1; i++) {
-                                 window.BrushKernel.paintStrokeSegment(this.maskCtx, points[i], points[i+1], brushSize, feather, featherMode, isErasing);
-                                 window.BrushKernel.paintStampAt(this.maskCtx, points[i+1].x, points[i+1].y, brushSize, feather, featherMode, isErasing);
+                                 const p1 = { x: points[i].x * fullH, y: points[i].y * fullH };
+                                 const p2 = { x: points[i+1].x * fullH, y: points[i+1].y * fullH };
+                                 window.BrushKernel.paintStrokeSegment(this.maskCtx, p1, p2, brushPx, featherVal, featherMode, isErasing);
+                                 window.BrushKernel.paintStampAt(this.maskCtx, p2.x, p2.y, brushPx, featherVal, featherMode, isErasing);
                              }
                         }
                     }
@@ -452,7 +571,8 @@
                     this.state.maskVisible = true;
                     this.state.backVisible = true;
                     this.state.adjustmentsVisible = true;
-                    this.state.cropRect = { x:0, y:0, w:this.state.fullDims.w, h:this.state.fullDims.h };
+                    const aspect = (this.state.fullDims.w || 1) / (this.state.fullDims.h || 1);
+                    this.state.cropRect = { x:0, y:0, w:aspect, h:1.0 };
                     break;
 
                 case 'RESET_ADJUSTMENTS':
@@ -513,6 +633,18 @@
     }
 
     // --- Helpers ---
+    function getUnionDims(imgA, imgB) {
+        if (!imgA && !imgB) return { w: 0, h: 0 };
+        if (!imgA) return { w: imgB.width, h: imgB.height };
+        if (!imgB) return { w: imgA.width, h: imgA.height };
+
+        const unionH = Math.max(imgA.height, imgB.height);
+        const scaleA = unionH / imgA.height;
+        const scaleB = unionH / imgB.height;
+        const unionW = Math.max(imgA.width * scaleA, imgB.width * scaleB);
+        return { w: Math.round(unionW), h: unionH };
+    }
+
     function cloneCanvas(source) {
         if (!source) return null;
         const width = source.naturalWidth || source.width;

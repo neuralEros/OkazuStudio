@@ -378,11 +378,17 @@
                              }
                              this.state.fullDims = { w: newW, h: newH };
 
-                             // Default Crop: Full Image Prop
-                             // If fullDims are invalid, fallback
-                             const w = asset.width || 1;
-                             const h = asset.height || 1;
-                             this.state.cropRect = { x: 0, y: 0, w: w / h, h: 1.0 };
+                             // Default Crop: Frame the Loaded Image (Centered in Union)
+                             const assetW = asset.width || 1;
+                             const assetH = asset.height || 1;
+                             const scale = (newH / assetH) || 1;
+                             const visW = assetW * scale;
+                             const offX = (newW - visW) / 2;
+
+                             const propX = offX / newH;
+                             const propW = visW / newH;
+
+                             this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                              this.state.rotation = 0;
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B
@@ -443,11 +449,27 @@
                     }
 
                     if (this.state.imgA) {
-                        const aspect = this.state.imgA.width / this.state.imgA.height;
-                        this.state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                        // Frame Front Image (Centered)
+                        const h = this.state.imgA.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgA.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                     } else if (this.state.imgB) {
-                        const aspect = this.state.imgB.width / this.state.imgB.height;
-                        this.state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                        // Frame Back Image (Centered) if A is missing
+                        const h = this.state.imgB.height || 1;
+                        const scale = (this.state.fullDims.h / h) || 1;
+                        const visW = this.state.imgB.width * scale;
+                        const offX = (this.state.fullDims.w - visW) / 2;
+
+                        const propX = offX / this.state.fullDims.h;
+                        const propW = visW / this.state.fullDims.h;
+
+                        this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                     }
                     break;
 

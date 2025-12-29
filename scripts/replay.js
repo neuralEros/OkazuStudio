@@ -383,6 +383,20 @@
                     [this.state.sourceA, this.state.sourceB] = [this.state.sourceB, this.state.sourceA];
                     [this.state.assetIdA, this.state.assetIdB] = [this.state.assetIdB, this.state.assetIdA];
                     [this.state.nameA, this.state.nameB] = [this.state.nameB, this.state.nameA];
+
+                    // Update dimensions and reset crop to ensure correct view
+                    const active = this.state.imgA || this.state.imgB;
+                    if (active) {
+                        this.state.fullDims = { w: active.width, h: active.height };
+                    }
+
+                    if (this.state.imgA) {
+                        const aspect = this.state.imgA.width / this.state.imgA.height;
+                        this.state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                    } else if (this.state.imgB) {
+                        const aspect = this.state.imgB.width / this.state.imgB.height;
+                        this.state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                    }
                     break;
 
                 case 'STROKE':

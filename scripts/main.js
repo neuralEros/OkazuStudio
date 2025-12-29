@@ -656,6 +656,9 @@
                      updateLoadButton(els.btnA, "Load", "front"); // Temp clear visual
                      els.btnA.classList.remove('border-accent-strong', 'text-accent');
 
+                     // Record the implicit swap in history so replay works correctly
+                     if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
+
                      // Now Load New into A
                      assignLayer(img, 'A', name);
                  } else {
@@ -867,41 +870,45 @@
                 const preBack = state.isAFront ? state.imgB : state.imgA;
                 Logger.info(`[Swap] Pre-Swap Resolution - Front: ${preFront ? preFront.width + 'x' + preFront.height : 'None'}, Back: ${preBack ? preBack.width + 'x' + preBack.height : 'None'}`);
 
-                [state.imgA, state.imgB] = [state.imgB, state.imgA];
-                [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
-                [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
-                [state.workingA, state.workingB] = [state.workingB, state.workingA];
-                [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
-                [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
-                [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
-                [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
-                [state.nameA, state.nameB] = [state.nameB, state.nameA];
-                updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "front");
-                updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "back");
-                if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
-                else els.btnA.classList.remove('border-accent-strong', 'text-accent');
-                if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
-                else els.btnB.classList.remove('border-accent-strong', 'text-accent');
-                markAdjustmentsDirty();
-                rebuildWorkingCopies();
-
-                // Recalculate crop for new front image
-                if (state.imgA) {
-                    const aspect = state.imgA.width / state.imgA.height;
-                    state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
-                }
-
-                // Update dimensions but PRESERVE history so we can replay the mask strokes
-                updateCanvasDimensions(false, true);
-
-                // Replay history to redraw mask at new scale
                 if (replayEngine) {
+                    // Phase 6: Delegate Swap to ReplayEngine to ensure consistency
+                    // Dispatch first to log and increment cursor
+                    dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
+
+                    // Then replay to apply the action (and any previous state including crop reset)
                     await replayEngine.replayTo(window.ActionHistory.cursor);
+                } else {
+                    // Legacy manual swap logic
+                    [state.imgA, state.imgB] = [state.imgB, state.imgA];
+                    [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
+                    [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
+                    [state.workingA, state.workingB] = [state.workingB, state.workingA];
+                    [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
+                    [state.previewWorkingA, state.previewWorkingB] = [state.previewWorkingB, state.previewWorkingA];
+                    [state.previewWorkingVersionA, state.previewWorkingVersionB] = [state.previewWorkingVersionB, state.previewWorkingVersionA];
+                    [state.previewScaleA, state.previewScaleB] = [state.previewScaleB, state.previewScaleA];
+                    [state.nameA, state.nameB] = [state.nameB, state.nameA];
+                    updateLoadButton(els.btnA, truncate(state.nameA || "Load"), "front");
+                    updateLoadButton(els.btnB, truncate(state.nameB || "Load"), "back");
+                    if(state.imgA) els.btnA.classList.add('border-accent-strong', 'text-accent');
+                    else els.btnA.classList.remove('border-accent-strong', 'text-accent');
+                    if(state.imgB) els.btnB.classList.add('border-accent-strong', 'text-accent');
+                    else els.btnB.classList.remove('border-accent-strong', 'text-accent');
+                    markAdjustmentsDirty();
+                    rebuildWorkingCopies();
+
+                    // Recalculate crop for new front image
+                    if (state.imgA) {
+                        const aspect = state.imgA.width / state.imgA.height;
+                        state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
+                    }
+
+                    // Update dimensions but PRESERVE history so we can replay the mask strokes
+                    updateCanvasDimensions(false, true);
                 }
 
                 updateUI();
                 render();
-                if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
 
                 const postFront = state.isAFront ? state.imgA : state.imgB;
                 const postBack = state.isAFront ? state.imgB : state.imgA;
@@ -1414,6 +1421,40 @@
 
         function toggleCropMode() {
             if (!canDraw()) return;
+
+            // Clamp cropRect to valid bounds before entering crop mode
+            if (!state.isCropping && state.cropRect) {
+                const aspect = (state.fullDims.w || 1) / (state.fullDims.h || 1);
+
+                // 1. Clamp X, Y to be non-negative
+                if (state.cropRect.x < 0) state.cropRect.x = 0;
+                if (state.cropRect.y < 0) state.cropRect.y = 0;
+
+                // 2. Ensure Width fits within Aspect
+                if (state.cropRect.x + state.cropRect.w > aspect) {
+                    // Try to shrink width first
+                    state.cropRect.w = aspect - state.cropRect.x;
+                    // If width became too small, maybe X was too far right?
+                    if (state.cropRect.w < 0.01) {
+                         state.cropRect.x = Math.max(0, aspect - 0.1); // Shift X back
+                         state.cropRect.w = aspect - state.cropRect.x;
+                    }
+                }
+
+                // 3. Ensure Height fits within 1.0
+                if (state.cropRect.y + state.cropRect.h > 1.0) {
+                    state.cropRect.h = 1.0 - state.cropRect.y;
+                    if (state.cropRect.h < 0.01) {
+                         state.cropRect.y = Math.max(0, 1.0 - 0.1);
+                         state.cropRect.h = 1.0 - state.cropRect.y;
+                    }
+                }
+
+                // 4. Sanity check zero dimensions
+                state.cropRect.w = Math.max(0.001, state.cropRect.w);
+                state.cropRect.h = Math.max(0.001, state.cropRect.h);
+            }
+
             state.isCropping = !state.isCropping;
             
             if (state.isCropping) {

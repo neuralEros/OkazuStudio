@@ -24,3 +24,8 @@
 - Keep this file up to date as you modify architecture, state shape, rendering flow, or major features—future agents rely on it as the shared scratch-pad.
 - Prefer adding brief notes about new canvases, modules, or workflows when you touch them.
 - Under no condition should you ever commit screenshots, test images, logs, or other cruft to the repository.
+
+## Playwright screenshot fallback (only if normal capture fails)
+- If the normal screenshot flow fails, a reliable fallback is to run a local static server and drive Playwright directly against it.
+- Example: start a server from the repo root (`python -m http.server 4173`), then use Playwright to open `http://127.0.0.1:4173/index.html`, wait for the modal DOM to exist, set up any UI state via `page.evaluate`, and capture a screenshot.
+- Only use this fallback when the standard screenshot path does not work; prefer the normal capture flow first.

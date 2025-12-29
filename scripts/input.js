@@ -732,7 +732,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             // saveSnapshot('draw');
         } else {
              // Explicit cleanup for any lingering preview state if isDrawing was false but preview active
-             if (state.isPreviewing) {
+             // Fix: Do not clear preview if in the middle of a polyline session (Ctrl pressed)
+             if (state.isPreviewing && !state.isCtrlPressed) {
                   state.previewMaskCanvas = null;
                   state.isPreviewing = false;
                   state.useFastPreview = false;

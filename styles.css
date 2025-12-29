@@ -592,14 +592,4 @@
 #modal-close {
     width: 24px;
     height: 24px;
-    border-radius: 4px;
-    background-color: #333;
-    border: 1px solid #444;
-    color: #bbb;
-    transition: all 0.1s;
-}
-#modal-close:hover {
-    background-color: #dd2222; /* Red danger hover for close */
-    border-color: #ff4444;
-    color: white;
 }

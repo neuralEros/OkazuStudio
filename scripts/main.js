@@ -860,29 +860,12 @@
 
             setupDragAndDrop();
 
-            els.swapBtn.addEventListener('click', () => {
+            els.swapBtn.addEventListener('click', async () => {
                 Logger.interaction("Swap Button", "clicked");
 
                 const preFront = state.isAFront ? state.imgA : state.imgB;
                 const preBack = state.isAFront ? state.imgB : state.imgA;
                 Logger.info(`[Swap] Pre-Swap Resolution - Front: ${preFront ? preFront.width + 'x' + preFront.height : 'None'}, Back: ${preBack ? preBack.width + 'x' + preBack.height : 'None'}`);
-
-                // Determine Auto-Zoom Condition
-                let shouldAutoZoom = false;
-                if (preFront && preBack) {
-                    const vpW = els.viewport.clientWidth;
-                    const vpH = els.viewport.clientHeight;
-                    const cW = els.mainCanvas.width;
-                    const cH = els.mainCanvas.height;
-                    const fitScale = Math.min((vpW - 40) / cW, (vpH - 40) / cH);
-
-                    const isZoomedOut = state.view.scale <= (fitScale + 0.001);
-                    const dimsChanged = (preFront.width !== preBack.width) || (preFront.height !== preBack.height);
-
-                    if (isZoomedOut && dimsChanged) {
-                        shouldAutoZoom = true;
-                    }
-                }
 
                 [state.imgA, state.imgB] = [state.imgB, state.imgA];
                 [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
@@ -913,7 +896,7 @@
 
                 // Replay history to redraw mask at new scale
                 if (replayEngine) {
-                    replayEngine.replayTo(window.ActionHistory.cursor);
+                    await replayEngine.replayTo(window.ActionHistory.cursor);
                 }
 
                 updateUI();
@@ -924,9 +907,7 @@
                 const postBack = state.isAFront ? state.imgB : state.imgA;
                 Logger.info(`[Swap] Post-Swap Resolution - Front: ${postFront ? postFront.width + 'x' + postFront.height : 'None'}, Back: ${postBack ? postBack.width + 'x' + postBack.height : 'None'}`);
 
-                if (shouldAutoZoom) {
-                    resetView();
-                }
+                resetView();
             });
 
             let opacityRenderTimer = null;

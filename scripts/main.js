@@ -881,7 +881,14 @@
                     state.cropRect = { x: 0, y: 0, w: aspect, h: 1.0 };
                 }
 
-                updateCanvasDimensions(false); // Reset view
+                // Update dimensions but PRESERVE history so we can replay the mask strokes
+                updateCanvasDimensions(false, true);
+
+                // Replay history to redraw mask at new scale
+                if (replayEngine) {
+                    replayEngine.replayTo(window.ActionHistory.cursor);
+                }
+
                 updateUI();
                 render();
                 if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
@@ -1091,25 +1098,40 @@
             // Draw Front
             if (frontImg) {
                 const fCtx = state.previewFrontLayer.getContext('2d');
-                if (state.previewFrontLayer.width !== drawW || state.previewFrontLayer.height !== drawH) {
-                    state.previewFrontLayer.width = drawW;
-                    state.previewFrontLayer.height = drawH;
+
+                // Safety check for invalid dimensions before resize/draw
+                if (drawW > 0 && drawH > 0) {
+                    if (state.previewFrontLayer.width !== drawW || state.previewFrontLayer.height !== drawH) {
+                        state.previewFrontLayer.width = drawW;
+                        state.previewFrontLayer.height = drawH;
+                    }
+
+                    fCtx.clearRect(0, 0, drawW, drawH);
+
+                    fCtx.globalCompositeOperation = 'source-over';
+                    const frontScale = frontLayer.scale || 1;
+                    fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
+
+                    if (state.maskVisible) {
+                        fCtx.globalCompositeOperation = 'destination-out';
+                        const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
+                        const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
+
+                        // Guard against drawing 0-size mask source
+                        if (maskSource.width > 0 && maskSource.height > 0) {
+                            fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        }
+                    }
+
+                    targetCtx.globalCompositeOperation = 'source-over';
+                    // Use forceOpacity for adjustments preview (so we see true pixels)
+                    // Also force opacity if only one layer is present
+                    const singleLayer = !state.imgA || !state.imgB;
+                    const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
+                    targetCtx.globalAlpha = effectiveOpacity;
+                    targetCtx.drawImage(state.previewFrontLayer, 0, 0);
                 }
-
-                fCtx.clearRect(0, 0, drawW, drawH);
-
-                fCtx.globalCompositeOperation = 'source-over';
-                const frontScale = frontLayer.scale || 1;
-                fCtx.drawImage(frontImg, sX * frontScale, sY * frontScale, sW * frontScale, sH * frontScale, 0, 0, drawW, drawH);
-
-                if (state.maskVisible) {
-                    fCtx.globalCompositeOperation = 'destination-out';
-                    const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
-                    const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
-                    fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
-                }
-                
-                targetCtx.globalCompositeOperation = 'source-over';
+            }
                 // Use forceOpacity for adjustments preview (so we see true pixels)
                 // Also force opacity if only one layer is present
                 const singleLayer = !state.imgA || !state.imgB;
@@ -1849,7 +1871,7 @@
             });
         }
 
-        function updateCanvasDimensions(preserveView = false) {
+        function updateCanvasDimensions(preserveView = false, preserveMask = false) {
             if (!state.imgA && !state.imgB) return;
             const frontImg = state.isAFront ? state.imgA : state.imgB;
             const activeImg = frontImg || (state.isAFront ? state.imgB : state.imgA);
@@ -1869,7 +1891,10 @@
                 maskCanvas.width = targetW;
                 maskCanvas.height = targetH;
                 maskCtx.clearRect(0,0,targetW,targetH); 
-                resetMaskAndHistory(); 
+                // Only reset history if we are NOT preserving the mask (e.g. new load)
+                if (!preserveMask) {
+                    resetMaskAndHistory();
+                }
             }
 
             const isRotated = state.rotation % 180 !== 0;

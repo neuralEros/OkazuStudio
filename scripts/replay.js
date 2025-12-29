@@ -387,6 +387,20 @@
                     // Update dimensions and reset crop to ensure correct view
                     const active = this.state.imgA || this.state.imgB;
                     if (active) {
+                        // If dimensions changed, resize mask and scale content to preserve paint
+                        if (active.width !== this.maskCanvas.width || active.height !== this.maskCanvas.height) {
+                            const temp = document.createElement('canvas');
+                            temp.width = this.maskCanvas.width;
+                            temp.height = this.maskCanvas.height;
+                            temp.getContext('2d').drawImage(this.maskCanvas, 0, 0);
+
+                            this.maskCanvas.width = active.width;
+                            this.maskCanvas.height = active.height;
+
+                            // Scale old mask to new dimensions
+                            this.maskCtx.clearRect(0, 0, active.width, active.height);
+                            this.maskCtx.drawImage(temp, 0, 0, temp.width, temp.height, 0, 0, active.width, active.height);
+                        }
                         this.state.fullDims = { w: active.width, h: active.height };
                     }
 

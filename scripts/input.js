@@ -43,7 +43,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function getBrushPixelSize() {
-        if (state.fullDims.h === 0) return 20;
+        if (!state.fullDims.h) return 20; // Handle 0, null, undefined, NaN
         return toPixels(state.brushSize, state.fullDims.h);
     }
 

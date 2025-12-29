@@ -23,7 +23,7 @@
 
         const DEFAULT_BRUSH_SIZE = 0.1;
         const DEFAULT_FEATHER = 1;
-        const DEFAULT_FEATHER_SIZE = 0.15; // 15%
+        const DEFAULT_FEATHER_SIZE = 0.0012; // ~0.12% (5px at 4320p)
         const DEFAULT_REPAIR_BRUSH_SIZE = DEFAULT_BRUSH_SIZE / 2;
         const DEFAULT_PATCH_FEATHER = 10; // For Hardness mode
         const HARDNESS_MAX = 20;

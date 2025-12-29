@@ -165,9 +165,11 @@
                 const createBtn = (text, onClick, isCancel = false) => {
                     const btn = document.createElement('button');
                     if (isCancel) {
-                         btn.className = "w-full py-2.5 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
+                         // Fallback for cancel style if used in future
+                         btn.className = "w-full py-2.5 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-base font-bold uppercase tracking-widest";
                     } else {
-                         btn.className = "w-full py-2.5 px-4 bg-accent border-accent hover:brightness-110 hover:border-accent-strong rounded-sm transition-all text-sm font-bold uppercase tracking-widest shadow-sm";
+                         // Using accent-action style (Export button style) with text-base
+                         btn.className = "w-full py-2.5 px-4 accent-action rounded-sm transition-all text-base font-bold uppercase tracking-widest shadow-sm";
                     }
 
                     btn.textContent = text;

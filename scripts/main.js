@@ -212,10 +212,15 @@
                      return;
                  }
                  const isRotated = state.rotation % 180 !== 0;
-                 const baseW = state.isCropping ? state.fullDims.w : state.cropRect.w;
-                 const baseH = state.isCropping ? state.fullDims.h : state.cropRect.h;
-                 const visualW = isRotated ? baseH : baseW;
-                 const visualH = isRotated ? baseW : baseH;
+
+                 // Fix: cropRect is Prop. Convert to pixels using fullH.
+                 const fullH = state.fullDims.h || 1;
+                 const baseW = state.isCropping ? state.fullDims.w : (state.cropRect.w * fullH);
+                 const baseH = state.isCropping ? state.fullDims.h : (state.cropRect.h * fullH);
+
+                 const visualW = Math.max(1, isRotated ? baseH : baseW);
+                 const visualH = Math.max(1, isRotated ? baseW : baseH);
+
                  resizeMainCanvas(visualW, visualH);
                  els.mainCanvas.classList.remove('hidden');
                  els.emptyState.style.display = 'none';
@@ -1902,7 +1907,7 @@
             const visualH = isRotated ? baseW : baseH;
 
             // Note: Resize canvas takes integer pixels
-            resizeMainCanvas(Math.round(visualW), Math.round(visualH));
+            resizeMainCanvas(Math.max(1, Math.round(visualW)), Math.max(1, Math.round(visualH)));
 
             els.mainCanvas.classList.remove('hidden');
             els.emptyState.style.display = 'none';

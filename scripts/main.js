@@ -1791,7 +1791,26 @@
              }
              markAdjustmentsDirty();
              rebuildWorkingCopies();
-             updateCanvasDimensions();
+
+             // Update Full Dims first
+             const union = getUnionDims(state.imgA, state.imgB);
+             state.fullDims = { w: union.w, h: union.h };
+
+             // Frame Front Image (Preference)
+             const frontImg = state.imgA || state.imgB; // Prefer A, fallback B
+             if (frontImg) {
+                 const h = frontImg.height || 1;
+                 const scale = (state.fullDims.h / h) || 1;
+                 const visW = frontImg.width * scale;
+                 const offX = (state.fullDims.w - visW) / 2;
+
+                 const propX = offX / state.fullDims.h;
+                 const propW = visW / state.fullDims.h;
+
+                 state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
+             }
+
+             updateCanvasDimensions(true); // Preserve our new cropRect
              render();
              updateUI();
 

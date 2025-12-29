@@ -113,6 +113,16 @@
             });
         }
 
+        invalidateFutureKeyframes(currentIndex) {
+            const indices = Array.from(this.keyframes.keys());
+            indices.forEach(i => {
+                if (i > currentIndex) {
+                    this.keyframes.delete(i);
+                    // console.log(`[KeyframeManager] Invalidated future keyframe ${i}`);
+                }
+            });
+        }
+
         restoreKeyframe(snapshot) {
             if (!snapshot) return;
 
@@ -208,6 +218,10 @@
 
         // Main Entry Point for New Actions
         logAction(action) {
+            // Invalidate any keyframes ahead of the current cursor before branching
+            // The history.logAction will increment cursor, so we check cursor BEFORE log
+            this.keyframeManager.invalidateFutureKeyframes(this.history.cursor);
+
             const index = this.history.logAction(action);
 
             // Check for keyframe creation
@@ -392,10 +406,22 @@
                              this.state.fullDims = { w: newW, h: newH };
 
                              // Default Crop: Frame the Loaded Image (Centered in Union)
-                             const assetW = asset.width || 1;
-                             const assetH = asset.height || 1;
-                             const scale = (newH / assetH) || 1;
-                             const visW = assetW * scale;
+                             // Note: In case of smart-slotting (A->B, New->A), we want to frame New A.
+                             // Logic here assumes 'asset' is the one we want to see.
+                             // If we loaded to B (Back), and A exists, maybe we shouldn't re-frame?
+                             // But standard behavior: Load -> Show what you loaded (or the composition context).
+                             // User preference: "Frame Front".
+                             // If we loaded to A: Asset is A. Frame it.
+                             // If we loaded to B: Asset is B. A exists. Frame A?
+                             // Current Replay logic applies to 'asset' (the payload).
+                             // If payload slot is B, this frames B.
+                             // To strictly "Frame Front":
+                             const targetImg = (slot === 'A') ? this.state.imgA : (this.state.imgA || this.state.imgB);
+                             const targetW = targetImg ? targetImg.width : 1;
+                             const targetH = targetImg ? targetImg.height : 1;
+
+                             const scale = (newH / targetH) || 1;
+                             const visW = targetW * scale;
                              const offX = (newW - visW) / 2;
 
                              const propX = offX / newH;

@@ -169,7 +169,7 @@
                          btn.className = "w-full py-1 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded transition-all text-base font-bold shadow";
                     } else {
                          // Using accent-action style (Export button style) with text-base
-                         btn.className = "w-full py-1 px-4 accent-action rounded transition-all text-base font-bold shadow";
+                         btn.className = "w-full py-1 px-4 accent-action text-white rounded transition-all text-base font-bold shadow";
                     }
 
                     btn.textContent = text;

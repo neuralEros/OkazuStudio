@@ -46,7 +46,6 @@
         .accent-action {
             background-color: var(--accent-strong);
             border: 1px solid var(--accent-strong);
-            color: var(--accent-ink);
             transition: background-color 0.2s, border-color 0.2s, color 0.2s, filter 0.2s;
         }
         .accent-action:hover {
@@ -593,7 +592,7 @@
     border-radius: 0.25rem; /* Matching rounded */
     background-color: var(--accent-strong);
     border: 1px solid var(--accent-strong);
-    color: var(--accent-ink);
+    color: white;
     transition: all 0.2s;
 }
 #modal-close:hover {

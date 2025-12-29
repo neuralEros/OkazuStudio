@@ -134,16 +134,15 @@
             });
         }
 
-        function showModal(message, choices, cancellable = true) {
+        function showModal(title, message, choices, cancellable = true) {
             return new Promise((resolve) => {
                 const overlay = document.getElementById('modal-overlay');
+                const titleEl = document.getElementById('modal-title');
                 const msg = document.getElementById('modal-message');
                 const choiceContainer = document.getElementById('modal-choices');
-                const cancelContainer = document.querySelector('#modal-box > .border-t');
+                const closeBtn = document.getElementById('modal-close');
 
-                // Hide legacy separate cancel container if it exists
-                if (cancelContainer) cancelContainer.style.display = 'none';
-
+                titleEl.textContent = title;
                 msg.textContent = message;
                 choiceContainer.innerHTML = '';
 
@@ -162,24 +161,16 @@
                      }, 200);
                 };
 
-                // Helper for button creation
-                const createBtn = (text, onClick, isCancel = false) => {
-                    const btn = document.createElement('button');
-                    // "accent color... one dialog-spanning column... same width... smaller corner rounding"
-                    // Using accent-action class which provides bg-accent-dark, border-accent, white text
-                    // Adding w-full, py-2 (less padding), rounded-sm (smaller rounding)
-                    // If Cancel, maybe less emphasis? The user said "they should be the accent color, as well", implying uniformity.
-                    // But usually Cancel is distinct. I will make Cancel same shape/size but maybe outlined or slightly different shade
-                    // to avoid dangerous confusion, OR follow strictly "they should be the accent color".
-                    // Let's use accent-action for choices, and a similar but distinct style for Cancel to be safe,
-                    // OR if interpreted literally: "The cancel button and option buttons... should be the accent color".
-                    // I'll make them all accent-action but maybe Cancel is outlined.
+                closeBtn.classList.toggle('hidden', !cancellable);
+                closeBtn.onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
 
-                    if (isCancel) {
-                         btn.className = "w-full py-2.5 px-4 bg-transparent border-accent text-accent hover:bg-[var(--accent-strong)] hover:text-[var(--accent-ink)] hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest";
-                    } else {
-                         btn.className = "w-full py-2.5 px-4 bg-accent border-accent hover:brightness-110 hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
-                    }
+                // Helper for button creation
+                const createBtn = (text, onClick) => {
+                    const btn = document.createElement('button');
+                    btn.className = "w-full py-2.5 px-4 bg-accent border-accent hover:brightness-110 hover:border-accent-strong rounded-sm transition-all text-xs font-bold uppercase tracking-widest shadow-sm";
 
                     btn.textContent = text;
                     btn.onclick = () => {
@@ -193,11 +184,6 @@
                     choiceContainer.appendChild(createBtn(choice.label, () => resolve(choice.value)));
                 });
 
-                if (cancellable) {
-                    // "Cancel button and option buttons should all be in one dialog-spanning column"
-                    // Appending to same container
-                    choiceContainer.appendChild(createBtn("Cancel", () => resolve(null), true));
-                }
             });
         }
 
@@ -619,6 +605,7 @@
                  // If Both Occupied -> Ask User
                  if (state.imgA && state.imgB) {
                      const choice = await showModal(
+                         "Load Image",
                          "Both slots are already occupied. Where would you like to load the image?",
                          [
                              { label: "Load to Front", value: 'A' },

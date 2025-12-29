@@ -2107,8 +2107,8 @@
         }
 
         async function resetWorkspace() {
-            const confirm = await showModal("Confirm Reset", "This will clear all images and history. Start over?", [
-                { label: "Yes, Start Over", value: true }
+            const confirm = await showModal("New Edit", "This will clear your canvas and edits. Are you sure?", [
+                { label: "Start New Edit", value: true }
             ], true);
 
             if (!confirm) return;

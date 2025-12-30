@@ -47,14 +47,35 @@
     </div>
 
     <!-- Hint Legend -->
-    <div id="hint-legend">
-        <div><span class="key">Space</span> (Hold) to Pan</div>
-        <div class="mt-1"><span class="key">Space</span> (Double-tap) to Reset View</div>
-        <div class="mt-1"><span class="key">Wheel</span> to Zoom</div>
-        <div class="mt-1"><span class="key">Ctrl+Wheel</span> or <span class="key">[ ]</span> Brush Size</div>
-        <div class="mt-1"><span class="key">Ctrl+Click</span> Draw Line</div>
-        <div class="mt-1"><span class="key">1</span> <span class="key">2</span> <span class="key">3</span> Brush Modes</div>
-        <div class="mt-1"><span class="key">Ctrl+Z</span> Undo &bull; <span class="key">Ctrl+Shift+Z</span> Redo</div>
+    <div id="hint-legend" class="flex flex-col">
+        <div class="flex justify-between gap-4">
+            <div><span class="key">Space</span> <span class="text-gray-400 text-[10px]">(Hold)</span></div>
+            <div class="text-right">Pan</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">Space</span> <span class="text-gray-400 text-[10px]">(Double-tap)</span></div>
+            <div class="text-right">Reset View</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">Wheel</span></div>
+            <div class="text-right">Zoom</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">Ctrl+Wheel</span> <span class="text-gray-500">/</span> <span class="key">[ ]</span></div>
+            <div class="text-right">Change Brush Size</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">Ctrl+Click</span></div>
+            <div class="text-right">Draw Line</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">1</span> <span class="key">2</span> <span class="key">3</span></div>
+            <div class="text-right">Brush Modes</div>
+        </div>
+        <div class="flex justify-between gap-4 mt-1">
+            <div><span class="key">Ctrl+Z</span> <span class="text-gray-500">/</span> <span class="key">Shift+Z</span></div>
+            <div class="text-right">Undo / Redo</div>
+        </div>
     </div>
 
     <!-- Drawer 1: Adjustments (Top) -->

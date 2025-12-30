@@ -519,6 +519,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             const actionKey = `adjustment-${id}`;
             if(!el) return;
 
+            const captureStart = () => { el.dataset.startVal = el.value; };
+            el.addEventListener('pointerdown', captureStart);
+            el.addEventListener('focus', captureStart);
+
             el.addEventListener('input', (e) => {
                 let val = parseFloat(e.target.value);
                 if (subkey) state.adjustments[key][subkey] = val;
@@ -534,9 +538,10 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             });
 
             el.addEventListener('change', (e) => {
+                const oldVal = parseFloat(el.dataset.startVal || 0);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                if (window.dispatchAction) dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value) } });
+                if (window.dispatchAction) dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value), oldValue: oldVal } });
             });
         }
 
@@ -713,9 +718,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 return;
             }
 
-            el.addEventListener('pointerdown', () => {
-                el.dataset.startVal = el.value;
-            });
+            const captureStart = () => { el.dataset.startVal = el.value; };
+            el.addEventListener('pointerdown', captureStart);
+            el.addEventListener('focus', captureStart);
 
             el.addEventListener('input', (e) => {
                 try {
@@ -742,7 +747,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 Logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                if (window.dispatchAction) dispatchAction({ type: 'TUNE_COLOR', payload: { band: state.activeColorBand, key: param.key, value: parseFloat(val) } });
+                if (window.dispatchAction) dispatchAction({ type: 'TUNE_COLOR', payload: { band: state.activeColorBand, key: param.key, value: parseFloat(val), oldValue: parseFloat(oldVal || 0) } });
             });
         });
 

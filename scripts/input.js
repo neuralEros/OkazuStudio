@@ -409,7 +409,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                      brushSize: state.brushSize, // Prop
                      feather: state.featherMode ? state.featherSize : state.feather, // Prop or Value
                      featherMode: state.featherMode,
-                     mode: isEraseMode() ? 'erase' : 'repair'
+                     mode: state.brushMode
                  }
              });
         }
@@ -468,7 +468,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             brushSize: state.brushSize, // Prop
             feather: state.featherMode ? state.featherSize : state.feather, // Prop or 0-20
             featherMode: state.featherMode,
-            isErasing: isEraseMode()
+            isErasing: isEraseMode(),
+            tool: state.brushMode
         };
         state.fastPreviewLastStamp = null;
     }
@@ -547,7 +548,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     state.lastDrawY = coords.y;
                     state.isPolylineStart = false;
                     state.polylinePoints = [{ x: coords.x, y: coords.y }];
-                    Logger.interaction("Polyline", "Started", `(${Math.round(coords.x)}, ${Math.round(coords.y)})`);
+                    Logger.interaction("Polyline", "Started", `(${coords.x.toFixed(4)}, ${coords.y.toFixed(4)})`);
                 } else {
                     // Deferred Drawing Mode: Store points, do not draw to maskCtx yet
                     // Check close loop
@@ -574,7 +575,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                         state.lastDrawX = coords.x;
                         state.lastDrawY = coords.y;
                         state.polylinePoints.push({ x: coords.x, y: coords.y });
-                        Logger.interaction("Polyline", "Point Added", `(${Math.round(coords.x)}, ${Math.round(coords.y)})`);
+                        Logger.interaction("Polyline", "Point Added", `(${coords.x.toFixed(4)}, ${coords.y.toFixed(4)})`);
                     }
                     state.polylineDirty = true;
                 }

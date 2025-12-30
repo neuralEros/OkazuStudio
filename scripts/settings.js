@@ -224,7 +224,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <!-- Body -->
                     <div class="flex flex-grow overflow-hidden">
                         <!-- Sidebar -->
-                        <div class="w-[140px] bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
+                        <div class="w-[170px] bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
                             <button class="settings-tab-btn active flex items-center text-left pl-3 pr-2 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
                                 <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_interface.svg'); mask-image: url('icons/set_interface.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Interface

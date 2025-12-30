@@ -253,7 +253,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <!-- TAB: DEBUG -->
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
-                                    <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
+                                    <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap select-text focus:outline-none mb-4" tabindex="0"></div>
                                     <div class="flex justify-end gap-2 shrink-0">
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
                                         <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
@@ -474,16 +474,79 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
+        function formatLogLine(line) {
+            const escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            // Regex to detect standard log header: [timestamp] [CATEGORY]
+            // e.g. [02:09:24.404] [INTERACTION] ...
+            const prefixRegex = /^(\[[^\]]+\] \[[^\]]+\] )(.*)$/;
+            const match = line.match(prefixRegex);
+
+            let messagePart = line;
+            let prefixPart = '';
+
+            if (match) {
+                prefixPart = escapeHtml(match[1]);
+                messagePart = match[2];
+            }
+
+            // Escape message part before highlighting
+            let safeMessage = escapeHtml(messagePart);
+
+            // Highlight target patterns
+            // Resolutions: 3072x2048
+            // Numbers: 0, 1.5, -5 (with word boundary logic or similar)
+
+            // Apply highlighting replacements
+            // We use a combined regex or sequential replacements.
+            // Note: HTML tags are now present (&lt; etc), but numbers inside them?
+            // &lt; is safely ignored by \d+ regex usually unless we match "38" in "&#38;"
+            // But we escaped & -> &amp; so & is there.
+            // 38 in &amp;#38;? No, typically &amp; is just &amp;
+
+            // Regex for numbers: (?<!\w)-?\d+(\.\d+)?\b
+            // Regex for resolutions: \b\d+x\d+\b
+
+            // We should match resolutions first to avoid matching the numbers inside them separately if that matters,
+            // though highlighting the whole resolution is preferred.
+
+            safeMessage = safeMessage.replace(/(\b\d+x\d+\b)|((?<!\w)-?\d+(\.\d+)?\b)/g, (match, p1, p2) => {
+                if (p1) return `<span class="text-accent">${p1}</span>`; // Resolution
+                if (p2) return `<span class="text-accent">${p2}</span>`; // Number
+                return match;
+            });
+
+            return prefixPart + safeMessage;
+        }
+
         function refreshLogs() {
             if (window.Logger && window.Logger.getLogs) {
                 const currentLogs = window.Logger.getLogs();
-                // Only update if changed to prevent selection flicker, although selection is hard in readonly
-                if (logViewer.value !== currentLogs) {
-                    logViewer.value = currentLogs;
+                // We always update because we are formatting on the fly and checking equality of
+                // formatted HTML against raw string is complex.
+                // Optimization: Check if raw string length changed or use a separate tracker.
+                // But for now, simple is better.
+
+                const lines = currentLogs.split('\n');
+                // Keep last 500
+                const slice = lines.slice(Math.max(0, lines.length - 500));
+
+                // Format
+                const formatted = slice.map(formatLogLine).join('\n');
+
+                // Only update DOM if changed (using a data-attr or just checking innerHTML length?)
+                // Checking innerHTML is expensive.
+                // Let's just update. The browser handles it reasonably well for 500 lines.
+                // Actually, if we type in a field and this updates every 500ms, it might be annoying if we lose selection.
+                // But this is a read-only log viewer.
+
+                if (logViewer.innerHTML !== formatted) {
+                    logViewer.innerHTML = formatted;
                     logViewer.scrollTop = logViewer.scrollHeight;
                 }
+
             } else {
-                logViewer.value = "Logger not active.";
+                logViewer.innerHTML = "Logger not active.";
             }
         }
 
@@ -508,16 +571,19 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         });
 
         copyLogsBtn.addEventListener('click', () => {
-            const logs = logViewer.value;
-            navigator.clipboard.writeText(logs).then(() => {
-                const originalText = copyLogsBtn.textContent;
-                copyLogsBtn.textContent = "COPIED!";
-                setTimeout(() => {
-                    copyLogsBtn.textContent = originalText;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy logs', err);
-            });
+            // Use window.Logger.getLogs() directly to get the full raw text
+            if (window.Logger && window.Logger.getLogs) {
+                const logs = window.Logger.getLogs();
+                navigator.clipboard.writeText(logs).then(() => {
+                    const originalText = copyLogsBtn.textContent;
+                    copyLogsBtn.textContent = "COPIED!";
+                    setTimeout(() => {
+                        copyLogsBtn.textContent = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy logs', err);
+                });
+            }
         });
 
 

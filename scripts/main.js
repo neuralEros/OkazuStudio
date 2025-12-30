@@ -1740,6 +1740,34 @@
 
         // --- Standard App Functions ---
         
+        function getActionDescription(type) {
+            const map = {
+                'LOAD_IMAGE': 'Load Image',
+                'MERGE_LAYERS': 'Merge Layers',
+                'APPLY_CENSOR': 'Censor',
+                'SWAP_LAYERS': 'Swap Layers',
+                'STROKE': 'Brushstroke',
+                'POLYLINE': 'Polyline',
+                'CROP': 'Crop',
+                'ROTATE_VIEW': 'Rotate View',
+                'ADJUST': 'Adjustment',
+                'TUNE_COLOR': 'Color Tuning',
+                'CLEAR_LAYER': 'Clear Layer',
+                'RESET_ALL': 'Reset All',
+                'RESET_ADJUSTMENTS': 'Reset Adjustments',
+                'RESET_LEVELS': 'Reset Levels',
+                'RESET_SATURATION': 'Reset Saturation',
+                'RESET_COLOR_BALANCE': 'Reset Color Balance',
+                'RESET_TUNING_BAND': 'Reset Band',
+                'RESET_TUNING_ALL': 'Reset All Tuning',
+                'SET_OPACITY': 'Opacity Change',
+                'TOGGLE_MASK': 'Toggle Mask',
+                'TOGGLE_BACK': 'Toggle Back Layer',
+                'TOGGLE_ADJUSTMENTS': 'Toggle Adjustments'
+            };
+            return map[type] || type;
+        }
+
         function updateUI() {
             const enable = canDraw();
             els.mergeBtn.disabled = !enable;
@@ -1760,8 +1788,24 @@
                 }
             }
 
-            els.undoBtn.disabled = cursor <= minCursor || state.isCropping;
-            els.redoBtn.disabled = cursor >= total - 1 || state.isCropping;
+            const canUndo = cursor > minCursor && !state.isCropping;
+            const canRedo = cursor < total - 1 && !state.isCropping;
+            els.undoBtn.disabled = !canUndo;
+            els.redoBtn.disabled = !canRedo;
+
+            if (canUndo) {
+                const action = history[cursor];
+                els.undoBtn.title = `Undo ${getActionDescription(action.type)}`;
+            } else {
+                els.undoBtn.title = "Undo";
+            }
+
+            if (canRedo) {
+                const action = history[cursor + 1];
+                els.redoBtn.title = `Redo ${getActionDescription(action.type)}`;
+            } else {
+                els.redoBtn.title = "Redo";
+            }
 
             if (!state.imgA && !state.imgB) {
                 els.mainCanvas.classList.add('hidden');

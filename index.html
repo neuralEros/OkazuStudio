@@ -235,24 +235,24 @@
     <div id="vertical-toolbox" style="top: max(30%, calc(300px + 48px));" class="absolute left-0 transform -translate-y-1/2 bg-panel border-y border-r border-panel rounded-r-lg p-2 flex flex-col gap-2 z-40 shadow-xl">
         <!-- Undo / Redo -->
         <div class="flex flex-col gap-2 border-b border-panel-divider pb-2 mb-1">
-            <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)" disabled>
+            <button id="undoBtn" class="icon-btn" title="Undo" disabled>
                 <img src="icons/undo.svg" alt="Undo" class="w-5 h-5" draggable="false">
             </button>
-            <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled>
+            <button id="redoBtn" class="icon-btn" title="Redo" disabled>
                 <img src="icons/redo.svg" alt="Redo" class="w-5 h-5" draggable="false">
             </button>
         </div>
         <!-- View Toggles -->
         <div class="flex flex-col gap-2 border-b border-panel-divider pb-2 mb-1">
-            <button id="toggleBackBtn" class="icon-btn" title="Toggle Rear Image Visibility">
+            <button id="toggleBackBtn" class="icon-btn" title="Rear">
                 <img id="rearEyeOpen" src="icons/back_show.svg" alt="Show Back" class="w-5 h-5" draggable="false">
                 <img id="rearEyeClosed" src="icons/back_hide.svg" alt="Hide Back" class="w-5 h-5 hidden" draggable="false">
             </button>
-            <button id="toggleMaskBtn" class="icon-btn" title="Toggle Holes Visibility">
+            <button id="toggleMaskBtn" class="icon-btn" title="Mask">
                 <img id="maskEyeOpen" src="icons/edits_show.svg" alt="Show Edits" class="w-5 h-5" draggable="false">
                 <img id="maskEyeClosed" src="icons/edits_hide.svg" alt="Hide Edits" class="w-5 h-5 hidden" draggable="false">
             </button>
-            <button id="toggleAdjBtn" class="icon-btn" title="Toggle Adjustments Visibility">
+            <button id="toggleAdjBtn" class="icon-btn" title="Adjustments">
                 <img id="adjEyeOpen" src="icons/filters_show.svg" alt="Show Adjustments" class="w-5 h-5" draggable="false">
                 <img id="adjEyeClosed" src="icons/filters_hide.svg" alt="Hide Adjustments" class="w-5 h-5 hidden" draggable="false">
             </button>
@@ -260,19 +260,19 @@
 
         <!-- Crop & Rotate Tool -->
         <div class="flex flex-col gap-2 border-b border-gray-700 pb-2 mb-1">
-            <button id="cropBtn" class="icon-btn hover:text-yellow-400" title="Crop Canvas">
+            <button id="cropBtn" class="icon-btn hover:text-yellow-400" title="Crop">
                 <img src="icons/crop.svg" alt="Crop" class="w-5 h-5" draggable="false">
             </button>
-            <button id="rotateBtn" class="icon-btn hover:text-blue-400" title="Rotate View (90° CW)">
+            <button id="rotateBtn" class="icon-btn hover:text-blue-400" title="Rotate">
                 <img src="icons/rotate_cw.svg" alt="Rotate View" class="w-5 h-5" draggable="false">
             </button>
         </div>
 
         <!-- Actions -->
-        <button id="censorBtn" class="icon-btn text-purple-400" title="Censor (Mosaic+Blur Back)">
+        <button id="censorBtn" class="icon-btn text-purple-400" title="Censor">
             <img src="icons/censor.svg" alt="Censor" class="w-5 h-5" draggable="false">
         </button>
-        <button id="mergeBtn" class="icon-btn hover:text-green-400" title="Merge Visible to Slot A">
+        <button id="mergeBtn" class="icon-btn hover:text-green-400" title="Merge">
             <img src="icons/merge.svg" alt="Merge" class="w-5 h-5" draggable="false">
         </button>
         <button id="clearMask" class="icon-btn hover:text-red-400" title="Reset">
@@ -282,7 +282,7 @@
 
     <!-- Top Toolbar -->
     <div class="h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 shrink-0 overflow-visible relative" style="cursor: default;">
-        <button id="newBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New Workspace">
+        <button id="newBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
             <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
             <span>New</span>
         </button>
@@ -299,7 +299,7 @@
                 </button>
             </div>
             <!-- Swap Button -->
-            <button id="swapBtn" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap Front/Back">
+            <button id="swapBtn" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap">
                 <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
             </button>
             <!-- Back Group -->
@@ -336,7 +336,7 @@
                     </div>
                     <input type="range" id="feather" min="0" max="20" value="1" class="w-full">
                 </div>
-                <button id="featherModeBtn" class="feather-toggle" title="Toggle Fixed Feather">
+                <button id="featherModeBtn" class="feather-toggle" title="Feather">
                     <img src="icons/hardnormal.svg" alt="Hardness Mode" class="w-4 h-4" draggable="false">
                 </button>
             </div>
@@ -353,7 +353,7 @@
             <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
                  <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
             </button>
-            <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export PNG">
+            <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export">
                 <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
                 <span>Export</span>
             </button>

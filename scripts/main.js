@@ -1749,7 +1749,7 @@
                 'STROKE': 'Brushstroke',
                 'POLYLINE': 'Polyline',
                 'CROP': 'Crop',
-                'ROTATE_VIEW': 'Rotate View',
+                'ROTATE_VIEW': 'Rotate',
                 'ADJUST': 'Adjustment',
                 'TUNE_COLOR': 'Color Tuning',
                 'CLEAR_LAYER': 'Clear Layer',

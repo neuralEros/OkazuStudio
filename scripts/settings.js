@@ -6,7 +6,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         hue: 28,
         saturation: 96,
         rgbMode: true,
-        rgbSpeed: 1.0, // Multiplier (1.0 = 4 deg/s)
+        rgbSpeed: 5.0, // Multiplier (1.0 = 4 deg/s)
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: '',
@@ -126,7 +126,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // Here we want light text on dark log background.
         const logInkL = Math.min(98, Math.max(75, logButtonL + 15));
 
-        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
+        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 100%, ${logInkL}%)`);
     }
 
     function applySettings() {
@@ -138,39 +138,38 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         initRgbLoop();
     }
 
-    function updateRgbButtonColor(cycleHue) {
-        const btnHue = (cycleHue * 3) % 360;
+    function updateRgbButtonColor(hue) {
         const sat = state.settings.saturation;
 
         // Similar lightness logic as standard button but using the 3x hue
         const satBoost = (100 - sat) * 0.4;
-        const hueBoost = Math.max(0, Math.cos((btnHue - 240) * Math.PI / 180)) * 15;
+        const hueBoost = Math.max(0, Math.cos((hue - 240) * Math.PI / 180)) * 15;
         const buttonL = Math.min(95, 56 + satBoost + hueBoost);
         const inkL = 10 + Math.max(0, (buttonL - 56) * 0.294);
 
-        const color = `hsl(${btnHue}, ${sat}%, ${buttonL}%)`;
-        const inkColor = `hsl(${btnHue}, 90%, ${inkL}%)`;
+        const color = `hsl(${hue}, ${sat}%, ${buttonL}%)`;
+        const inkColor = `hsl(${hue}, 90%, ${inkL}%)`;
 
         document.documentElement.style.setProperty('--rgb-button-color', color);
         document.documentElement.style.setProperty('--rgb-button-ink', inkColor);
     }
 
     let cycleHue = defaults.hue;
+    let buttonHue = 0;
+    let buttonInterval = null;
 
     function initRgbLoop() {
+        // Theme Loop (Variable Speed)
         if (rgbInterval) clearInterval(rgbInterval);
 
         const baseInterval = 125;
         const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
 
         rgbInterval = setInterval(() => {
-            // Always increment local cycle
+            // Increment theme cycle
             cycleHue = (cycleHue + 0.5) % 360;
 
-            // Always update RGB button color (runs at 3x speed of cycleHue)
-            updateRgbButtonColor(cycleHue);
-
-            // Only update global theme if RGB Mode is ON
+            // Update global theme if RGB Mode is ON
             if (state.settings.rgbMode) {
                 state.settings.hue = cycleHue;
                 updateThemeVariables(state.settings.hue, state.settings.saturation);
@@ -180,6 +179,21 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 if (slider) slider.value = state.settings.hue;
             }
         }, interval);
+
+        // Button Loop (Fixed High Speed 20x)
+        // 20x relative to base 1.0x (4 deg/s)? Or just fast?
+        // Let's assume 20x multiplier on base speed.
+        // Base: 0.5 deg every 125ms = 4 deg/s
+        // 20x: 80 deg/s.
+        // Interval for 0.5 deg increment: 125 / 20 = 6.25ms
+        // Let's do 10ms interval and appropriate increment to hit ~80 deg/s?
+        // 10ms is 100fps. 0.8 deg per tick.
+        if (buttonInterval) clearInterval(buttonInterval);
+
+        buttonInterval = setInterval(() => {
+            buttonHue = (buttonHue + 1) % 360; // 1 deg per ~10ms = 100 deg/s (~25x)
+            updateRgbButtonColor(buttonHue);
+        }, 10);
     }
 
     // Debounce utility
@@ -245,7 +259,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                                     <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
                                                     <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
                                                 </div>
-                                                <input id="setting-rgb-speed" type="range" min="0.1" max="5.0" step="0.1" class="w-full accent-accent">
+                                                <input id="setting-rgb-speed" type="range" min="0.1" max="10.0" step="0.1" class="w-full accent-accent">
                                             </div>
                                         </div>
                                     </div>
@@ -691,15 +705,23 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
             // Regex to detect standard log header: [timestamp] [CATEGORY]
             // e.g. [02:09:24.404] [INTERACTION] ...
-            const prefixRegex = /^(\[[^\]]+\] \[[^\]]+\] )(.*)$/;
+            const prefixRegex = /^(\[)([^\]]+)(\] \[)([^\]]+)(\] )(.*)$/;
             const match = line.match(prefixRegex);
 
             let messagePart = line;
             let prefixPart = '';
 
+            const style = 'style="color: var(--log-accent-color)"';
+
             if (match) {
-                prefixPart = escapeHtml(match[1]);
-                messagePart = match[2];
+                // Group 1: [
+                // Group 2: Timestamp
+                // Group 3: ] [
+                // Group 4: Category
+                // Group 5: ]
+                // Group 6: Message
+                prefixPart = `${match[1]}<span ${style}>${match[2]}</span>${match[3]}<span ${style}>${match[4]}</span>${match[5]}`;
+                messagePart = match[6];
             }
 
             // Escape message part before highlighting

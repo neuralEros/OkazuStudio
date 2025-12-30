@@ -231,7 +231,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
-                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px] uppercase tracking-widest">Settings</h3>
+                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
                         <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
@@ -266,18 +266,18 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <!-- TAB: INTERFACE -->
                                 <div id="tab-interface" class="settings-tab-content block">
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-4">UI Theme Hue/Saturation</label>
                                         <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
                                             <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
-                                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">RGB</button>
+                                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">RGB</button>
 
                                             <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
-                                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">Default</button>
+                                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">Default</button>
 
                                             <div class="col-span-2 flex flex-col gap-1 mt-2">
                                                 <div class="flex justify-between">
-                                                    <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
-                                                    <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
+                                                    <span class="text-xs text-gray-400 font-bold">RGB Cycle Speed</span>
+                                                    <span id="val-rgb-speed" class="text-xs text-gray-400">1.0x</span>
                                                 </div>
                                                 <input id="setting-rgb-speed" type="range" min="0.1" max="10.0" step="0.1" class="w-full accent-accent">
                                             </div>
@@ -289,7 +289,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <div id="tab-performance" class="settings-tab-content hidden">
                                     <!-- Brush Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Brush Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -299,7 +299,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Adjustment Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Adjustment Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -309,19 +309,19 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Undo History -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Undo History</label>
                                         <div class="flex gap-4">
                                             <div class="flex-1">
                                                 <div class="flex justify-between mb-1">
-                                                    <span class="text-[10px] text-gray-400">Keyframe Interval</span>
-                                                    <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
+                                                    <span class="text-xs text-gray-400">Keyframe Interval</span>
+                                                    <span id="val-keyframe-interval" class="text-xs text-gray-400">10</span>
                                                 </div>
                                                 <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
                                             </div>
                                             <div class="flex-1">
                                                 <div class="flex justify-between mb-1">
-                                                    <span class="text-[10px] text-gray-400">Buffer Depth</span>
-                                                    <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
+                                                    <span class="text-xs text-gray-400">Buffer Depth</span>
+                                                    <span id="val-keyframe-buffer" class="text-xs text-gray-400">5</span>
                                                 </div>
                                                 <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
                                             </div>
@@ -334,7 +334,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- File Format -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">File Format</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">File Format</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1 mb-4">
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/jpeg">JPG</button>
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/png">PNG</button>
@@ -344,8 +344,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                         <!-- Quality Slider -->
                                         <div id="export-quality-container" class="flex flex-col gap-1 transition-opacity duration-200">
                                             <div class="flex justify-between">
-                                                <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Quality</span>
-                                                <span id="val-export-quality" class="text-[10px] text-gray-400">98%</span>
+                                                <span class="text-xs text-gray-400 font-bold">Quality</span>
+                                                <span id="val-export-quality" class="text-xs text-gray-400">98%</span>
                                             </div>
                                             <input id="setting-export-quality" type="range" min="0" max="100" class="w-full accent-accent">
                                         </div>
@@ -353,7 +353,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Height Cap -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Height Cap</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p (HD)</button>
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">2160p (4K)</button>
@@ -364,7 +364,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Layer Exports -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Layer Exports</label>
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Layer Exports</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
                                             <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
@@ -377,7 +377,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                 <!-- TAB: DEBUG -->
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
+                                    <label class="block text-xs font-bold text-gray-400 mb-2">Session Logs</label>
                                     <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap break-all select-text focus:outline-none mb-4" tabindex="0"></div>
                                     <div class="flex justify-end gap-2 shrink-0">
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>

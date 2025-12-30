@@ -23,7 +23,7 @@
     <div id="modal-overlay" class="fixed inset-0 z-[100] flex items-center justify-center backdrop-blur-sm transition-opacity duration-200 opacity-0 hidden" style="background-color: rgba(0,0,0,0.8);">
         <div id="modal-box" class="bg-panel-strong border border-panel-border rounded-lg shadow-2xl max-w-md w-full overflow-hidden transform scale-95 transition-all duration-200 p-0">
             <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header">
-                <h3 id="modal-title" class="text-lg font-bold text-accent translate-y-[1px] uppercase tracking-widest">Confirm</h3>
+                <h3 id="modal-title" class="text-lg font-bold text-accent translate-y-[1px]">Confirm</h3>
                 <button id="modal-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
@@ -43,17 +43,17 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center hidden">
         <div class="spinner mb-4"></div>
-        <div class="text-white font-bold text-xl tracking-widest">PROCESSING</div>
+        <div class="text-white font-bold text-xl">PROCESSING</div>
     </div>
 
     <!-- Hint Legend -->
     <div id="hint-legend" class="flex flex-col">
         <div class="flex justify-between gap-4">
-            <div><span class="key">Space</span> <span class="text-gray-400 text-[10px]">(Hold)</span></div>
+            <div><span class="key">Space</span> <span class="text-gray-400 text-xs">(Hold)</span></div>
             <div class="text-right">Pan</div>
         </div>
         <div class="flex justify-between gap-4 mt-1">
-            <div><span class="key">Space</span> <span class="text-gray-400 text-[10px]">(Double-tap)</span></div>
+            <div><span class="key">Space</span> <span class="text-gray-400 text-xs">(Double-tap)</span></div>
             <div class="text-right">Reset View</div>
         </div>
         <div class="flex justify-between gap-4 mt-1">
@@ -92,8 +92,8 @@
         <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-bl-lg overflow-y-auto max-h-[85vh]">
             <div class="drawer-inner p-4">
                  <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Adjustments</h3>
-                    <button id="resetAdjBtn" class="text-[10px] text-accent hover:text-white uppercase tracking-wider font-bold">Reset All</button>
+                    <h3 class="text-xs font-bold text-gray-400">Adjustments</h3>
+                    <button id="resetAdjBtn" class="text-xs text-accent hover:text-white font-bold">Reset All</button>
                 </div>
                 <!-- Sliders -->
                 <div class="drawer-slider-group">
@@ -174,7 +174,7 @@
         <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-bl-lg overflow-y-auto max-h-[85vh]">
             <div class="drawer-inner p-4">
                 <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Color Tuning</h3>
+                    <h3 class="text-xs font-bold text-gray-400">Color Tuning</h3>
                 </div>
 
                 <!-- Band Selector Grid -->
@@ -228,10 +228,10 @@
                 <div class="drawer-divider"></div>
 
                 <div class="flex gap-2 mt-4">
-                     <button id="resetBandBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn hover:text-white">
+                     <button id="resetBandBtn" class="w-1/2 py-1.5 rounded text-xs font-bold border border-panel bg-panel-strong panel-btn hover:text-white">
                         Reset Band
                     </button>
-                    <button id="resetTuningBtn" class="w-1/2 py-1.5 rounded text-[10px] font-bold uppercase tracking-wider border border-panel bg-panel-strong panel-btn text-accent hover:text-white">
+                    <button id="resetTuningBtn" class="w-1/2 py-1.5 rounded text-xs font-bold border border-panel bg-panel-strong panel-btn text-accent hover:text-white">
                         Reset All
                     </button>
                 </div>
@@ -249,7 +249,7 @@
         <div class="drawer-content w-72 bg-panel border border-panel shadow-2xl rounded-tl-lg overflow-y-auto max-h-[85vh]">
             <div class="drawer-inner p-4">
                  <div class="flex justify-between items-center mb-4 border-b border-panel-divider pb-2">
-                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest">Advanced Tools</h3>
+                    <h3 class="text-xs font-bold text-gray-400">Advanced Tools</h3>
                 </div>
                 <p class="text-xs text-gray-500">Layer management coming soon.</p>
             </div>
@@ -315,7 +315,7 @@
             <!-- Front Group -->
             <div class="flex gap-1">
                 <input type="file" id="fileA" accept="image/*" class="hidden">
-                <button onclick="document.getElementById('fileA').click()" id="btnA" class="relative tool-btn px-2 py-1 text-[10px] font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                <button onclick="document.getElementById('fileA').click()" id="btnA" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
                     Load
                     <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">front</span>
                 </button>
@@ -330,7 +330,7 @@
             <!-- Back Group -->
             <div class="flex gap-1">
                 <input type="file" id="fileB" accept="image/*" class="hidden">
-                <button onclick="document.getElementById('fileB').click()" id="btnB" class="relative tool-btn px-2 py-1 text-[10px] font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                <button onclick="document.getElementById('fileB').click()" id="btnB" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
                     Load
                     <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">back</span>
                 </button>
@@ -342,12 +342,12 @@
         <div class="w-px h-6 bg-panel-divider shrink-0"></div>
         <div class="flex items-center gap-4 shrink-0">
             <div class="flex bg-panel-strong rounded p-0.5">
-                <button id="eraseMode" class="tool-btn active px-2 py-0.5 rounded text-[10px] font-medium">Erase</button>
-                <button id="repairMode" class="tool-btn px-2 py-0.5 rounded text-[10px] font-medium">Repair</button>
-                <button id="patchMode" class="tool-btn px-2 py-0.5 rounded text-[10px] font-medium">Patch</button>
+                <button id="eraseMode" class="tool-btn active px-2 py-0.5 rounded text-xs font-medium">Erase</button>
+                <button id="repairMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Repair</button>
+                <button id="patchMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Patch</button>
             </div>
             <div class="flex flex-col gap-0.5 w-24">
-                <div class="flex justify-between text-[10px] text-gray-400">
+                <div class="flex justify-between text-xs text-gray-400">
                     <span>Size (%)</span>
                     <span id="brushSizeVal">10</span>
                 </div>
@@ -355,7 +355,7 @@
             </div>
             <div class="flex items-center gap-2">
                 <div class="flex flex-col gap-0.5 w-24">
-                    <div class="flex justify-between text-[10px] text-gray-400">
+                    <div class="flex justify-between text-xs text-gray-400">
                         <span id="featherLabel">Hardness</span>
                         <span id="featherVal">95%</span>
                     </div>
@@ -368,7 +368,7 @@
         </div>
         <div class="w-px h-6 bg-panel-divider shrink-0"></div>
         <div class="flex flex-col gap-0.5 w-24 shrink-0">
-            <div class="flex justify-between text-[10px] text-gray-400">
+            <div class="flex justify-between text-xs text-gray-400">
                 <span>Opacity</span>
                 <span id="opacityVal">80%</span>
             </div>

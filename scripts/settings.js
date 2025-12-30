@@ -105,6 +105,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         document.documentElement.style.setProperty('--accent-s', `${sat}%`);
         document.documentElement.style.setProperty('--accent-l', `${buttonL}%`);
         document.documentElement.style.setProperty('--accent-ink', `hsl(${hue}, 90%, ${inkL}%)`);
+
+        // Log Accent (Cycle 3x speed in RGB mode)
+        const logHue = state.settings.rgbMode ? (hue * 3) % 360 : hue;
+        // Recalculate lightness boost for the shifted log hue
+        const logHueBoost = Math.max(0, Math.cos((logHue - 240) * Math.PI / 180)) * 15;
+        const logButtonL = Math.min(95, 56 + satBoost + logHueBoost);
+        const logInkL = 10 + Math.max(0, (logButtonL - 56) * 0.294);
+
+        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
     }
 
     function applySettings() {
@@ -494,42 +503,37 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             let safeMessage = escapeHtml(messagePart);
 
             // Special Handling for "System Info" lines
-            // e.g. System Info: User Agent: Mozilla/5.0 ...
-            // e.g. System Info: Platform: Linux | Language: en-US
             if (safeMessage.startsWith('System Info: ')) {
-                // Remove prefix temporarily
                 const content = safeMessage.substring('System Info: '.length);
-
-                // Split by pipe for multiple key-values
                 const parts = content.split('|');
-
                 const processedParts = parts.map(part => {
-                    // Find first colon
                     const colonIndex = part.indexOf(':');
                     if (colonIndex !== -1) {
-                        const key = part.substring(0, colonIndex + 1); // "Key:"
-                        const val = part.substring(colonIndex + 1);   // " Value"
-                        return `${key}<span class="text-accent">${val}</span>`;
+                        const key = part.substring(0, colonIndex + 1);
+                        const val = part.substring(colonIndex + 1);
+                        return `${key}<span style="color: var(--log-accent-color)">${val}</span>`;
                     }
                     return part;
                 });
-
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
-            // Generic Highlighting for other lines
-            // Resolutions: 3072x2048
-            // Numbers: 0, 1.5, -5 (with word boundary logic or similar)
+            // Combined Regex for Assets, Filenames, Resolutions, and Numbers
+            // Group 1: Asset Prefix (optional)
+            // Group 2: Asset ID (asset_...)
+            // Group 3: Filename
+            // Group 4: Resolution
+            // Group 5: Number
+            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+(\.\d+)?\b)/g;
 
-            // Regex for numbers: (?<!\w)-?\d+(\.\d+)?\b
-            // Regex for resolutions: \b\d+x\d+\b
-
-            // We should match resolutions first to avoid matching the numbers inside them separately if that matters,
-            // though highlighting the whole resolution is preferred.
-
-            safeMessage = safeMessage.replace(/(\b\d+x\d+\b)|((?<!\w)-?\d+(\.\d+)?\b)/g, (match, p1, p2) => {
-                if (p1) return `<span class="text-accent">${p1}</span>`; // Resolution
-                if (p2) return `<span class="text-accent">${p2}</span>`; // Number
+            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, number) => {
+                const style = 'style="color: var(--log-accent-color)"';
+                if (assetId) {
+                    return (assetPrefix || '') + `<span ${style}>${assetId}</span>`;
+                }
+                if (filename) return `<span ${style}>${filename}</span>`;
+                if (resolution) return `<span ${style}>${resolution}</span>`;
+                if (number) return `<span ${style}>${number}</span>`;
                 return match;
             });
 

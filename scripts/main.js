@@ -1289,10 +1289,15 @@
                         targetCtx.globalCompositeOperation = 'destination-out';
                         targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
                     } else {
-                         // Grayscale Mode: Source Over (Black where Masked)
-                         // maskCanvas has black drawing.
-                         targetCtx.globalCompositeOperation = 'source-over';
+                         // Grayscale Mode: White Visible, Black Masked
+                         // 1. Cut holes (Transparent) where mask exists
+                         targetCtx.globalCompositeOperation = 'destination-out';
                          targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+
+                         // 2. Fill holes with Black (Behind)
+                         targetCtx.globalCompositeOperation = 'destination-over';
+                         targetCtx.fillStyle = '#000000';
+                         targetCtx.fillRect(0, 0, drawW, drawH);
                     }
                 }
                 targetCtx.restore();

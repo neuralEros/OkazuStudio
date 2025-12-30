@@ -665,13 +665,14 @@
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
                              const packets = Object.keys(payload).filter(k => k !== 'info');
+                             const hasImages = state.imgA || state.imgB;
 
                              Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
 
                              // Case 1: Mask Export
                              if (info.type === 'mask') {
                                  // Check if we have images loaded to apply mask TO
-                                 if (state.imgA || state.imgB) {
+                                 if (hasImages) {
                                      log("Importing Mask...", "info");
                                      resetMaskOnly();
                                      if (payload.mask && Array.isArray(payload.mask)) {
@@ -684,7 +685,8 @@
                                  }
                              }
                              // Case 2: Merged / Front / Back Export
-                             else if (['merged', 'front', 'back'].includes(info.type)) {
+                             // Only prompt if we already have images loaded (to apply settings TO)
+                             else if (['merged', 'front', 'back'].includes(info.type) && hasImages) {
                                  const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;
                                  const choice = await showModal(
                                      "Load Metadata?",
@@ -702,6 +704,8 @@
                                      // Apply Adjustments
                                      if (payload.adjustments) {
                                          state.adjustments = payload.adjustments;
+                                         // Trigger LUT regeneration for Color Tuning
+                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
                                          if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
                                      }
 

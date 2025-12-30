@@ -1716,12 +1716,8 @@
             
             if (state.isCropping) {
                 if (state.cropRect) {
-                    Logger.info("Crop mode entered", {
-                        x: state.cropRect.x,
-                        y: state.cropRect.y,
-                        w: state.cropRect.w,
-                        h: state.cropRect.h
-                    });
+                    const r = state.cropRect;
+                    Logger.info(`Crop mode entered: x=${r.x.toFixed(4)}, y=${r.y.toFixed(4)}, w=${r.w.toFixed(4)}, h=${r.h.toFixed(4)}`);
                 }
                 state.cropRectSnapshot = state.cropRect ? { ...state.cropRect } : null;
                 els.cropBtn.classList.add('active', 'text-yellow-400');
@@ -1733,12 +1729,8 @@
                 updateCanvasDimensions(true);
                 els.viewport.classList.remove('cropping');
                 if (state.cropRect) {
-                    Logger.info("Crop mode exited", {
-                        x: state.cropRect.x,
-                        y: state.cropRect.y,
-                        w: state.cropRect.w,
-                        h: state.cropRect.h
-                    });
+                    const r = state.cropRect;
+                    Logger.info(`Crop mode exited: x=${r.x.toFixed(4)}, y=${r.y.toFixed(4)}, w=${r.w.toFixed(4)}, h=${r.h.toFixed(4)}`);
                 }
             }
             resetView();

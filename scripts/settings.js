@@ -724,7 +724,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 // Group 4: Category
                 // Group 5: ]
                 // Group 6: Message
-                prefixPart = `${match[1]}<span ${style}>${match[2]}</span>${match[3]}<span ${style}>${match[4]}</span>${match[5]}`;
+                // User requested no accent color for [INFO] etc.
+                prefixPart = `${match[1]}${match[2]}${match[3]}${match[4]}${match[5]}`;
                 messagePart = match[6];
             }
 
@@ -752,8 +753,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             // Group 2: Asset ID (asset_...)
             // Group 3: Filename
             // Group 4: Resolution
-            // Group 5: Number
-            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+(\.\d+)?\b)/g;
+            // Group 5: Number (Floats only to avoid highlighting indices)
+            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+\.\d+\b)/g;
 
             safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, number) => {
                 const style = 'style="color: var(--log-accent-color)"';

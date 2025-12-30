@@ -66,7 +66,8 @@
                             .join(' | ');
                     } catch(e) { summary = '...'; }
 
-                    window.Logger.info(`Action: ${type} | ${summary}`);
+                    if (summary) window.Logger.info(`Action: ${type} | ${summary}`);
+                    else window.Logger.info(`Action: ${type}`);
                 }
             }
 

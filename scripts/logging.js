@@ -30,6 +30,7 @@ window.Logger = (function() {
         state: (key, value) => format('STATE', `${key} = ${JSON.stringify(value)}`),
         undo: (index, total, action) => format('UNDO', `Action: ${action} | Index: ${index}/${total}`),
         brush: (type, nodes) => format('BRUSH', `${type} stroke completed with ${nodes} nodes`),
-        getLogs: () => logs.join('\n')
+        getLogs: () => logs.join('\n'),
+        clear: () => { logs.length = 0; }
     };
 })();

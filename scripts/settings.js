@@ -6,6 +6,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         hue: 28,
         saturation: 96,
         rgbMode: true,
+        rgbSpeed: 1.0, // Multiplier (1.0 = 4 deg/s)
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: '',
@@ -117,7 +118,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     }
 
     function startRgbMode() {
-        if (rgbInterval) return;
+        stopRgbMode(); // Restart if already running to apply new speed
+        const baseInterval = 125;
+        const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
+
         rgbInterval = setInterval(() => {
             state.settings.hue = (state.settings.hue + 0.5) % 360;
             updateThemeVariables(state.settings.hue, state.settings.saturation);
@@ -125,7 +129,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             const slider = document.getElementById('setting-hue');
             if (slider) slider.value = state.settings.hue;
             // We don't save constantly during RGB mode loop
-        }, 125); // 0.5 notch per 125ms (4x speed)
+        }, interval); // 0.5 notch per interval
     }
 
     function stopRgbMode() {
@@ -150,74 +154,111 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[500px] max-w-[90vw] rounded-lg shadow-2xl p-0 overflow-hidden transition-all duration-300 ease-in-out">
-                    <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header">
-                        <h3 class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
-                        <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[800px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex h-[500px]">
+
+                    <!-- Sidebar -->
+                    <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-4">
+                        <button class="settings-tab-btn active text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="general">
+                            General
+                        </button>
+                        <button class="settings-tab-btn text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
+                            Performance
+                        </button>
+                        <button class="settings-tab-btn text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
+                            Debug
                         </button>
                     </div>
 
-                    <div class="p-4">
-                    <!-- UI Hue -->
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">UI Theme Hue/Saturation</label>
-                        <div class="grid grid-cols-[1fr_auto] grid-rows-2 gap-x-4 gap-y-3 items-center">
-                            <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
-                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">RGB</button>
-                            <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
-                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors">Default</button>
+                    <!-- Content Area -->
+                    <div class="w-3/4 flex flex-col bg-panel">
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-panel-divider bg-panel-header shrink-0">
+                            <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
+                            <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
                         </div>
-                    </div>
 
-                    <!-- Brush Resolution -->
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
-                        <div class="flex rounded bg-panel-strong p-1 gap-1">
-                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
-                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
-                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
-                        </div>
-                    </div>
+                        <div class="p-6 overflow-y-auto flex-grow">
 
-                    <!-- Adjustment Resolution -->
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
-                        <div class="flex rounded bg-panel-strong p-1 gap-1">
-                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
-                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
-                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
-                        </div>
-                    </div>
+                            <!-- TAB: GENERAL -->
+                            <div id="tab-general" class="settings-tab-content block">
+                                <div class="mb-6">
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
+                                    <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
+                                        <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
+                                        <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">RGB</button>
 
-                    <!-- Undo History -->
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
-                        <div class="flex gap-4">
-                            <div class="flex-1">
-                                <div class="flex justify-between mb-1">
-                                    <span class="text-[10px] text-gray-400">Keyframe Interval</span>
-                                    <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
+                                        <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
+                                        <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">Default</button>
+
+                                        <div class="col-span-2 flex flex-col gap-1 mt-2">
+                                            <div class="flex justify-between">
+                                                <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
+                                                <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
+                                            </div>
+                                            <input id="setting-rgb-speed" type="range" min="0.1" max="5.0" step="0.1" class="w-full accent-accent">
+                                        </div>
+                                    </div>
                                 </div>
-                                <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
                             </div>
-                            <div class="flex-1">
-                                <div class="flex justify-between mb-1">
-                                    <span class="text-[10px] text-gray-400">Buffer Depth</span>
-                                    <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
+
+                            <!-- TAB: PERFORMANCE -->
+                            <div id="tab-performance" class="settings-tab-content hidden">
+                                <!-- Brush Resolution -->
+                                <div class="mb-6">
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
+                                    <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
+                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                    </div>
                                 </div>
-                                <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
+
+                                <!-- Adjustment Resolution -->
+                                <div class="mb-6">
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
+                                    <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
+                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                    </div>
+                                </div>
+
+                                <!-- Undo History -->
+                                <div class="mb-6">
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                                    <div class="flex gap-4">
+                                        <div class="flex-1">
+                                            <div class="flex justify-between mb-1">
+                                                <span class="text-[10px] text-gray-400">Keyframe Interval</span>
+                                                <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
+                                            </div>
+                                            <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
+                                        </div>
+                                        <div class="flex-1">
+                                            <div class="flex justify-between mb-1">
+                                                <span class="text-[10px] text-gray-400">Buffer Depth</span>
+                                                <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
+                                            </div>
+                                            <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+
+                            <!-- TAB: DEBUG -->
+                            <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
+                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
+                                <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
+                                <div class="flex justify-end gap-2 shrink-0">
+                                    <button id="refresh-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-white hover:bg-panel-800 transition-colors">Refresh</button>
+                                    <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
+                                    <button id="copy-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded bg-accent text-white hover:brightness-110 transition-colors shadow-sm">Copy to Clipboard</button>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
-
-                    <!-- Logs -->
-                    <div class="mt-4 pt-4 border-t border-panel-divider text-right">
-                        <button id="copy-logs-btn" class="text-[10px] font-bold text-gray-500 hover:text-accent uppercase tracking-wider cursor-pointer bg-transparent border-none p-0 transition-colors">
-                            Copy Session Logs
-                        </button>
-                    </div>
-                    </div> <!-- End Body -->
 
                 </div>
             </div>
@@ -236,14 +277,57 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             if (e.target === overlay) closeSettings();
         });
 
+        // --- TAB SWITCHING ---
+        const tabs = document.querySelectorAll('.settings-tab-btn');
+        const contents = document.querySelectorAll('.settings-tab-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Deactivate all
+                tabs.forEach(t => {
+                    t.classList.remove('active', 'bg-white/5', 'border-accent');
+                    t.classList.add('border-transparent');
+                });
+                contents.forEach(c => c.classList.add('hidden'));
+
+                // Activate clicked
+                tab.classList.add('active', 'bg-white/5', 'border-accent');
+                tab.classList.remove('border-transparent');
+
+                const targetId = tab.dataset.tab;
+                document.getElementById(`tab-${targetId}`).classList.remove('hidden');
+
+                if (targetId === 'debug') refreshLogs();
+            });
+        });
+
+        // Add initial active styling for General
+        const generalTab = document.querySelector('[data-tab="general"]');
+        if(generalTab) {
+             generalTab.classList.add('active', 'bg-white/5', 'border-accent');
+             generalTab.classList.remove('border-transparent');
+        }
+
+
+        // --- GENERAL TAB ---
+
         // Hue Controls
         const hueSlider = document.getElementById('setting-hue');
         const saturationSlider = document.getElementById('setting-saturation');
         const hueReset = document.getElementById('setting-hue-reset');
         const rgbToggle = document.getElementById('setting-rgb-toggle');
+        const rgbSpeedSlider = document.getElementById('setting-rgb-speed');
+        const rgbSpeedVal = document.getElementById('val-rgb-speed');
+
 
         hueSlider.value = state.settings.hue;
         saturationSlider.value = state.settings.saturation;
+
+        // RGB Speed
+        rgbSpeedSlider.value = state.settings.rgbSpeed || 1.0;
+        rgbSpeedVal.textContent = (state.settings.rgbSpeed || 1.0).toFixed(1) + 'x';
+
+
         hueSlider.addEventListener('input', (e) => {
             state.settings.hue = parseInt(e.target.value);
             // If dragging slider, disable RGB mode
@@ -285,6 +369,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             saveSettings();
         });
 
+        rgbSpeedSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state.settings.rgbSpeed = val;
+            rgbSpeedVal.textContent = val.toFixed(1) + 'x';
+            if (state.settings.rgbMode) {
+                startRgbMode(); // Restart with new speed
+            }
+            saveDebounced();
+        });
+
+
         function updateRgbButtonState() {
             if (state.settings.rgbMode) {
                 rgbToggle.classList.add('bg-accent', 'border-accent');
@@ -295,6 +390,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             }
         }
         updateRgbButtonState();
+
+
+        // --- PERFORMANCE TAB ---
 
         // Resolution Switches
         function setupResSwitch(selector, settingKey) {
@@ -353,30 +451,44 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             saveDebounced();
         });
 
-        // Copy Logs
+
+        // --- DEBUG TAB ---
+        const logViewer = document.getElementById('debug-log-viewer');
+        const refreshLogsBtn = document.getElementById('refresh-logs-btn');
+        const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
-        if (copyLogsBtn) {
-            copyLogsBtn.addEventListener('click', () => {
-                const logger = window.Logger;
-                if (logger && logger.getLogs) {
-                    const logs = logger.getLogs();
-                    navigator.clipboard.writeText(logs).then(() => {
-                        const originalText = copyLogsBtn.textContent;
-                        copyLogsBtn.textContent = "COPIED!";
-                        copyLogsBtn.classList.add('text-accent');
-                        setTimeout(() => {
-                            copyLogsBtn.textContent = originalText;
-                            copyLogsBtn.classList.remove('text-accent');
-                        }, 2000);
-                    }).catch(err => {
-                        console.error('Failed to copy logs', err);
-                        copyLogsBtn.textContent = "ERROR";
-                    });
-                } else {
-                    console.error("Logger not found or getLogs missing");
-                }
-            });
+
+        function refreshLogs() {
+            if (window.Logger && window.Logger.getLogs) {
+                logViewer.value = window.Logger.getLogs();
+                logViewer.scrollTop = logViewer.scrollHeight;
+            } else {
+                logViewer.value = "Logger not active.";
+            }
         }
+
+        refreshLogsBtn.addEventListener('click', refreshLogs);
+
+        clearLogsBtn.addEventListener('click', () => {
+             if (window.Logger && window.Logger.clear) {
+                window.Logger.clear();
+                refreshLogs();
+            }
+        });
+
+        copyLogsBtn.addEventListener('click', () => {
+            const logs = logViewer.value;
+            navigator.clipboard.writeText(logs).then(() => {
+                const originalText = copyLogsBtn.textContent;
+                copyLogsBtn.textContent = "COPIED!";
+                setTimeout(() => {
+                    copyLogsBtn.textContent = originalText;
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy logs', err);
+            });
+        });
+
 
         // Modal Logic
         function openSettings() {
@@ -388,6 +500,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             // Slide in from top
             modal.style.transform = 'translate(-50%, -50%)';
             // -50% Y is centered. Start was -150% (above)
+
+            // Default to General tab
+            // (Optional: remember last tab?)
         }
 
         function closeSettings() {

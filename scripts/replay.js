@@ -31,8 +31,43 @@
             this.cursor = this.actions.length - 1;
 
             if (window.Logger) {
-                // Sanitize payload for logging if necessary, but user requested details
-                window.Logger.info(`Action: ${entry.type}`, entry.payload);
+                const type = entry.type;
+                const p = entry.payload;
+
+                if (type === 'STROKE' || type === 'POLYLINE') {
+                    const mode = p.mode || p.tool || (p.isErasing ? 'erase' : 'unknown');
+                    const size = typeof p.brushSize === 'number' ? p.brushSize.toFixed(4) : '?';
+                    const feather = typeof p.feather === 'number' ? p.feather.toFixed(4) : '?';
+                    const fMode = p.featherMode ? 'Fixed' : 'Hardness';
+
+                    window.Logger.info(`Action: ${type} | Tool: ${mode} | Size: ${size} | Feather: ${feather} (${fMode})`);
+
+                    if (p.points && Array.isArray(p.points)) {
+                        p.points.forEach((pt, i) => {
+                            window.Logger.info(`${type} Point ${i}: (${pt.x.toFixed(4)}, ${pt.y.toFixed(4)})`);
+                        });
+                    }
+                }
+                else if (type === 'ADJUST' || type === 'TUNE_COLOR') {
+                    const key = p.key;
+                    const sub = p.subkey ? `.${p.subkey}` : '';
+                    const band = p.band ? `[${p.band}] ` : '';
+                    const oldV = typeof p.oldValue === 'number' ? p.oldValue.toFixed(2) : (p.oldValue || '0.00');
+                    const newV = typeof p.value === 'number' ? p.value.toFixed(2) : (p.value || '0.00');
+
+                    window.Logger.info(`Action: ${type} | ${band}${key}${sub}: ${oldV} -> ${newV}`);
+                }
+                else {
+                    let summary = '';
+                    try {
+                        summary = Object.entries(p)
+                            .filter(([k]) => typeof k === 'string' && k !== 'points') // Filter out heavy arrays just in case
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join(' | ');
+                    } catch(e) { summary = '...'; }
+
+                    window.Logger.info(`Action: ${type} | ${summary}`);
+                }
             }
 
             console.log(`[ActionHistory] Logged: ${entry.type} (Cursor: ${this.cursor})`, entry.payload);

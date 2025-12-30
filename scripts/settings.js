@@ -105,39 +105,71 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         document.documentElement.style.setProperty('--accent-s', `${sat}%`);
         document.documentElement.style.setProperty('--accent-l', `${buttonL}%`);
         document.documentElement.style.setProperty('--accent-ink', `hsl(${hue}, 90%, ${inkL}%)`);
+
+        // Log Accent (Cycle 3x speed in RGB mode)
+        const logHue = state.settings.rgbMode ? (hue * 3) % 360 : hue;
+        // Recalculate lightness boost for the shifted log hue
+        const logHueBoost = Math.max(0, Math.cos((logHue - 240) * Math.PI / 180)) * 15;
+        const logButtonL = Math.min(95, 56 + satBoost + logHueBoost);
+        // "Pop" on dark background: Ensure high lightness (70-90 range)
+        // Original inkL was designed for light button backgrounds (dark text).
+        // Here we want light text on dark log background.
+        const logInkL = Math.min(90, Math.max(70, logButtonL + 10));
+
+        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
     }
 
     function applySettings() {
+        // Initial setup
+        cycleHue = state.settings.hue;
         updateThemeVariables(state.settings.hue, state.settings.saturation);
 
-        // Handle RGB Mode
-        if (state.settings.rgbMode) {
-            startRgbMode();
-        } else {
-            stopRgbMode();
-        }
+        // Restart loop to apply speed changes or ensure it's running
+        initRgbLoop();
     }
 
-    function startRgbMode() {
-        stopRgbMode(); // Restart if already running to apply new speed
+    function updateRgbButtonColor(cycleHue) {
+        const btnHue = (cycleHue * 3) % 360;
+        const sat = state.settings.saturation;
+
+        // Similar lightness logic as standard button but using the 3x hue
+        const satBoost = (100 - sat) * 0.4;
+        const hueBoost = Math.max(0, Math.cos((btnHue - 240) * Math.PI / 180)) * 15;
+        const buttonL = Math.min(95, 56 + satBoost + hueBoost);
+        const inkL = 10 + Math.max(0, (buttonL - 56) * 0.294);
+
+        const color = `hsl(${btnHue}, ${sat}%, ${buttonL}%)`;
+        const inkColor = `hsl(${btnHue}, 90%, ${inkL}%)`;
+
+        document.documentElement.style.setProperty('--rgb-button-color', color);
+        document.documentElement.style.setProperty('--rgb-button-ink', inkColor);
+    }
+
+    let cycleHue = defaults.hue;
+
+    function initRgbLoop() {
+        if (rgbInterval) clearInterval(rgbInterval);
+
         const baseInterval = 125;
         const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
 
         rgbInterval = setInterval(() => {
-            state.settings.hue = (state.settings.hue + 0.5) % 360;
-            updateThemeVariables(state.settings.hue, state.settings.saturation);
-            // Update slider if visible
-            const slider = document.getElementById('setting-hue');
-            if (slider) slider.value = state.settings.hue;
-            // We don't save constantly during RGB mode loop
-        }, interval); // 0.5 notch per interval
-    }
+            // Always increment local cycle
+            cycleHue = (cycleHue + 0.5) % 360;
 
-    function stopRgbMode() {
-        if (rgbInterval) {
-            clearInterval(rgbInterval);
-            rgbInterval = null;
-        }
+            // Always update RGB button color (runs at 3x speed of cycleHue)
+            updateRgbButtonColor(cycleHue);
+
+            // Only update global theme if RGB Mode is ON
+            if (state.settings.rgbMode) {
+                state.settings.hue = cycleHue;
+                updateThemeVariables(state.settings.hue, state.settings.saturation);
+
+                // Update slider if visible
+                const slider = document.getElementById('setting-hue');
+                if (slider) slider.value = state.settings.hue;
+            }
+        }, interval);
     }
 
     // Debounce utility
@@ -253,7 +285,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <!-- TAB: DEBUG -->
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
-                                    <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
+                                    <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap select-text focus:outline-none mb-4" tabindex="0"></div>
                                     <div class="flex justify-end gap-2 shrink-0">
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
                                         <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
@@ -346,11 +378,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         hueSlider.addEventListener('input', (e) => {
             state.settings.hue = parseInt(e.target.value);
+            cycleHue = state.settings.hue; // Sync cycle
             // If dragging slider, disable RGB mode
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
-                stopRgbMode();
+                // Loop continues running for button, but main theme stops cycling
             }
             lastStaticHue = state.settings.hue;
             applySettings();
@@ -368,10 +401,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             state.settings.saturation = defaults.saturation;
             hueSlider.value = defaults.hue;
             saturationSlider.value = defaults.saturation;
+            cycleHue = defaults.hue;
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
-                stopRgbMode();
             }
             lastStaticHue = defaults.hue;
             applySettings();
@@ -389,20 +422,26 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             const val = parseFloat(e.target.value);
             state.settings.rgbSpeed = val;
             rgbSpeedVal.textContent = val.toFixed(1) + 'x';
-            if (state.settings.rgbMode) {
-                startRgbMode(); // Restart with new speed
-            }
+            initRgbLoop(); // Restart loop with new speed immediately
             saveDebounced();
         });
 
 
         function updateRgbButtonState() {
+            // Remove standard accent classes to allow custom coloring
+            rgbToggle.classList.remove('bg-accent', 'border-accent', 'text-gray-400', 'hover:bg-panel-strong');
+
+            // Base styles
+            rgbToggle.style.borderColor = 'var(--rgb-button-color)';
+
             if (state.settings.rgbMode) {
-                rgbToggle.classList.add('bg-accent', 'border-accent');
-                rgbToggle.classList.remove('text-gray-400', 'hover:bg-panel-strong');
+                // On: Filled with dynamic color
+                rgbToggle.style.backgroundColor = 'var(--rgb-button-color)';
+                rgbToggle.style.color = 'var(--rgb-button-ink)';
             } else {
-                rgbToggle.classList.remove('bg-accent', 'border-accent');
-                rgbToggle.classList.add('text-gray-400', 'hover:bg-panel-strong');
+                // Off: Transparent with dynamic text/border
+                rgbToggle.style.backgroundColor = 'transparent';
+                rgbToggle.style.color = 'var(--rgb-button-color)';
             }
         }
         updateRgbButtonState();
@@ -474,16 +513,91 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
+        function formatLogLine(line) {
+            const escapeHtml = (str) => str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            // Regex to detect standard log header: [timestamp] [CATEGORY]
+            // e.g. [02:09:24.404] [INTERACTION] ...
+            const prefixRegex = /^(\[[^\]]+\] \[[^\]]+\] )(.*)$/;
+            const match = line.match(prefixRegex);
+
+            let messagePart = line;
+            let prefixPart = '';
+
+            if (match) {
+                prefixPart = escapeHtml(match[1]);
+                messagePart = match[2];
+            }
+
+            // Escape message part before highlighting
+            let safeMessage = escapeHtml(messagePart);
+
+            // Special Handling for "System Info" lines
+            if (safeMessage.startsWith('System Info: ')) {
+                const content = safeMessage.substring('System Info: '.length);
+                const parts = content.split('|');
+                const processedParts = parts.map(part => {
+                    const colonIndex = part.indexOf(':');
+                    if (colonIndex !== -1) {
+                        const key = part.substring(0, colonIndex + 1);
+                        const val = part.substring(colonIndex + 1);
+                        return `${key}<span style="color: var(--log-accent-color)">${val}</span>`;
+                    }
+                    return part;
+                });
+                return prefixPart + 'System Info: ' + processedParts.join('|');
+            }
+
+            // Combined Regex for Assets, Filenames, Resolutions, and Numbers
+            // Group 1: Asset Prefix (optional)
+            // Group 2: Asset ID (asset_...)
+            // Group 3: Filename
+            // Group 4: Resolution
+            // Group 5: Number
+            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+(\.\d+)?\b)/g;
+
+            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, number) => {
+                const style = 'style="color: var(--log-accent-color)"';
+                if (assetId) {
+                    return (assetPrefix || '') + `<span ${style}>${assetId}</span>`;
+                }
+                if (filename) return `<span ${style}>${filename}</span>`;
+                if (resolution) return `<span ${style}>${resolution}</span>`;
+                if (number) return `<span ${style}>${number}</span>`;
+                return match;
+            });
+
+            return prefixPart + safeMessage;
+        }
+
         function refreshLogs() {
             if (window.Logger && window.Logger.getLogs) {
                 const currentLogs = window.Logger.getLogs();
-                // Only update if changed to prevent selection flicker, although selection is hard in readonly
-                if (logViewer.value !== currentLogs) {
-                    logViewer.value = currentLogs;
+                // We always update because we are formatting on the fly and checking equality of
+                // formatted HTML against raw string is complex.
+                // Optimization: Check if raw string length changed or use a separate tracker.
+                // But for now, simple is better.
+
+                const lines = currentLogs.split('\n');
+                // Keep last 500
+                const slice = lines.slice(Math.max(0, lines.length - 500));
+
+                // Format
+                const formatted = slice.map(formatLogLine).join('\n');
+
+                // Only update DOM if changed (using a data-attr or just checking innerHTML length?)
+                // Checking innerHTML is expensive.
+                // Let's just update. The browser handles it reasonably well for 500 lines.
+                // Actually, if we type in a field and this updates every 500ms, it might be annoying if we lose selection.
+                // But this is a read-only log viewer.
+
+                if (logViewer.innerHTML !== formatted) {
+                    logViewer.innerHTML = formatted;
                     logViewer.scrollTop = logViewer.scrollHeight;
                 }
+
             } else {
-                logViewer.value = "Logger not active.";
+                logViewer.innerHTML = "Logger not active.";
             }
         }
 
@@ -508,16 +622,19 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         });
 
         copyLogsBtn.addEventListener('click', () => {
-            const logs = logViewer.value;
-            navigator.clipboard.writeText(logs).then(() => {
-                const originalText = copyLogsBtn.textContent;
-                copyLogsBtn.textContent = "COPIED!";
-                setTimeout(() => {
-                    copyLogsBtn.textContent = originalText;
-                }, 2000);
-            }).catch(err => {
-                console.error('Failed to copy logs', err);
-            });
+            // Use window.Logger.getLogs() directly to get the full raw text
+            if (window.Logger && window.Logger.getLogs) {
+                const logs = window.Logger.getLogs();
+                navigator.clipboard.writeText(logs).then(() => {
+                    const originalText = copyLogsBtn.textContent;
+                    copyLogsBtn.textContent = "COPIED!";
+                    setTimeout(() => {
+                        copyLogsBtn.textContent = originalText;
+                    }, 2000);
+                }).catch(err => {
+                    console.error('Failed to copy logs', err);
+                });
+            }
         });
 
 

@@ -5,7 +5,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     const defaults = {
         hue: 28,
         saturation: 96,
-        rgbMode: true,
+        rgbMode: false,
         rgbSpeed: 5.0, // Multiplier (1.0 = 4 deg/s)
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
@@ -339,9 +339,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
-                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">4K</button>
-                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="4320">8K</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p (HD)</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">2160p (4K)</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="4320">4320p (8K)</button>
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
                                         </div>
                                     </div>

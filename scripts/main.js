@@ -1980,6 +1980,23 @@
              // Extract Format
              const format = (name && name.includes('.')) ? name.split('.').pop().toUpperCase() : 'PNG';
 
+             // Steganography Detection
+             if (window.kakushi && window.kakushi.peek(img)) {
+                 window.kakushi.reveal(img).then(result => {
+                     if (result.secret) {
+                         try {
+                             const data = JSON.parse(result.secret);
+                             Logger.info(`[Stego] Detected Packets in ${name}:`, data);
+                             console.log(`[Stego] ${name} Packets:`, data);
+                         } catch (e) {
+                             Logger.error("[Stego] Failed to parse payload", e);
+                         }
+                     }
+                 }).catch(e => {
+                     Logger.error("[Stego] Reveal failed", e);
+                 });
+             }
+
              Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height} (Asset: ${assetId})`);
              if (slot === 'A') {
                 setLayerSource('A', img);
@@ -2707,9 +2724,29 @@
                     // renderToContext clears the canvas
                     renderToContext(expCtx, finalW, finalH, options);
 
+                    // Steganography Stamping (PNG Only)
+                    let finalCanvas = exportCanvas;
+                    if (format === 'image/png' && window.Stego && window.kakushi) {
+                         try {
+                             // We use window.ActionHistory directly as it's the source of truth for actions
+                             const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
+                             // Only stamp if we have meaningful data (always has info, but let's assume we proceed)
+                             if (payload) {
+                                 // kakushi.seal returns a NEW canvas with data
+                                 const json = JSON.stringify(payload);
+                                 finalCanvas = await window.kakushi.seal(exportCanvas, json);
+                                 Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
+                             }
+                         } catch (err) {
+                             Logger.error("[Stego] Failed to stamp image", err);
+                             // Fallback to original canvas (unstamped)
+                             finalCanvas = exportCanvas;
+                         }
+                    }
+
                     // Blob & Download
                     await new Promise(resolve => {
-                        exportCanvas.toBlob(blob => {
+                        finalCanvas.toBlob(blob => {
                             if (blob) {
                                 const link = document.createElement('a');
                                 link.download = filename;

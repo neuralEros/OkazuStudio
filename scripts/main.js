@@ -1217,7 +1217,36 @@
         }
 
         // --- Core Rendering & Helper ---
-        function renderToContext(targetCtx, w, h, forceOpacity = false, useBakedLayers = true, preferPreview = false, allowRebuild = true) {
+        function renderToContext(targetCtx, w, h, options = {}, arg2, arg3, arg4) {
+            // Backward Compatibility: Handle positional arguments if 'options' is boolean (forceOpacity legacy)
+            let opts = {};
+            if (typeof options === 'boolean') {
+                opts = {
+                    forceOpacity: options,
+                    useBakedLayers: arg2 !== undefined ? arg2 : true,
+                    preferPreview: arg3 !== undefined ? arg3 : false,
+                    allowRebuild: arg4 !== undefined ? arg4 : true,
+                    renderBack: state.backVisible,
+                    renderFront: true,
+                    applyMask: state.maskVisible,
+                    renderMode: 'composite'
+                };
+            } else {
+                opts = { ...options };
+            }
+
+            // Options Normalization
+            const {
+                forceOpacity = false,
+                useBakedLayers = true,
+                preferPreview = false,
+                allowRebuild = true,
+                renderBack = state.backVisible,
+                renderFront = true,
+                applyMask = state.maskVisible,
+                renderMode = 'composite' // 'composite', 'mask_alpha', 'mask_grayscale'
+            } = opts;
+
             targetCtx.clearRect(0, 0, w, h);
             if (!state.cropRect && !state.isCropping) return;
 
@@ -1229,12 +1258,6 @@
             const frontImg = frontLayer.img;
             const backImg = backLayer.img;
 
-            // Adjust draw args for crop logic
-            // cropRect is now Proportional. Convert to Pixels relative to state.fullDims.h (Truth Height)
-            // But wait, fullDims tracks source image dims.
-            // If cropping (state.isCropping), we draw full source (sX=0, sY=0, sW=fullW, sH=fullH).
-            // If not cropping (state.cropRect valid), we draw cropped region.
-
             const fullH = state.fullDims.h || 1;
             const fullW = state.fullDims.w || 1;
 
@@ -1244,15 +1267,47 @@
             const sH = state.isCropping ? fullH : (state.cropRect.h * fullH);
 
             const isRotated = state.rotation % 180 !== 0;
-            // Determine effective draw dimensions (Truth space)
             const drawW = isRotated ? h : w;
             const drawH = isRotated ? w : h;
 
             targetCtx.save();
             applyRotation(targetCtx, w, h, state.rotation);
 
+            // Special Render Modes (Mask Export)
+            if (renderMode.startsWith('mask_')) {
+                // Background: White
+                targetCtx.fillStyle = '#FFFFFF';
+                targetCtx.fillRect(0, 0, drawW, drawH);
+
+                // Prepare Mask Source
+                const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
+                const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
+
+                if (maskSource.width > 0 && maskSource.height > 0) {
+                    if (renderMode === 'mask_alpha') {
+                        // Alpha Mode: Destination Out (Transparent where Masked)
+                        targetCtx.globalCompositeOperation = 'destination-out';
+                        targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                    } else {
+                         // Grayscale Mode: White Visible, Black Masked
+                         // 1. Cut holes (Transparent) where mask exists
+                         targetCtx.globalCompositeOperation = 'destination-out';
+                         targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+
+                         // 2. Fill holes with Black (Behind)
+                         targetCtx.globalCompositeOperation = 'destination-over';
+                         targetCtx.fillStyle = '#000000';
+                         targetCtx.fillRect(0, 0, drawW, drawH);
+                    }
+                }
+                targetCtx.restore();
+                return;
+            }
+
+            // Standard Composite Render
+
             // Draw Back
-            if (backImg && state.backVisible) {
+            if (backImg && renderBack) {
                 targetCtx.globalAlpha = 1.0;
                 targetCtx.globalCompositeOperation = 'source-over';
 
@@ -1270,7 +1325,7 @@
             }
 
             // Draw Front
-            if (frontImg) {
+            if (frontImg && renderFront) {
                 const fCtx = state.previewFrontLayer.getContext('2d');
 
                 // Safety check for invalid dimensions before resize/draw
@@ -1284,58 +1339,19 @@
 
                     fCtx.globalCompositeOperation = 'source-over';
 
-                    // Render Front Image Centered in Union Dims
-                    // Calculate visual size of front image relative to FullDims
-                    // Scale factor for front image to match FullH?
-                    // Actually, sX, sY, sW, sH are crop rects relative to FullDims.
-                    // But frontImg is smaller than FullDims (potentially).
-                    // We need to map FrontImg pixels to Canvas pixels.
-
-                    // Basic Logic:
-                    // Back Image is centered. Scale = FullH / BackH.
-                    // Front Image: Scale = FullH / FrontH (if we match heights).
-                    // This is consistent.
-
-                    // Calculate Source Rect relative to Front Image
-                    // sX, sY are pixels in FullDims (Union) space.
-                    // We need to subtract the offset of Front Image in Union Space.
-
                     const frontScale = (state.fullDims.h / frontImg.height) || 1; // Visual Scale
                     const frontVisualW = frontImg.width * frontScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
-                    const frontOffY = 0; // Vertically aligned
-
-                    // Map Crop Rect (sX, sY, sW, sH) to Source Rect on Front Image
-                    // Dest Rect is 0,0, drawW, drawH (View)
-                    // We want to draw the portion of Front Image that overlaps with Crop Rect.
-
-                    // This is complex because standard drawImage takes Source Rect.
-                    // Source Rect is in Source Pixels.
-
-                    // Let's use a simpler approach for Front Layer Buffer:
-                    // 1. Draw Front Image Centered into Buffer (at Full Resolution / Union Dims).
-                    // 2. Then draw Crop from Buffer to View?
-                    // No, that's slow.
-
-                    // We need to calculate the intersection of CropRect and FrontImageRect.
-                    // CropRect: sX, sY, sW, sH (in Union Pixels).
-                    // FrontImageRect: frontOffX, frontOffY, frontVisualW, FullH (in Union Pixels).
-
-                    // Relative to Front Image Source:
-                    // SrcX = (sX - frontOffX) / frontScale
-                    // SrcY = (sY - frontOffY) / frontScale
-                    // SrcW = sW / frontScale
-                    // SrcH = sH / frontScale
 
                     const fSrcX = (sX - frontOffX) / frontScale;
-                    const fSrcY = (sY - frontOffY) / frontScale;
+                    const fSrcY = (sY - 0) / frontScale;
                     const fSrcW = sW / frontScale;
                     const fSrcH = sH / frontScale;
 
                     // Render
                     fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
 
-                    if (state.maskVisible) {
+                    if (applyMask) {
                         fCtx.globalCompositeOperation = 'destination-out';
                         const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
                         const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
@@ -2572,44 +2588,150 @@
             });
         }
 
-        function saveImage() {
+        async function saveImage() {
             if (!state.imgA && !state.imgB) return;
             bakeRotation();
             Logger.info("Exporting image...");
-            try {
-                // Render CROP area for export
-                const wasCropping = state.isCropping;
-                state.isCropping = false; 
 
-                // Calculate Pixel Crop
-                const rw = Math.round(state.cropRect.w * state.fullDims.h);
-                const rh = Math.round(state.cropRect.h * state.fullDims.h);
+            // Export Settings
+            const format = state.settings.exportFormat || 'image/png'; // 'image/jpeg', 'image/png', 'image/webp'
+            const quality = (state.settings.exportQuality || 98) / 100;
+            const heightCap = state.settings.exportHeightCap || 'Full';
+            const layers = state.settings.exportLayers || { merged: true };
 
-                resizeMainCanvas(rw, rh);
-                
-                render(true); // Final render with adjustments
-                
-                const now = new Date();
-                const pad = (n) => n.toString().padStart(2, '0');
-                const timeString = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-                const filename = `${timeString}.png`; // Removed FanArt_ prefix
+            const pad = (n) => n.toString().padStart(2, '0');
+            const now = new Date();
+            const timeString = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 
-                const link = document.createElement('a');
-                link.download = filename;
-                link.href = els.mainCanvas.toDataURL('image/png');
-                link.click();
-                
-                // Restore state
-                if (wasCropping) {
-                    state.isCropping = true;
-                    resizeMainCanvas(state.fullDims.w, state.fullDims.h);
+            // File Extension
+            let ext = 'png';
+            if (format === 'image/jpeg') ext = 'jpg';
+            else if (format === 'image/webp') ext = 'webp';
+
+            // Calculate Base Dimensions (Truth Pixels)
+            // state.cropRect is Proportional.
+            const fullH = state.fullDims.h || 1;
+            const fullW = state.fullDims.w || 1;
+
+            const truthW = Math.round(state.cropRect.w * fullH);
+            const truthH = Math.round(state.cropRect.h * fullH);
+
+            // Handle Rotation for final dimensions
+            const isRotated = state.rotation % 180 !== 0;
+            const unscaledW = isRotated ? truthH : truthW;
+            const unscaledH = isRotated ? truthW : truthH;
+
+            // Height Cap Logic (Downscale Only)
+            let finalW = unscaledW;
+            let finalH = unscaledH;
+
+            if (heightCap !== 'Full') {
+                const cap = parseInt(heightCap);
+                if (finalH > cap) {
+                    const scale = cap / finalH;
+                    finalW = Math.round(finalW * scale);
+                    finalH = Math.round(finalH * scale);
                 }
-                
-                render();
-                log("Image saved", "info");
-                Logger.info(`Export Complete: ${filename}`);
+            }
+
+            // Prepare Temporary Canvas
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = finalW;
+            exportCanvas.height = finalH;
+            const expCtx = exportCanvas.getContext('2d');
+
+            // Queue of exports
+            const jobs = [];
+            if (layers.merged) jobs.push({ type: 'merged', suffix: '_merged' });
+            if (layers.mask)   jobs.push({ type: 'mask',   suffix: '_mask' });
+            if (layers.front)  jobs.push({ type: 'front',  suffix: '_front' });
+            if (layers.back)   jobs.push({ type: 'back',   suffix: '_back' });
+
+            // If nothing selected (shouldn't happen with defaults, but safety)
+            if (jobs.length === 0) jobs.push({ type: 'merged', suffix: '_merged' });
+
+            try {
+                // We need to disable cropping temporarily to render correctly?
+                // Actually renderToContext handles crop logic via state.cropRect/isCropping.
+                // But renderToContext renders to TARGET size using SOURCE rects.
+                // So we just need to pass finalW/finalH to renderToContext,
+                // and it will map state.cropRect (which is proportional) to finalW/finalH.
+                // However, renderToContext assumes it's drawing to the "view" usually?
+                // No, renderToContext is generic. It takes w/h.
+
+                // Temporarily disable isCropping flag so renderToContext uses cropRect logic
+                // (If isCropping is true, it ignores cropRect and draws full source)
+                // We want to draw cropRect content.
+                const wasCropping = state.isCropping;
+                state.isCropping = false;
+
+                // Process Jobs
+                for (const job of jobs) {
+                    const filename = `${timeString}${job.suffix}.${ext}`;
+
+                    // Configure Render Options
+                    const options = {
+                        forceOpacity: true, // Export should generally be opaque composite unless alpha is needed
+                        useBakedLayers: true,
+                        preferPreview: false,
+                        allowRebuild: true,
+                        renderBack: false,
+                        renderFront: false,
+                        applyMask: false,
+                        renderMode: 'composite'
+                    };
+
+                    if (job.type === 'merged') {
+                        options.renderBack = state.backVisible;
+                        options.renderFront = true;
+                        options.applyMask = state.maskVisible;
+                    } else if (job.type === 'front') {
+                        options.renderFront = true;
+                        // "If Mask Export is OFF, apply mask to Front. If Mask Export is ON, export front intact."
+                        // Invariant: Front Export always has baked adjustments/crop.
+                        if (layers.mask) {
+                             // Mask IS selected for export -> Front Intact (No Mask)
+                             options.applyMask = false;
+                        } else {
+                             // Mask IS NOT selected -> Apply Mask to Front
+                             options.applyMask = true; // (Assuming user wants the cutout if they aren't getting the mask separately)
+                        }
+                    } else if (job.type === 'back') {
+                        options.renderBack = true;
+                    } else if (job.type === 'mask') {
+                         if (format === 'image/jpeg') options.renderMode = 'mask_grayscale';
+                         else options.renderMode = 'mask_alpha';
+                    }
+
+                    // Render
+                    // renderToContext clears the canvas
+                    renderToContext(expCtx, finalW, finalH, options);
+
+                    // Blob & Download
+                    await new Promise(resolve => {
+                        exportCanvas.toBlob(blob => {
+                            if (blob) {
+                                const link = document.createElement('a');
+                                link.download = filename;
+                                link.href = URL.createObjectURL(blob);
+                                link.click();
+                                setTimeout(() => {
+                                    URL.revokeObjectURL(link.href);
+                                    resolve();
+                                }, 100);
+                            } else {
+                                resolve();
+                            }
+                        }, format, quality);
+                    });
+                }
+
+                state.isCropping = wasCropping;
+                log("Export complete", "info");
+                Logger.info(`Export Batch Complete: ${jobs.map(j => j.suffix).join(', ')}`);
+
             } catch (e) {
-                log("Save failed");
+                log("Save failed: " + e.message);
                 Logger.error("Export Failed", e);
             }
         }

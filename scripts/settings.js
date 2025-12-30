@@ -6,13 +6,23 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         hue: 28,
         saturation: 96,
         rgbMode: true,
-        rgbSpeed: 1.0, // Multiplier (1.0 = 4 deg/s)
+        rgbSpeed: 5.0, // Multiplier (1.0 = 4 deg/s)
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
         apiKey: '',
         keyframeInterval: 10,
         keyframeBuffer: 5,
-        useReplay: true
+        useReplay: true,
+        // Export Defaults
+        exportFormat: 'image/png', // 'image/jpeg', 'image/png', 'image/webp'
+        exportQuality: 98,
+        exportHeightCap: 4320, // 'Full' or number
+        exportLayers: {
+            merged: true,
+            mask: false,
+            front: false,
+            back: false
+        }
     };
 
     let lastStaticHue = defaults.hue;
@@ -114,9 +124,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // "Pop" on dark background: Ensure high lightness (70-90 range)
         // Original inkL was designed for light button backgrounds (dark text).
         // Here we want light text on dark log background.
-        const logInkL = Math.min(90, Math.max(70, logButtonL + 10));
+        const logInkL = Math.min(98, Math.max(75, logButtonL + 15));
 
-        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
+        document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 100%, ${logInkL}%)`);
     }
 
     function applySettings() {
@@ -128,39 +138,38 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         initRgbLoop();
     }
 
-    function updateRgbButtonColor(cycleHue) {
-        const btnHue = (cycleHue * 3) % 360;
+    function updateRgbButtonColor(hue) {
         const sat = state.settings.saturation;
 
         // Similar lightness logic as standard button but using the 3x hue
         const satBoost = (100 - sat) * 0.4;
-        const hueBoost = Math.max(0, Math.cos((btnHue - 240) * Math.PI / 180)) * 15;
+        const hueBoost = Math.max(0, Math.cos((hue - 240) * Math.PI / 180)) * 15;
         const buttonL = Math.min(95, 56 + satBoost + hueBoost);
         const inkL = 10 + Math.max(0, (buttonL - 56) * 0.294);
 
-        const color = `hsl(${btnHue}, ${sat}%, ${buttonL}%)`;
-        const inkColor = `hsl(${btnHue}, 90%, ${inkL}%)`;
+        const color = `hsl(${hue}, ${sat}%, ${buttonL}%)`;
+        const inkColor = `hsl(${hue}, 90%, ${inkL}%)`;
 
         document.documentElement.style.setProperty('--rgb-button-color', color);
         document.documentElement.style.setProperty('--rgb-button-ink', inkColor);
     }
 
     let cycleHue = defaults.hue;
+    let buttonHue = 0;
+    let buttonInterval = null;
 
     function initRgbLoop() {
+        // Theme Loop (Variable Speed)
         if (rgbInterval) clearInterval(rgbInterval);
 
         const baseInterval = 125;
         const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
 
         rgbInterval = setInterval(() => {
-            // Always increment local cycle
+            // Increment theme cycle
             cycleHue = (cycleHue + 0.5) % 360;
 
-            // Always update RGB button color (runs at 3x speed of cycleHue)
-            updateRgbButtonColor(cycleHue);
-
-            // Only update global theme if RGB Mode is ON
+            // Update global theme if RGB Mode is ON
             if (state.settings.rgbMode) {
                 state.settings.hue = cycleHue;
                 updateThemeVariables(state.settings.hue, state.settings.saturation);
@@ -170,6 +179,21 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 if (slider) slider.value = state.settings.hue;
             }
         }, interval);
+
+        // Button Loop (Fixed High Speed 20x)
+        // 20x relative to base 1.0x (4 deg/s)? Or just fast?
+        // Let's assume 20x multiplier on base speed.
+        // Base: 0.5 deg every 125ms = 4 deg/s
+        // 20x: 80 deg/s.
+        // Interval for 0.5 deg increment: 125 / 20 = 6.25ms
+        // Let's do 10ms interval and appropriate increment to hit ~80 deg/s?
+        // 10ms is 100fps. 0.8 deg per tick.
+        if (buttonInterval) clearInterval(buttonInterval);
+
+        buttonInterval = setInterval(() => {
+            buttonHue = (buttonHue + 1) % 360; // 1 deg per ~10ms = 100 deg/s (~25x)
+            updateRgbButtonColor(buttonHue);
+        }, 10);
     }
 
     // Debounce utility
@@ -191,7 +215,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
-                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
+                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px] uppercase tracking-widest">Settings</h3>
                         <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
@@ -201,11 +225,14 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <div class="flex flex-grow overflow-hidden">
                         <!-- Sidebar -->
                         <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
-                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="general">
-                                General
+                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
+                                Interface
                             </button>
                             <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
                                 Performance
+                            </button>
+                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="export">
+                                Export
                             </button>
                             <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
                                 Debug
@@ -216,8 +243,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         <div class="w-3/4 flex flex-col bg-panel">
                             <div class="p-4 overflow-y-auto flex-grow">
 
-                                <!-- TAB: GENERAL -->
-                                <div id="tab-general" class="settings-tab-content block">
+                                <!-- TAB: INTERFACE -->
+                                <div id="tab-interface" class="settings-tab-content block">
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
                                         <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
@@ -232,7 +259,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                                     <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
                                                     <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
                                                 </div>
-                                                <input id="setting-rgb-speed" type="range" min="0.1" max="5.0" step="0.1" class="w-full accent-accent">
+                                                <input id="setting-rgb-speed" type="range" min="0.1" max="10.0" step="0.1" class="w-full accent-accent">
                                             </div>
                                         </div>
                                     </div>
@@ -242,7 +269,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <div id="tab-performance" class="settings-tab-content hidden">
                                     <!-- Brush Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -252,7 +279,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Adjustment Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -262,7 +289,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Undo History -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History</label>
                                         <div class="flex gap-4">
                                             <div class="flex-1">
                                                 <div class="flex justify-between mb-1">
@@ -280,6 +307,52 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- TAB: EXPORT -->
+                                <div id="tab-export" class="settings-tab-content hidden">
+
+                                    <!-- File Format -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">File Format</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1 mb-4">
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/jpeg">JPG</button>
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/png">PNG</button>
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/webp">WEBP</button>
+                                        </div>
+
+                                        <!-- Quality Slider -->
+                                        <div id="export-quality-container" class="flex flex-col gap-1 transition-opacity duration-200">
+                                            <div class="flex justify-between">
+                                                <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Quality</span>
+                                                <span id="val-export-quality" class="text-[10px] text-gray-400">98%</span>
+                                            </div>
+                                            <input id="setting-export-quality" type="range" min="0" max="100" class="w-full accent-accent">
+                                        </div>
+                                    </div>
+
+                                    <!-- Height Cap -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">4K</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="4320">8K</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Layer Exports -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Layer Exports</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
+                                        </div>
+                                    </div>
+
                                 </div>
 
                                 <!-- TAB: DEBUG -->
@@ -347,17 +420,131 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             });
         });
 
-        // Add initial active styling for General
-        const generalTab = document.querySelector('[data-tab="general"]');
-        if(generalTab) {
-             generalTab.classList.add('active');
-             generalTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
-             generalTab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
-             generalTab.style.color = 'var(--accent-soft)';
+        // Add initial active styling for Interface
+        const interfaceTab = document.querySelector('[data-tab="interface"]');
+        if(interfaceTab) {
+             interfaceTab.classList.add('active');
+             interfaceTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+             interfaceTab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+             interfaceTab.style.color = 'var(--accent-soft)';
         }
 
 
-        // --- GENERAL TAB ---
+        // --- EXPORT TAB ---
+
+        // File Format
+        const exportFmtButtons = document.querySelectorAll('.export-fmt-btn');
+        const exportQualityContainer = document.getElementById('export-quality-container');
+        const exportQualitySlider = document.getElementById('setting-export-quality');
+        const exportQualityVal = document.getElementById('val-export-quality');
+
+        exportQualitySlider.value = state.settings.exportQuality || 98;
+        exportQualityVal.textContent = (state.settings.exportQuality || 98) + '%';
+
+        function updateExportFormatUI() {
+            const currentFmt = state.settings.exportFormat;
+            exportFmtButtons.forEach(btn => {
+                const val = btn.dataset.val;
+                if (val === currentFmt) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+
+            // Handle Quality Slider Visibility/State
+            if (currentFmt === 'image/png') {
+                exportQualityContainer.style.opacity = '0.3';
+                exportQualityContainer.style.pointerEvents = 'none';
+            } else {
+                exportQualityContainer.style.opacity = '1';
+                exportQualityContainer.style.pointerEvents = 'auto';
+            }
+        }
+
+        exportFmtButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.settings.exportFormat = btn.dataset.val;
+                updateExportFormatUI();
+                saveSettings();
+            });
+        });
+
+        exportQualitySlider.addEventListener('input', (e) => {
+             const val = parseInt(e.target.value);
+             state.settings.exportQuality = val;
+             exportQualityVal.textContent = val + '%';
+             saveDebounced();
+        });
+
+        updateExportFormatUI();
+
+        // Height Cap
+        function setupExportCapSwitch(selector, settingKey) {
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const val = btn.dataset.val;
+                    state.settings[settingKey] = val === 'Full' ? 'Full' : parseInt(val);
+                    updateExportCapButtons(selector, settingKey);
+                    saveSettings();
+                });
+            });
+            updateExportCapButtons(selector, settingKey);
+        }
+
+        function updateExportCapButtons(selector, settingKey) {
+            const current = state.settings[settingKey];
+            document.querySelectorAll(selector).forEach(btn => {
+                const val = btn.dataset.val === 'Full' ? 'Full' : parseInt(btn.dataset.val);
+                if (val === current) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+        }
+        setupExportCapSwitch('.export-cap-btn', 'exportHeightCap');
+
+        // Layer Exports
+        const exportLayerButtons = document.querySelectorAll('.export-layer-btn');
+
+        // Defaults check (in case not in stored settings)
+        if (!state.settings.exportLayers) {
+            state.settings.exportLayers = { merged: true, mask: false, front: false, back: false };
+        }
+
+        function updateLayerButtons() {
+            const layers = state.settings.exportLayers;
+            exportLayerButtons.forEach(btn => {
+                const key = btn.dataset.key;
+                if (layers[key]) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+        }
+
+        exportLayerButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                state.settings.exportLayers[key] = !state.settings.exportLayers[key];
+                updateLayerButtons();
+                saveSettings();
+            });
+        });
+
+        updateLayerButtons();
+
+
+        // --- INTERFACE TAB ---
 
         // Hue Controls
         const hueSlider = document.getElementById('setting-hue');
@@ -518,15 +705,23 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
             // Regex to detect standard log header: [timestamp] [CATEGORY]
             // e.g. [02:09:24.404] [INTERACTION] ...
-            const prefixRegex = /^(\[[^\]]+\] \[[^\]]+\] )(.*)$/;
+            const prefixRegex = /^(\[)([^\]]+)(\] \[)([^\]]+)(\] )(.*)$/;
             const match = line.match(prefixRegex);
 
             let messagePart = line;
             let prefixPart = '';
 
+            const style = 'style="color: var(--log-accent-color)"';
+
             if (match) {
-                prefixPart = escapeHtml(match[1]);
-                messagePart = match[2];
+                // Group 1: [
+                // Group 2: Timestamp
+                // Group 3: ] [
+                // Group 4: Category
+                // Group 5: ]
+                // Group 6: Message
+                prefixPart = `${match[1]}<span ${style}>${match[2]}</span>${match[3]}<span ${style}>${match[4]}</span>${match[5]}`;
+                messagePart = match[6];
             }
 
             // Escape message part before highlighting

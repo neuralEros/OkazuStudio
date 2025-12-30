@@ -114,7 +114,11 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         document.documentElement.style.setProperty('--accent-h', hue);
         document.documentElement.style.setProperty('--accent-s', `${sat}%`);
         document.documentElement.style.setProperty('--accent-l', `${buttonL}%`);
-        document.documentElement.style.setProperty('--accent-ink', `hsl(${hue}, 90%, ${inkL}%)`);
+
+        // Link Ink Saturation to global saturation (clamped to sensible max if needed, but linear is safest)
+        // If global sat is 0, ink should be 0. If global is 100, ink can be 90 or 100.
+        // Let's just use 'sat' to be consistent with other vars.
+        document.documentElement.style.setProperty('--accent-ink', `hsl(${hue}, ${sat}%, ${inkL}%)`);
 
         // Log Accent (Cycle 3x speed in RGB mode)
         const logHue = state.settings.rgbMode ? (hue * 3) % 360 : hue;

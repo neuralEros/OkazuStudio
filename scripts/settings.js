@@ -12,7 +12,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         apiKey: '',
         keyframeInterval: 10,
         keyframeBuffer: 5,
-        useReplay: true
+        useReplay: true,
+        // Export Defaults
+        exportFormat: 'image/jpeg', // 'image/jpeg', 'image/png', 'image/webp'
+        exportQuality: 98,
+        exportHeightCap: 'Full', // 'Full' or number
+        exportLayers: {
+            merged: true,
+            mask: false,
+            front: false,
+            back: false
+        }
     };
 
     let lastStaticHue = defaults.hue;
@@ -201,11 +211,14 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <div class="flex flex-grow overflow-hidden">
                         <!-- Sidebar -->
                         <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
-                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="general">
-                                General
+                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
+                                Interface
                             </button>
                             <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
                                 Performance
+                            </button>
+                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="export">
+                                Export
                             </button>
                             <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
                                 Debug
@@ -216,8 +229,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         <div class="w-3/4 flex flex-col bg-panel">
                             <div class="p-4 overflow-y-auto flex-grow">
 
-                                <!-- TAB: GENERAL -->
-                                <div id="tab-general" class="settings-tab-content block">
+                                <!-- TAB: INTERFACE -->
+                                <div id="tab-interface" class="settings-tab-content block">
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
                                         <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
@@ -280,6 +293,64 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <!-- TAB: EXPORT -->
+                                <div id="tab-export" class="settings-tab-content hidden">
+
+                                    <!-- File Format -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">File Format</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1 mb-4">
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/jpeg">JPG</button>
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/png">PNG</button>
+                                            <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/webp">WEBP</button>
+                                        </div>
+
+                                        <!-- Quality Slider -->
+                                        <div id="export-quality-container" class="flex flex-col gap-1 transition-opacity duration-200">
+                                            <div class="flex justify-between">
+                                                <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Quality</span>
+                                                <span id="val-export-quality" class="text-[10px] text-gray-400">98%</span>
+                                            </div>
+                                            <input id="setting-export-quality" type="range" min="0" max="100" class="w-full accent-accent">
+                                        </div>
+                                    </div>
+
+                                    <!-- Height Cap -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap (Downscale Only)</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">4K</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="4320">8K</button>
+                                            <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Layer Exports -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Layer Exports</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
+                                                <input type="checkbox" id="export-layer-merged" class="accent-accent">
+                                                <span class="text-xs font-bold text-gray-300">Merged</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
+                                                <input type="checkbox" id="export-layer-mask" class="accent-accent">
+                                                <span class="text-xs font-bold text-gray-300">Mask</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
+                                                <input type="checkbox" id="export-layer-front" class="accent-accent">
+                                                <span class="text-xs font-bold text-gray-300">Front</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
+                                                <input type="checkbox" id="export-layer-back" class="accent-accent">
+                                                <span class="text-xs font-bold text-gray-300">Back</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
                                 </div>
 
                                 <!-- TAB: DEBUG -->
@@ -347,17 +418,126 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             });
         });
 
-        // Add initial active styling for General
-        const generalTab = document.querySelector('[data-tab="general"]');
-        if(generalTab) {
-             generalTab.classList.add('active');
-             generalTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
-             generalTab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
-             generalTab.style.color = 'var(--accent-soft)';
+        // Add initial active styling for Interface
+        const interfaceTab = document.querySelector('[data-tab="interface"]');
+        if(interfaceTab) {
+             interfaceTab.classList.add('active');
+             interfaceTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+             interfaceTab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+             interfaceTab.style.color = 'var(--accent-soft)';
         }
 
 
-        // --- GENERAL TAB ---
+        // --- EXPORT TAB ---
+
+        // File Format
+        const exportFmtButtons = document.querySelectorAll('.export-fmt-btn');
+        const exportQualityContainer = document.getElementById('export-quality-container');
+        const exportQualitySlider = document.getElementById('setting-export-quality');
+        const exportQualityVal = document.getElementById('val-export-quality');
+
+        exportQualitySlider.value = state.settings.exportQuality || 98;
+        exportQualityVal.textContent = (state.settings.exportQuality || 98) + '%';
+
+        function updateExportFormatUI() {
+            const currentFmt = state.settings.exportFormat;
+            exportFmtButtons.forEach(btn => {
+                const val = btn.dataset.val;
+                if (val === currentFmt) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+
+            // Handle Quality Slider Visibility/State
+            if (currentFmt === 'image/png') {
+                exportQualityContainer.style.opacity = '0.3';
+                exportQualityContainer.style.pointerEvents = 'none';
+            } else {
+                exportQualityContainer.style.opacity = '1';
+                exportQualityContainer.style.pointerEvents = 'auto';
+            }
+        }
+
+        exportFmtButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.settings.exportFormat = btn.dataset.val;
+                updateExportFormatUI();
+                saveSettings();
+            });
+        });
+
+        exportQualitySlider.addEventListener('input', (e) => {
+             const val = parseInt(e.target.value);
+             state.settings.exportQuality = val;
+             exportQualityVal.textContent = val + '%';
+             saveDebounced();
+        });
+
+        updateExportFormatUI();
+
+        // Height Cap
+        function setupExportCapSwitch(selector, settingKey) {
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const val = btn.dataset.val;
+                    state.settings[settingKey] = val === 'Full' ? 'Full' : parseInt(val);
+                    updateExportCapButtons(selector, settingKey);
+                    saveSettings();
+                });
+            });
+            updateExportCapButtons(selector, settingKey);
+        }
+
+        function updateExportCapButtons(selector, settingKey) {
+            const current = state.settings[settingKey];
+            document.querySelectorAll(selector).forEach(btn => {
+                const val = btn.dataset.val === 'Full' ? 'Full' : parseInt(btn.dataset.val);
+                if (val === current) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+        }
+        setupExportCapSwitch('.export-cap-btn', 'exportHeightCap');
+
+        // Layer Exports
+        const exportMerged = document.getElementById('export-layer-merged');
+        const exportMask = document.getElementById('export-layer-mask');
+        const exportFront = document.getElementById('export-layer-front');
+        const exportBack = document.getElementById('export-layer-back');
+
+        // Defaults check (in case not in stored settings)
+        if (!state.settings.exportLayers) {
+            state.settings.exportLayers = { merged: true, mask: false, front: false, back: false };
+        }
+
+        exportMerged.checked = state.settings.exportLayers.merged;
+        exportMask.checked = state.settings.exportLayers.mask;
+        exportFront.checked = state.settings.exportLayers.front;
+        exportBack.checked = state.settings.exportLayers.back;
+
+        function bindLayerExport(el, key) {
+            el.addEventListener('change', () => {
+                state.settings.exportLayers[key] = el.checked;
+                saveSettings();
+            });
+        }
+
+        bindLayerExport(exportMerged, 'merged');
+        bindLayerExport(exportMask, 'mask');
+        bindLayerExport(exportFront, 'front');
+        bindLayerExport(exportBack, 'back');
+
+
+        // --- INTERFACE TAB ---
 
         // Hue Controls
         const hueSlider = document.getElementById('setting-hue');

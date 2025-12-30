@@ -253,10 +253,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <!-- TAB: DEBUG -->
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
-                                    <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-accent rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
+                                    <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
                                     <div class="flex justify-end gap-2 shrink-0">
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
-                                        <button id="copy-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded bg-accent text-white hover:brightness-110 transition-colors shadow-sm">Copy to Clipboard</button>
+                                        <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
                                     </div>
                                 </div>
 
@@ -289,14 +289,20 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             tab.addEventListener('click', () => {
                 // Deactivate all
                 tabs.forEach(t => {
-                    t.classList.remove('active', 'bg-white/5', 'border-accent');
-                    t.classList.add('border-transparent');
+                    t.classList.remove('active');
+                    t.style.backgroundColor = '';
+                    t.style.color = '';
+                    t.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
                 });
                 contents.forEach(c => c.classList.add('hidden'));
 
                 // Activate clicked
-                tab.classList.add('active', 'bg-white/5', 'border-accent');
-                tab.classList.remove('border-transparent');
+                tab.classList.add('active');
+                tab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+
+                // Set Tint
+                tab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+                tab.style.color = 'var(--accent-soft)';
 
                 const targetId = tab.dataset.tab;
                 document.getElementById(`tab-${targetId}`).classList.remove('hidden');
@@ -312,8 +318,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // Add initial active styling for General
         const generalTab = document.querySelector('[data-tab="general"]');
         if(generalTab) {
-             generalTab.classList.add('active', 'bg-white/5', 'border-accent');
-             generalTab.classList.remove('border-transparent');
+             generalTab.classList.add('active');
+             generalTab.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+             generalTab.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+             generalTab.style.color = 'var(--accent-soft)';
         }
 
 

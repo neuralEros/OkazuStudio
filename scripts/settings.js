@@ -211,7 +211,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[560px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
+            <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[640px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
 
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
@@ -244,7 +244,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         </div>
 
                         <!-- Content Area -->
-                        <div class="flex-1 flex flex-col bg-panel">
+                        <div class="flex-1 flex flex-col bg-panel min-w-0">
                             <div class="p-4 overflow-y-auto flex-grow">
 
                                 <!-- TAB: INTERFACE -->
@@ -362,7 +362,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <!-- TAB: DEBUG -->
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
-                                    <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap select-text focus:outline-none mb-4" tabindex="0"></div>
+                                    <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap break-all select-text focus:outline-none mb-4" tabindex="0"></div>
                                     <div class="flex justify-end gap-2 shrink-0">
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
                                         <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>

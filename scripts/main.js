@@ -657,6 +657,90 @@
              try {
                  const img = await loadImageSource(source);
 
+                 // Steganography Detection (Active Interception)
+                 if (window.kakushi && window.kakushi.peek(img)) {
+                     try {
+                         const result = await window.kakushi.reveal(img);
+                         if (result.secret) {
+                             const payload = JSON.parse(result.secret);
+                             const info = payload.info || {};
+                             const packets = Object.keys(payload).filter(k => k !== 'info');
+                             const hasImages = state.imgA || state.imgB;
+
+                             Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
+
+                             // Case 1: Mask Export
+                             if (info.type === 'mask') {
+                                 // Check if we have images loaded to apply mask TO
+                                 if (hasImages) {
+                                     log("Importing Mask...", "info");
+                                     resetMaskOnly();
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+                                     render();
+                                     return; // Stop loading the image itself
+                                 }
+                             }
+                             // Case 2: Merged / Front / Back Export
+                             // Only prompt if we already have images loaded (to apply settings TO)
+                             else if (['merged', 'front', 'back'].includes(info.type) && hasImages) {
+                                 const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;
+                                 const choice = await showModal(
+                                     "Load Metadata?",
+                                     message,
+                                     [
+                                         { label: "Load Settings", value: 'settings' },
+                                         { label: "Load Original Image", value: 'original' }
+                                     ],
+                                     true
+                                 );
+
+                                 if (choice === 'settings') {
+                                     log("Applying settings...", "info");
+
+                                     // Apply Adjustments
+                                     if (payload.adjustments) {
+                                         state.adjustments = payload.adjustments;
+                                         // Trigger LUT regeneration for Color Tuning
+                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     }
+
+                                     // Apply Crop
+                                     if (payload.crop) {
+                                         state.cropRect = payload.crop;
+                                         updateCanvasDimensions(); // Apply crop dims
+                                     }
+
+                                     // Apply Mask (if present in merged)
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         resetMaskOnly();
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+
+                                     rebuildWorkingCopies(true);
+                                     render();
+                                     return; // Stop loading image
+                                 }
+
+                                 if (choice === null) {
+                                     log("Load cancelled", "info");
+                                     return; // Abort
+                                 }
+
+                                 // If 'original', fall through to normal load
+                             }
+                         }
+                     } catch (e) {
+                         Logger.error("[Stego] Failed to process payload", e);
+                     }
+                 }
+
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
                      assignLayer(img, 'A', name);
@@ -2707,9 +2791,29 @@
                     // renderToContext clears the canvas
                     renderToContext(expCtx, finalW, finalH, options);
 
+                    // Steganography Stamping (PNG Only)
+                    let finalCanvas = exportCanvas;
+                    if (format === 'image/png' && window.Stego && window.kakushi) {
+                         try {
+                             // We use window.ActionHistory directly as it's the source of truth for actions
+                             const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
+                             // Only stamp if we have meaningful data (always has info, but let's assume we proceed)
+                             if (payload) {
+                                 // kakushi.seal returns a NEW canvas with data
+                                 const json = JSON.stringify(payload);
+                                 finalCanvas = await window.kakushi.seal(exportCanvas, json);
+                                 Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
+                             }
+                         } catch (err) {
+                             Logger.error("[Stego] Failed to stamp image", err);
+                             // Fallback to original canvas (unstamped)
+                             finalCanvas = exportCanvas;
+                         }
+                    }
+
                     // Blob & Download
                     await new Promise(resolve => {
-                        exportCanvas.toBlob(blob => {
+                        finalCanvas.toBlob(blob => {
                             if (blob) {
                                 const link = document.createElement('a');
                                 link.download = filename;

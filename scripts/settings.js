@@ -111,7 +111,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // Recalculate lightness boost for the shifted log hue
         const logHueBoost = Math.max(0, Math.cos((logHue - 240) * Math.PI / 180)) * 15;
         const logButtonL = Math.min(95, 56 + satBoost + logHueBoost);
-        const logInkL = 10 + Math.max(0, (logButtonL - 56) * 0.294);
+        // "Pop" on dark background: Ensure high lightness (70-90 range)
+        // Original inkL was designed for light button backgrounds (dark text).
+        // Here we want light text on dark log background.
+        const logInkL = Math.min(90, Math.max(70, logButtonL + 10));
 
         document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
     }

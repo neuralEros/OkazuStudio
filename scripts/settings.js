@@ -14,9 +14,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         keyframeBuffer: 5,
         useReplay: true,
         // Export Defaults
-        exportFormat: 'image/jpeg', // 'image/jpeg', 'image/png', 'image/webp'
+        exportFormat: 'image/png', // 'image/jpeg', 'image/png', 'image/webp'
         exportQuality: 98,
-        exportHeightCap: 'Full', // 'Full' or number
+        exportHeightCap: 4320, // 'Full' or number
         exportLayers: {
             merged: true,
             mask: false,
@@ -331,23 +331,11 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                     <!-- Layer Exports -->
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Layer Exports</label>
-                                        <div class="grid grid-cols-2 gap-2">
-                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
-                                                <input type="checkbox" id="export-layer-merged" class="accent-accent">
-                                                <span class="text-xs font-bold text-gray-300">Merged</span>
-                                            </label>
-                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
-                                                <input type="checkbox" id="export-layer-mask" class="accent-accent">
-                                                <span class="text-xs font-bold text-gray-300">Mask</span>
-                                            </label>
-                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
-                                                <input type="checkbox" id="export-layer-front" class="accent-accent">
-                                                <span class="text-xs font-bold text-gray-300">Front</span>
-                                            </label>
-                                            <label class="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-white/5 transition-colors">
-                                                <input type="checkbox" id="export-layer-back" class="accent-accent">
-                                                <span class="text-xs font-bold text-gray-300">Back</span>
-                                            </label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
                                         </div>
                                     </div>
 
@@ -509,32 +497,37 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         setupExportCapSwitch('.export-cap-btn', 'exportHeightCap');
 
         // Layer Exports
-        const exportMerged = document.getElementById('export-layer-merged');
-        const exportMask = document.getElementById('export-layer-mask');
-        const exportFront = document.getElementById('export-layer-front');
-        const exportBack = document.getElementById('export-layer-back');
+        const exportLayerButtons = document.querySelectorAll('.export-layer-btn');
 
         // Defaults check (in case not in stored settings)
         if (!state.settings.exportLayers) {
             state.settings.exportLayers = { merged: true, mask: false, front: false, back: false };
         }
 
-        exportMerged.checked = state.settings.exportLayers.merged;
-        exportMask.checked = state.settings.exportLayers.mask;
-        exportFront.checked = state.settings.exportLayers.front;
-        exportBack.checked = state.settings.exportLayers.back;
-
-        function bindLayerExport(el, key) {
-            el.addEventListener('change', () => {
-                state.settings.exportLayers[key] = el.checked;
-                saveSettings();
+        function updateLayerButtons() {
+            const layers = state.settings.exportLayers;
+            exportLayerButtons.forEach(btn => {
+                const key = btn.dataset.key;
+                if (layers[key]) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
             });
         }
 
-        bindLayerExport(exportMerged, 'merged');
-        bindLayerExport(exportMask, 'mask');
-        bindLayerExport(exportFront, 'front');
-        bindLayerExport(exportBack, 'back');
+        exportLayerButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.dataset.key;
+                state.settings.exportLayers[key] = !state.settings.exportLayers[key];
+                updateLayerButtons();
+                saveSettings();
+            });
+        });
+
+        updateLayerButtons();
 
 
         // --- INTERFACE TAB ---

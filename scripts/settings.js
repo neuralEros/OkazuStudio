@@ -136,9 +136,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         const satBoost = (100 - sat) * 0.4;
         const hueBoost = Math.max(0, Math.cos((btnHue - 240) * Math.PI / 180)) * 15;
         const buttonL = Math.min(95, 56 + satBoost + hueBoost);
+        const inkL = 10 + Math.max(0, (buttonL - 56) * 0.294);
 
         const color = `hsl(${btnHue}, ${sat}%, ${buttonL}%)`;
+        const inkColor = `hsl(${btnHue}, 90%, ${inkL}%)`;
+
         document.documentElement.style.setProperty('--rgb-button-color', color);
+        document.documentElement.style.setProperty('--rgb-button-ink', inkColor);
     }
 
     let cycleHue = defaults.hue;
@@ -433,7 +437,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             if (state.settings.rgbMode) {
                 // On: Filled with dynamic color
                 rgbToggle.style.backgroundColor = 'var(--rgb-button-color)';
-                rgbToggle.style.color = '#ffffff';
+                rgbToggle.style.color = 'var(--rgb-button-ink)';
             } else {
                 // Off: Transparent with dynamic text/border
                 rgbToggle.style.backgroundColor = 'transparent';

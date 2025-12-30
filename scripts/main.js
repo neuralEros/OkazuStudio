@@ -657,6 +657,86 @@
              try {
                  const img = await loadImageSource(source);
 
+                 // Steganography Detection (Active Interception)
+                 if (window.kakushi && window.kakushi.peek(img)) {
+                     try {
+                         const result = await window.kakushi.reveal(img);
+                         if (result.secret) {
+                             const payload = JSON.parse(result.secret);
+                             const info = payload.info || {};
+                             const packets = Object.keys(payload).filter(k => k !== 'info');
+
+                             Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
+
+                             // Case 1: Mask Export
+                             if (info.type === 'mask') {
+                                 // Check if we have images loaded to apply mask TO
+                                 if (state.imgA || state.imgB) {
+                                     log("Importing Mask...", "info");
+                                     resetMaskOnly();
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+                                     render();
+                                     return; // Stop loading the image itself
+                                 }
+                             }
+                             // Case 2: Merged / Front / Back Export
+                             else if (['merged', 'front', 'back'].includes(info.type)) {
+                                 const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;
+                                 const choice = await showModal(
+                                     "Load Metadata?",
+                                     message,
+                                     [
+                                         { label: "Load Settings", value: 'settings' },
+                                         { label: "Load Original Image", value: 'original' }
+                                     ],
+                                     true
+                                 );
+
+                                 if (choice === 'settings') {
+                                     log("Applying settings...", "info");
+
+                                     // Apply Adjustments
+                                     if (payload.adjustments) {
+                                         state.adjustments = payload.adjustments;
+                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     }
+
+                                     // Apply Crop
+                                     if (payload.crop) {
+                                         state.cropRect = payload.crop;
+                                         updateCanvasDimensions(); // Apply crop dims
+                                     }
+
+                                     // Apply Mask (if present in merged)
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         resetMaskOnly();
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+
+                                     rebuildWorkingCopies(true);
+                                     render();
+                                     return; // Stop loading image
+                                 }
+
+                                 if (choice === null) {
+                                     log("Load cancelled", "info");
+                                     return; // Abort
+                                 }
+
+                                 // If 'original', fall through to normal load
+                             }
+                         }
+                     } catch (e) {
+                         Logger.error("[Stego] Failed to process payload", e);
+                     }
+                 }
+
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
                      assignLayer(img, 'A', name);
@@ -1979,23 +2059,6 @@
 
              // Extract Format
              const format = (name && name.includes('.')) ? name.split('.').pop().toUpperCase() : 'PNG';
-
-             // Steganography Detection
-             if (window.kakushi && window.kakushi.peek(img)) {
-                 window.kakushi.reveal(img).then(result => {
-                     if (result.secret) {
-                         try {
-                             const data = JSON.parse(result.secret);
-                             Logger.info(`[Stego] Detected Packets in ${name}:`, data);
-                             console.log(`[Stego] ${name} Packets:`, data);
-                         } catch (e) {
-                             Logger.error("[Stego] Failed to parse payload", e);
-                         }
-                     }
-                 }).catch(e => {
-                     Logger.error("[Stego] Reveal failed", e);
-                 });
-             }
 
              Logger.info(`Assigning Image to ${slot}: ${img.width}x${img.height} (Asset: ${assetId})`);
              if (slot === 'A') {

@@ -3,7 +3,7 @@ const Stego = (() => {
 
     // --- Config & Constants ---
     const SOFTWARE_NAME = "OkazuStudio";
-    const SOFTWARE_VERSION = "23.5"; // Placeholder as requested
+    const SOFTWARE_VERSION = "0";
 
     // --- Hardcoded Default Adjustments ---
     // Match defaults in main.js

@@ -211,6 +211,22 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
+            <style>
+                /* Dynamic Shadow Coloring for Settings Icons */
+                /* Default (Inactive): Gray */
+                .shadow-icon {
+                    filter: drop-shadow(0 100px 0 #9ca3af);
+                    transform: translateY(-100px);
+                }
+                /* Hover: White */
+                .settings-tab-btn:hover .shadow-icon {
+                    filter: drop-shadow(0 100px 0 white);
+                }
+                /* Active: Accent Color */
+                .settings-tab-btn.active .shadow-icon {
+                    filter: drop-shadow(0 100px 0 var(--accent-soft));
+                }
+            </style>
             <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[640px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
 
                     <!-- Header -->
@@ -226,19 +242,19 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         <!-- Sidebar -->
                         <div class="w-[170px] bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
                             <button class="settings-tab-btn active flex items-center text-left pl-3 pr-2 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
-                                <svg class="w-4 h-4 mr-3 shrink-0" fill="currentColor" viewBox="0 -960 960 960"><path d="M480-80q-27 0-47.5-13T406-129h-14q-24 0-42-18t-18-42v-143q-66-43-104-110t-38-148q0-121 84.5-205.5T480-880q121 0 205.5 84.5T770-590q0 81-38 148T628-332v143q0 24-18 42t-42 18h-14q-6 23-26.5 36T480-80Zm-88-109h176v-44H392v44Zm0-84h176v-40H392v40Zm-9-100h74v-137l-92-92 31-31 84 84 84-84 31 31-92 92v137h74q60-28 96.5-87T710-590q0-97-66.5-163.5T480-820q-97 0-163.5 66.5T250-590q0 71 36.5 130t96.5 87Zm97-176Zm0-48Z"/></svg>
+                                <div class="overflow-hidden w-4 h-4 mr-3 shrink-0"><img src="icons/set_interface.svg" class="w-4 h-4 shadow-icon"></div>
                                 Interface
                             </button>
                             <button class="settings-tab-btn flex items-center text-left pl-3 pr-2 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
-                                <svg class="w-4 h-4 mr-3 shrink-0" fill="currentColor" viewBox="0 -960 960 960"><path d="M407-325q23 23 66.5 21.5T537-336l216-339-335 219q-30 20-32 64t21 67Zm71-474q57 0 119 18.5T716-717l-52 37q-45-30-96.5-44.5T477.98-739q-140.47 0-239.23 100.22Q140-538.57 140-396.02 140-351 152.5-305q12.5 46 35.5 85h579q22-36 35-84t13-94q0-42-12.5-90.5T758-578l39-52q38 56 57 112.5T875-404q2 60-12 113t-41 98q-12 23-25.5 28t-33.5 5H192q-17 0-33.5-8.5T134-193q-26-48-40-97.5T80-396q0-83 31.5-156.5t85.5-128Q251-735 323.68-767T478-799Zm-9 331Z"/></svg>
+                                <div class="overflow-hidden w-4 h-4 mr-3 shrink-0"><img src="icons/set_performance.svg" class="w-4 h-4 shadow-icon"></div>
                                 Performance
                             </button>
                             <button class="settings-tab-btn flex items-center text-left pl-3 pr-2 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="export">
-                                <svg class="w-4 h-4 mr-3 shrink-0" fill="currentColor" viewBox="0 -960 960 960"><path d="M609.91-40Q581-40 560.5-60.56 540-81.13 540-110q0-21 11-38.5t29-25.5v-243q-18-8-29-25t-11-37.54q0-29.46 20.59-49.96t49.5-20.5q28.91 0 49.41 20.56Q680-508.88 680-480q0 21-11 38t-29 25v135l180-60v-75q-18-8-29-25t-11-37.54q0-29.46 20.59-49.96t49.5-20.5q28.91 0 49.41 20.56Q920-508.88 920-480q0 21-11 38t-29 25v118.4L640-219v45q18 8 29 25.5t11 38.04Q680-81 659.41-60.5T609.91-40ZM140-160v-580 580Zm0 0q-24 0-42-18.5T80-220v-520q0-23 18-41.5t42-18.5h281l60 60h339q24.75 0 42.38 17.62Q880-704.75 880-680H456l-60-60H140v520h340v60H140Z"/></svg>
+                                <div class="overflow-hidden w-4 h-4 mr-3 shrink-0"><img src="icons/set_export.svg" class="w-4 h-4 shadow-icon"></div>
                                 Export
                             </button>
                             <button class="settings-tab-btn flex items-center text-left pl-3 pr-2 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
-                                <svg class="w-4 h-4 mr-3 shrink-0" fill="currentColor" viewBox="0 -960 960 960"><path d="M480-180q72 0 123-50.5T654-353v-167q0-72-51-122.5T480-693q-72 0-123 50.5T306-520v167q0 72 51 122.5T480-180Zm-80-140h160v-60H400v60Zm0-173h160v-60H400v60Zm80 57h.5-.5.5-.5.5-.5.5-.5Zm0 316q-65 0-121-31t-83-89H160v-60h92q-7-26-7-52.5V-406h-85v-60h85q0-29 .5-57.5T254-580h-94v-60h120q14-28 37-49t51-35l-77-76 40-40 94 94q28-10 56.5-10t56.5 10l94-94 40 40-76 76q28 14 49.5 35.5T683-640h117v60h-94q9 28 8.5 56.5T714-466h86v60h-86q0 27 .5 53.5T708-300h92v60H685q-26 59-82.5 89.5T480-120Z"/></svg>
+                                <div class="overflow-hidden w-4 h-4 mr-3 shrink-0"><img src="icons/set_debug.svg" class="w-4 h-4 shadow-icon"></div>
                                 Debug
                             </button>
                         </div>

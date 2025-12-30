@@ -201,7 +201,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
-                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
+                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px] uppercase tracking-widest">Settings</h3>
                         <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
@@ -319,7 +319,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Height Cap -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap (Downscale Only)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Height Cap</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">4K</button>

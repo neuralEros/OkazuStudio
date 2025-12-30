@@ -881,9 +881,18 @@
                 canvas.className = "max-w-full max-h-full object-contain";
                 container.appendChild(canvas);
 
+                // Enforce tight packing to prevent letterboxing
+                container.style.width = w + 'px';
+                container.style.height = h + 'px';
+
                 const dims = `${source.width}x${source.height}`;
                 const fmt = slot === 'A' ? (state.formatA || 'IMG') : (state.formatB || 'IMG');
                 previewText.textContent = `${dims} ${fmt}`;
+
+                // Constrain text width to image width
+                previewText.style.maxWidth = w + 'px';
+                previewText.style.whiteSpace = 'normal';
+                previewText.style.overflowWrap = 'break-word';
 
                 previewPanel.classList.remove('hidden');
 
@@ -1832,6 +1841,9 @@
         }
 
         function assignLayer(img, slot, name) {
+             // Check if this is the first image being loaded (both slots previously empty)
+             const wasEmpty = !state.imgA && !state.imgB;
+
              let assetId = null;
              if (window.AssetManager) {
                  assetId = window.AssetManager.addAsset(img, name);
@@ -1877,7 +1889,24 @@
                  state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
              }
 
-             updateCanvasDimensions(true); // Preserve our new cropRect
+             updateCanvasDimensions(true); // Preserve view state initially
+
+             // Auto-Fit Logic
+             // Requirement: Auto-fit if first load OR if current view is "more zoomed in" than auto-fit would be.
+             const vpW = els.viewport.clientWidth;
+             const vpH = els.viewport.clientHeight;
+             const cW = els.mainCanvas.width;
+             const cH = els.mainCanvas.height;
+
+             // Calculate Fit Scale (matching resetView logic with 40px padding)
+             const fitScale = Math.min((vpW - 40) / cW, (vpH - 40) / cH);
+
+             // If we were empty, we should fit.
+             // If we are currently zoomed in more than the fit scale (scale > fitScale), we should fit.
+             if (wasEmpty || state.view.scale > fitScale) {
+                 resetView();
+             }
+
              render();
              updateUI();
 

@@ -211,7 +211,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[800px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
+                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[560px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
 
                     <!-- Header -->
                     <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
@@ -224,7 +224,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <!-- Body -->
                     <div class="flex flex-grow overflow-hidden">
                         <!-- Sidebar -->
-                        <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
+                        <div class="w-[18.75%] bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
                             <button class="settings-tab-btn active flex items-center text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
                                 <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_interface.svg'); mask-image: url('icons/set_interface.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Interface
@@ -244,7 +244,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                         </div>
 
                         <!-- Content Area -->
-                        <div class="w-3/4 flex flex-col bg-panel">
+                        <div class="flex-1 flex flex-col bg-panel">
                             <div class="p-4 overflow-y-auto flex-grow">
 
                                 <!-- TAB: INTERFACE -->

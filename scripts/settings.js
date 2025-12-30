@@ -120,36 +120,52 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     }
 
     function applySettings() {
+        // Initial setup
+        cycleHue = state.settings.hue;
         updateThemeVariables(state.settings.hue, state.settings.saturation);
 
-        // Handle RGB Mode
-        if (state.settings.rgbMode) {
-            startRgbMode();
-        } else {
-            stopRgbMode();
-        }
+        // Restart loop to apply speed changes or ensure it's running
+        initRgbLoop();
     }
 
-    function startRgbMode() {
-        stopRgbMode(); // Restart if already running to apply new speed
+    function updateRgbButtonColor(cycleHue) {
+        const btnHue = (cycleHue * 3) % 360;
+        const sat = state.settings.saturation;
+
+        // Similar lightness logic as standard button but using the 3x hue
+        const satBoost = (100 - sat) * 0.4;
+        const hueBoost = Math.max(0, Math.cos((btnHue - 240) * Math.PI / 180)) * 15;
+        const buttonL = Math.min(95, 56 + satBoost + hueBoost);
+
+        const color = `hsl(${btnHue}, ${sat}%, ${buttonL}%)`;
+        document.documentElement.style.setProperty('--rgb-button-color', color);
+    }
+
+    let cycleHue = defaults.hue;
+
+    function initRgbLoop() {
+        if (rgbInterval) clearInterval(rgbInterval);
+
         const baseInterval = 125;
         const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
 
         rgbInterval = setInterval(() => {
-            state.settings.hue = (state.settings.hue + 0.5) % 360;
-            updateThemeVariables(state.settings.hue, state.settings.saturation);
-            // Update slider if visible
-            const slider = document.getElementById('setting-hue');
-            if (slider) slider.value = state.settings.hue;
-            // We don't save constantly during RGB mode loop
-        }, interval); // 0.5 notch per interval
-    }
+            // Always increment local cycle
+            cycleHue = (cycleHue + 0.5) % 360;
 
-    function stopRgbMode() {
-        if (rgbInterval) {
-            clearInterval(rgbInterval);
-            rgbInterval = null;
-        }
+            // Always update RGB button color (runs at 3x speed of cycleHue)
+            updateRgbButtonColor(cycleHue);
+
+            // Only update global theme if RGB Mode is ON
+            if (state.settings.rgbMode) {
+                state.settings.hue = cycleHue;
+                updateThemeVariables(state.settings.hue, state.settings.saturation);
+
+                // Update slider if visible
+                const slider = document.getElementById('setting-hue');
+                if (slider) slider.value = state.settings.hue;
+            }
+        }, interval);
     }
 
     // Debounce utility
@@ -358,11 +374,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         hueSlider.addEventListener('input', (e) => {
             state.settings.hue = parseInt(e.target.value);
+            cycleHue = state.settings.hue; // Sync cycle
             // If dragging slider, disable RGB mode
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
-                stopRgbMode();
+                // Loop continues running for button, but main theme stops cycling
             }
             lastStaticHue = state.settings.hue;
             applySettings();
@@ -380,10 +397,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             state.settings.saturation = defaults.saturation;
             hueSlider.value = defaults.hue;
             saturationSlider.value = defaults.saturation;
+            cycleHue = defaults.hue;
             if (state.settings.rgbMode) {
                 state.settings.rgbMode = false;
                 updateRgbButtonState();
-                stopRgbMode();
             }
             lastStaticHue = defaults.hue;
             applySettings();
@@ -401,20 +418,26 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             const val = parseFloat(e.target.value);
             state.settings.rgbSpeed = val;
             rgbSpeedVal.textContent = val.toFixed(1) + 'x';
-            if (state.settings.rgbMode) {
-                startRgbMode(); // Restart with new speed
-            }
+            initRgbLoop(); // Restart loop with new speed immediately
             saveDebounced();
         });
 
 
         function updateRgbButtonState() {
+            // Remove standard accent classes to allow custom coloring
+            rgbToggle.classList.remove('bg-accent', 'border-accent', 'text-gray-400', 'hover:bg-panel-strong');
+
+            // Base styles
+            rgbToggle.style.borderColor = 'var(--rgb-button-color)';
+
             if (state.settings.rgbMode) {
-                rgbToggle.classList.add('bg-accent', 'border-accent');
-                rgbToggle.classList.remove('text-gray-400', 'hover:bg-panel-strong');
+                // On: Filled with dynamic color
+                rgbToggle.style.backgroundColor = 'var(--rgb-button-color)';
+                rgbToggle.style.color = '#ffffff';
             } else {
-                rgbToggle.classList.remove('bg-accent', 'border-accent');
-                rgbToggle.classList.add('text-gray-400', 'hover:bg-panel-strong');
+                // Off: Transparent with dynamic text/border
+                rgbToggle.style.backgroundColor = 'transparent';
+                rgbToggle.style.color = 'var(--rgb-button-color)';
             }
         }
         updateRgbButtonState();

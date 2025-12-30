@@ -864,7 +864,8 @@
                 const source = slot === 'A' ? state.sourceA : state.sourceB;
 
                 // Generate Thumbnail
-                const h = 200;
+                // Target 20% of viewport height to match CSS
+                const h = Math.round(window.innerHeight * 0.2);
                 const scale = h / source.height;
                 const w = Math.round(source.width * scale);
 

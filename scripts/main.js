@@ -878,12 +878,17 @@
                 // Swap image in panel
                 const container = previewPanel.querySelector('.relative');
                 container.innerHTML = '';
-                canvas.className = "max-w-full max-h-full object-contain";
+                // Force canvas to fill container exactly
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.className = "object-contain block";
                 container.appendChild(canvas);
 
                 // Enforce tight packing to prevent letterboxing
-                container.style.width = w + 'px';
-                container.style.height = h + 'px';
+                // Add 2px to width to account for the border width of the container itself
+                // (border-left 1px + border-right 1px) to prevent inner content squeeze
+                container.style.width = (w + 2) + 'px';
+                container.style.height = (h + 2) + 'px';
 
                 const dims = `${source.width}x${source.height}`;
                 const fmt = slot === 'A' ? (state.formatA || 'IMG') : (state.formatB || 'IMG');

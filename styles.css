@@ -601,7 +601,6 @@
 }
 
 #preview-panel-overlay {
-    height: 20vh;
     width: fit-content;
     transition: opacity 0.1s ease-out;
 }

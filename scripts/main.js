@@ -18,7 +18,7 @@
             if (hintTimer) clearTimeout(hintTimer);
             hintTimer = setTimeout(() => {
                 legend.style.opacity = '0';
-            }, 6000);
+            }, 5000);
         }
 
         const DEFAULT_BRUSH_SIZE = 0.1;

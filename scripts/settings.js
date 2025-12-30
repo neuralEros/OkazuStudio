@@ -225,16 +225,20 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                     <div class="flex flex-grow overflow-hidden">
                         <!-- Sidebar -->
                         <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
-                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
+                            <button class="settings-tab-btn active flex items-center text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="interface">
+                                <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_interface.svg'); mask-image: url('icons/set_interface.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Interface
                             </button>
-                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
+                            <button class="settings-tab-btn flex items-center text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
+                                <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_performance.svg'); mask-image: url('icons/set_performance.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Performance
                             </button>
-                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="export">
+                            <button class="settings-tab-btn flex items-center text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="export">
+                                <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_export.svg'); mask-image: url('icons/set_export.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Export
                             </button>
-                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
+                            <button class="settings-tab-btn flex items-center text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
+                                <span class="w-4 h-4 mr-3 bg-current shrink-0" style="-webkit-mask-image: url('icons/set_debug.svg'); mask-image: url('icons/set_debug.svg'); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain;"></span>
                                 Debug
                             </button>
                         </div>

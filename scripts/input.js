@@ -409,7 +409,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                      brushSize: state.brushSize, // Prop
                      feather: state.featherMode ? state.featherSize : state.feather, // Prop or Value
                      featherMode: state.featherMode,
-                     mode: isEraseMode() ? 'erase' : 'repair'
+                     tool: state.brushMode
                  }
              });
         }
@@ -468,7 +468,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             brushSize: state.brushSize, // Prop
             feather: state.featherMode ? state.featherSize : state.feather, // Prop or 0-20
             featherMode: state.featherMode,
-            isErasing: isEraseMode()
+            isErasing: isEraseMode(),
+            tool: state.brushMode
         };
         state.fastPreviewLastStamp = null;
     }

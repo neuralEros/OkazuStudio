@@ -29,7 +29,7 @@
         const HARDNESS_MAX = 20;
 
         const state = {
-            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', formatA: '', formatB: '', sourceA: null, sourceB: null, isAFront: true,
+            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', formatA: '', formatB: '', sourceA: null, sourceB: null, thumbA: null, thumbB: null, isAFront: true,
             opacity: 0.8, brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE, featherMode: false, brushMode: 'erase', isDrawing: false,
             maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
             isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
@@ -332,6 +332,46 @@
             return canvas;
         }
 
+        function generateThumbnail(img, targetH = 512) {
+             if (!img) return null;
+
+             let cur = img;
+             let curW = img.width;
+             let curH = img.height;
+
+             if (curH <= targetH) {
+                 return cloneToCanvas(img);
+             }
+
+             // Step down by half until < 2x target
+             while (curH > targetH * 2) {
+                 const nextW = Math.floor(curW * 0.5);
+                 const nextH = Math.floor(curH * 0.5);
+                 const canvas = document.createElement('canvas');
+                 canvas.width = nextW;
+                 canvas.height = nextH;
+                 const ctx = canvas.getContext('2d');
+                 ctx.imageSmoothingEnabled = true;
+                 ctx.imageSmoothingQuality = 'high';
+                 ctx.drawImage(cur, 0, 0, nextW, nextH);
+                 cur = canvas;
+                 curW = nextW;
+                 curH = nextH;
+             }
+
+             // Final Draw
+             const scale = targetH / curH;
+             const finalW = Math.floor(curW * scale);
+             const canvas = document.createElement('canvas');
+             canvas.width = finalW;
+             canvas.height = targetH;
+             const ctx = canvas.getContext('2d');
+             ctx.imageSmoothingEnabled = true;
+             ctx.imageSmoothingQuality = 'high';
+             ctx.drawImage(cur, 0, 0, finalW, targetH);
+             return canvas;
+        }
+
         function rotateCanvas(canvas, rotation) {
             if (rotation === 0 || !canvas) return canvas;
             const w = canvas.width;
@@ -488,14 +528,19 @@
 
         function setLayerSource(slot, img) {
             const base = cloneToCanvas(img);
+            // Generate Thumbnail (512p) for high quality preview
+            const thumb = generateThumbnail(base);
+
             if (slot === 'A') {
                 state.imgA = base;
                 state.sourceA = base;
+                state.thumbA = thumb;
                 state.workingVersionA = 0;
                 state.previewWorkingVersionA = 0;
             } else {
                 state.imgB = base;
                 state.sourceB = base;
+                state.thumbB = thumb;
                 state.workingVersionB = 0;
                 state.previewWorkingVersionB = 0;
             }
@@ -644,9 +689,11 @@
                  if (state.imgA) {
                      // Swap A to B
                      state.imgB = state.imgA; state.sourceB = state.sourceA; state.nameB = state.nameA;
+                     state.thumbB = state.thumbA;
                      state.workingB = state.workingA; state.workingVersionB = state.workingVersionA;
                      // Clear A state before assigning new
                      state.imgA = null; state.sourceA = null; state.workingA = null; state.nameA = "";
+                     state.thumbA = null;
 
                      // Update buttons for the move
                      updateLoadButton(els.btnB, truncate(state.nameB), "back");
@@ -740,12 +787,14 @@
         function clearLayer(slot) {
              if (slot === 'A') {
                  state.imgA = null; state.sourceA = null; state.workingA = null;
+                 state.thumbA = null;
                  state.assetIdA = null;
                  state.nameA = ""; state.formatA = "";
                  updateLoadButton(els.btnA, "Load", "front");
                  els.btnA.classList.remove('border-accent-strong', 'text-accent');
              } else {
                  state.imgB = null; state.sourceB = null; state.workingB = null;
+                 state.thumbB = null;
                  state.assetIdB = null;
                  state.nameB = ""; state.formatB = "";
                  updateLoadButton(els.btnB, "Load", "back");
@@ -862,31 +911,39 @@
                 const img = slot === 'A' ? state.imgA : state.imgB;
                 if (!img) return;
                 const source = slot === 'A' ? state.sourceA : state.sourceB;
+                const thumb = slot === 'A' ? state.thumbA : state.thumbB;
 
-                // Generate Thumbnail
+                // Use stored thumbnail (512p) or fallback to source
+                const effectiveImg = thumb || source;
+
+                // Layout Calculation (based on Source aspect ratio)
                 // Target 20% of viewport height to match CSS
                 const h = Math.round(window.innerHeight * 0.2);
                 const scale = h / source.height;
                 const w = Math.round(source.width * scale);
 
-                const canvas = document.createElement('canvas');
-                canvas.width = w;
-                canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(source, 0, 0, w, h);
+                // Create display canvas containing the high-quality image
+                // We use the full resolution of the thumbnail (e.g. 512p)
+                // and let CSS scale it down to the target box (20vh).
+                // This prevents aliasing from canvas drawImage downscaling.
+                const displayCanvas = document.createElement('canvas');
+                displayCanvas.width = effectiveImg.width;
+                displayCanvas.height = effectiveImg.height;
+                const dCtx = displayCanvas.getContext('2d');
+                dCtx.drawImage(effectiveImg, 0, 0);
 
                 // Swap image in panel
                 const container = previewPanel.querySelector('.relative');
                 container.innerHTML = '';
-                // Force canvas to fill container exactly
-                canvas.style.width = '100%';
-                canvas.style.height = '100%';
-                canvas.className = "object-contain block";
-                container.appendChild(canvas);
+
+                // Force canvas to fill container exactly (CSS Scaling)
+                displayCanvas.style.width = '100%';
+                displayCanvas.style.height = '100%';
+                displayCanvas.className = "object-contain block";
+                container.appendChild(displayCanvas);
 
                 // Enforce tight packing to prevent letterboxing
                 // Add 2px to width to account for the border width of the container itself
-                // (border-left 1px + border-right 1px) to prevent inner content squeeze
                 container.style.width = (w + 2) + 'px';
                 container.style.height = (h + 2) + 'px';
 
@@ -962,6 +1019,7 @@
                     // Legacy manual swap logic
                     [state.imgA, state.imgB] = [state.imgB, state.imgA];
                     [state.sourceA, state.sourceB] = [state.sourceB, state.sourceA];
+                    [state.thumbA, state.thumbB] = [state.thumbB, state.thumbA];
                     [state.assetIdA, state.assetIdB] = [state.assetIdB, state.assetIdA];
                     [state.workingA, state.workingB] = [state.workingB, state.workingA];
                     [state.workingVersionA, state.workingVersionB] = [state.workingVersionB, state.workingVersionA];
@@ -2513,6 +2571,7 @@
             // 1. Clear Images & Cache
             state.imgA = null; state.sourceA = null; state.workingA = null; state.previewWorkingA = null;
             state.imgB = null; state.sourceB = null; state.workingB = null; state.previewWorkingB = null;
+            state.thumbA = null; state.thumbB = null;
             state.assetIdA = null; state.assetIdB = null;
             state.nameA = ""; state.nameB = ""; state.formatA = ""; state.formatB = "";
             state.isAFront = true;

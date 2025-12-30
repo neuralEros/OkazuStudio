@@ -593,3 +593,14 @@
     width: 24px;
     height: 24px;
 }
+
+/* Phase 7: Swap & Preview Panel */
+.hover-accent:hover:not(:disabled) {
+    border-color: var(--accent-strong);
+    color: var(--accent);
+}
+
+#preview-panel-overlay {
+    width: fit-content;
+    transition: opacity 0.1s ease-out;
+}

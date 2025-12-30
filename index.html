@@ -232,7 +232,7 @@
     </div>
 
     <!-- Vertical Toolbox (Left) -->
-    <div style="top: max(30%, calc(300px + 48px));" class="absolute left-0 transform -translate-y-1/2 bg-panel border-y border-r border-panel rounded-r-lg p-2 flex flex-col gap-2 z-40 shadow-xl">
+    <div id="vertical-toolbox" style="top: max(30%, calc(300px + 48px));" class="absolute left-0 transform -translate-y-1/2 bg-panel border-y border-r border-panel rounded-r-lg p-2 flex flex-col gap-2 z-40 shadow-xl">
         <!-- Undo / Redo -->
         <div class="flex flex-col gap-2 border-b border-panel-divider pb-2 mb-1">
             <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)" disabled>
@@ -269,9 +269,6 @@
         </div>
 
         <!-- Actions -->
-        <button id="swapBtn" class="icon-btn text-accent" title="Swap Front/Back">
-            <img src="icons/swap.svg" alt="Swap" class="w-5 h-5" draggable="false">
-        </button>
         <button id="censorBtn" class="icon-btn text-purple-400" title="Censor (Mosaic+Blur Back)">
             <img src="icons/censor.svg" alt="Censor" class="w-5 h-5" draggable="false">
         </button>
@@ -289,7 +286,6 @@
             <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
             <span>New</span>
         </button>
-        <div class="w-px h-6 bg-panel-divider shrink-0"></div>
         <div class="flex flex-row gap-2 shrink-0">
             <!-- Front Group -->
             <div class="flex gap-1">
@@ -302,6 +298,10 @@
                      <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
                 </button>
             </div>
+            <!-- Swap Button -->
+            <button id="swapBtn" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap Front/Back">
+                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
+            </button>
             <!-- Back Group -->
             <div class="flex gap-1">
                 <input type="file" id="fileB" accept="image/*" class="hidden">
@@ -408,6 +408,14 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Preview Panel Overlay -->
+    <div id="preview-panel-overlay" class="hidden fixed z-[60] bg-panel-strong border border-panel rounded p-2 flex flex-col gap-2 pointer-events-none shadow-xl">
+        <div class="relative flex-grow border border-panel-divider overflow-hidden flex items-center justify-center">
+            <img id="preview-panel-img" class="max-w-full max-h-full object-contain" src="" alt="Preview">
+        </div>
+        <div id="preview-panel-text" class="text-[10px] text-gray-400 text-center font-mono leading-none"></div>
     </div>
 
     <script src="scripts/logging.js"></script>

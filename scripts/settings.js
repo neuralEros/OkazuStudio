@@ -493,16 +493,33 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             // Escape message part before highlighting
             let safeMessage = escapeHtml(messagePart);
 
-            // Highlight target patterns
+            // Special Handling for "System Info" lines
+            // e.g. System Info: User Agent: Mozilla/5.0 ...
+            // e.g. System Info: Platform: Linux | Language: en-US
+            if (safeMessage.startsWith('System Info: ')) {
+                // Remove prefix temporarily
+                const content = safeMessage.substring('System Info: '.length);
+
+                // Split by pipe for multiple key-values
+                const parts = content.split('|');
+
+                const processedParts = parts.map(part => {
+                    // Find first colon
+                    const colonIndex = part.indexOf(':');
+                    if (colonIndex !== -1) {
+                        const key = part.substring(0, colonIndex + 1); // "Key:"
+                        const val = part.substring(colonIndex + 1);   // " Value"
+                        return `${key}<span class="text-accent">${val}</span>`;
+                    }
+                    return part;
+                });
+
+                return prefixPart + 'System Info: ' + processedParts.join('|');
+            }
+
+            // Generic Highlighting for other lines
             // Resolutions: 3072x2048
             // Numbers: 0, 1.5, -5 (with word boundary logic or similar)
-
-            // Apply highlighting replacements
-            // We use a combined regex or sequential replacements.
-            // Note: HTML tags are now present (&lt; etc), but numbers inside them?
-            // &lt; is safely ignored by \d+ regex usually unless we match "38" in "&#38;"
-            // But we escaped & -> &amp; so & is there.
-            // 38 in &amp;#38;? No, typically &amp; is just &amp;
 
             // Regex for numbers: (?<!\w)-?\d+(\.\d+)?\b
             // Regex for resolutions: \b\d+x\d+\b

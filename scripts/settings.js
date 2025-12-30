@@ -124,7 +124,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // "Pop" on dark background: Ensure high lightness (70-90 range)
         // Original inkL was designed for light button backgrounds (dark text).
         // Here we want light text on dark log background.
-        const logInkL = Math.min(90, Math.max(70, logButtonL + 10));
+        const logInkL = Math.min(98, Math.max(75, logButtonL + 15));
 
         document.documentElement.style.setProperty('--log-accent-color', `hsl(${logHue}, 90%, ${logInkL}%)`);
     }
@@ -255,7 +255,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <div id="tab-performance" class="settings-tab-content hidden">
                                     <!-- Brush Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -265,7 +265,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Adjustment Resolution -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution</label>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1">
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
                                             <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
@@ -275,7 +275,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- Undo History -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History</label>
                                         <div class="flex gap-4">
                                             <div class="flex-1">
                                                 <div class="flex justify-between mb-1">

@@ -30,6 +30,11 @@
             this.actions.push(entry);
             this.cursor = this.actions.length - 1;
 
+            if (window.Logger) {
+                // Sanitize payload for logging if necessary, but user requested details
+                window.Logger.info(`Action: ${entry.type}`, entry.payload);
+            }
+
             console.log(`[ActionHistory] Logged: ${entry.type} (Cursor: ${this.cursor})`, entry.payload);
             return this.cursor;
         }

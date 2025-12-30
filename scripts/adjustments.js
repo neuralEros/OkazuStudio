@@ -519,9 +519,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             const actionKey = `adjustment-${id}`;
             if(!el) return;
 
-            el.addEventListener('pointerdown', () => {
-                el.dataset.startVal = el.value;
-            });
+            const captureStart = () => { el.dataset.startVal = el.value; };
+            el.addEventListener('pointerdown', captureStart);
+            el.addEventListener('focus', captureStart);
 
             el.addEventListener('input', (e) => {
                 let val = parseFloat(e.target.value);
@@ -718,9 +718,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 return;
             }
 
-            el.addEventListener('pointerdown', () => {
-                el.dataset.startVal = el.value;
-            });
+            const captureStart = () => { el.dataset.startVal = el.value; };
+            el.addEventListener('pointerdown', captureStart);
+            el.addEventListener('focus', captureStart);
 
             el.addEventListener('input', (e) => {
                 try {

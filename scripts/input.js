@@ -409,7 +409,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                      brushSize: state.brushSize, // Prop
                      feather: state.featherMode ? state.featherSize : state.feather, // Prop or Value
                      featherMode: state.featherMode,
-                     tool: state.brushMode
+                     mode: state.brushMode
                  }
              });
         }

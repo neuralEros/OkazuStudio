@@ -722,7 +722,7 @@
             function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
             body.addEventListener('dragenter', () => body.classList.add('dragging'));
             body.addEventListener('dragleave', (e) => { if (e.relatedTarget === null) body.classList.remove('dragging'); });
-            body.addEventListener('drop', (e) => {
+            body.addEventListener('drop', async (e) => {
                 body.classList.remove('dragging');
 
                 // Check for URI list first (fallback for browsers/apps that drag URLs as files/text)
@@ -744,9 +744,20 @@
                     if (files.length === 1) {
                         loadLayerWithSmartSlotting(files[0], files[0].name);
                     } else if (files.length >= 2) {
+                        if (state.imgA && state.imgB) {
+                             const confirm = await showModal(
+                                 "Overwrite All?",
+                                 "Both slots are occupied. Do you want to overwrite them with the dragged images?",
+                                 [{ label: "Overwrite", value: true }],
+                                 true
+                             );
+                             if (!confirm) return;
+                        }
+
                         // Standard load 2
-                        handleFileLoad(files[0], 'A');
-                        handleFileLoad(files[1], 'B');
+                        await handleFileLoad(files[0], 'A');
+                        await handleFileLoad(files[1], 'B');
+                        resetView();
                     }
                 } else if (uriList) {
                     const lines = uriList.split(/\r?\n/);
@@ -1977,12 +1988,12 @@
         }
 
         function handleFileLoad(file, slot) {
-            if (!file) return;
+            if (!file) return Promise.resolve();
             bakeRotation();
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
 
-            loadImageSource(file)
+            return loadImageSource(file)
                 .then(img => assignLayer(img, slot, file.name))
                 .catch(e => {
                     log("Failed to load image: " + e.message);
@@ -2247,7 +2258,7 @@
             const targetH = union.h;
 
             // Check if dims changed
-            if (state.fullDims.w !== targetW || state.fullDims.h !== targetH) {
+            if (state.fullDims.w !== targetW || state.fullDims.h !== targetH || maskCanvas.width !== targetW || maskCanvas.height !== targetH) {
                 // If mask needs resize, do it with preservation if requested OR if standard flow
                 // Note: preserveMask arg usually prevents HISTORY reset.
                 // But we must preserve PIXELS if resizing due to Union change.

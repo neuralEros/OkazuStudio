@@ -17,6 +17,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
     let lastStaticHue = defaults.hue;
     let rgbInterval = null;
+    let debugPollInterval = null; // Polling for logs
 
     // Load settings from localStorage or use defaults
     function loadSettings() {
@@ -154,109 +155,112 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
-                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel border border-panel w-[800px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex h-[500px]">
+                <div id="settings-modal" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[150%] bg-panel-strong border border-panel border-panel-border w-[800px] max-w-[90vw] rounded-lg shadow-2xl overflow-hidden transition-all duration-300 ease-in-out flex flex-col h-[500px]">
 
-                    <!-- Sidebar -->
-                    <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-4">
-                        <button class="settings-tab-btn active text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="general">
-                            General
-                        </button>
-                        <button class="settings-tab-btn text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
-                            Performance
-                        </button>
-                        <button class="settings-tab-btn text-left px-6 py-3 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
-                            Debug
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-4 py-2 border-b border-panel-divider bg-panel-header shrink-0">
+                        <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
+                        <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                     </div>
 
-                    <!-- Content Area -->
-                    <div class="w-3/4 flex flex-col bg-panel">
-                        <div class="flex items-center justify-between px-6 py-4 border-b border-panel-divider bg-panel-header shrink-0">
-                            <h3 id="settings-title" class="text-lg font-bold text-accent translate-y-[1px]">Settings</h3>
-                            <button id="settings-close" class="accent-action rounded-sm shadow-sm flex items-center justify-center w-6 h-6">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <!-- Body -->
+                    <div class="flex flex-grow overflow-hidden">
+                        <!-- Sidebar -->
+                        <div class="w-1/4 bg-panel-strong border-r border-panel-divider flex flex-col pt-2">
+                            <button class="settings-tab-btn active text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="general">
+                                General
+                            </button>
+                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="performance">
+                                Performance
+                            </button>
+                            <button class="settings-tab-btn text-left px-4 py-2 text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-colors border-l-4 border-transparent" data-tab="debug">
+                                Debug
                             </button>
                         </div>
 
-                        <div class="p-6 overflow-y-auto flex-grow">
+                        <!-- Content Area -->
+                        <div class="w-3/4 flex flex-col bg-panel">
+                            <div class="p-4 overflow-y-auto flex-grow">
 
-                            <!-- TAB: GENERAL -->
-                            <div id="tab-general" class="settings-tab-content block">
-                                <div class="mb-6">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
-                                    <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
-                                        <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
-                                        <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">RGB</button>
+                                <!-- TAB: GENERAL -->
+                                <div id="tab-general" class="settings-tab-content block">
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">UI Theme Hue/Saturation</label>
+                                        <div class="grid grid-cols-[1fr_auto] grid-rows-3 gap-x-4 gap-y-4 items-center">
+                                            <input id="setting-hue" type="range" min="0" max="360" class="w-full accent-accent">
+                                            <button id="setting-rgb-toggle" class="text-xs font-bold text-gray-400 hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">RGB</button>
 
-                                        <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
-                                        <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">Default</button>
+                                            <input id="setting-saturation" type="range" min="0" max="100" class="w-full accent-accent">
+                                            <button id="setting-hue-reset" class="text-xs font-bold text-accent hover:text-white uppercase px-2 py-1 rounded border border-panel-divider hover:bg-panel-strong transition-colors w-20">Default</button>
 
-                                        <div class="col-span-2 flex flex-col gap-1 mt-2">
-                                            <div class="flex justify-between">
-                                                <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
-                                                <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
+                                            <div class="col-span-2 flex flex-col gap-1 mt-2">
+                                                <div class="flex justify-between">
+                                                    <span class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">RGB Cycle Speed</span>
+                                                    <span id="val-rgb-speed" class="text-[10px] text-gray-400">1.0x</span>
+                                                </div>
+                                                <input id="setting-rgb-speed" type="range" min="0.1" max="5.0" step="0.1" class="w-full accent-accent">
                                             </div>
-                                            <input id="setting-rgb-speed" type="range" min="0.1" max="5.0" step="0.1" class="w-full accent-accent">
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- TAB: PERFORMANCE -->
-                            <div id="tab-performance" class="settings-tab-content hidden">
-                                <!-- Brush Resolution -->
-                                <div class="mb-6">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
-                                    <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
-                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
-                                        <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
-                                    </div>
-                                </div>
-
-                                <!-- Adjustment Resolution -->
-                                <div class="mb-6">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
-                                    <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
-                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
-                                        <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
-                                    </div>
-                                </div>
-
-                                <!-- Undo History -->
-                                <div class="mb-6">
-                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
-                                    <div class="flex gap-4">
-                                        <div class="flex-1">
-                                            <div class="flex justify-between mb-1">
-                                                <span class="text-[10px] text-gray-400">Keyframe Interval</span>
-                                                <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
-                                            </div>
-                                            <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
-                                        </div>
-                                        <div class="flex-1">
-                                            <div class="flex justify-between mb-1">
-                                                <span class="text-[10px] text-gray-400">Buffer Depth</span>
-                                                <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
-                                            </div>
-                                            <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
+                                <!-- TAB: PERFORMANCE -->
+                                <div id="tab-performance" class="settings-tab-content hidden">
+                                    <!-- Brush Resolution -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Brush Preview Resolution (Height)</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
+                                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                            <button class="res-btn-brush flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
 
-                            <!-- TAB: DEBUG -->
-                            <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
-                                <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
-                                <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
-                                <div class="flex justify-end gap-2 shrink-0">
-                                    <button id="refresh-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-white hover:bg-panel-800 transition-colors">Refresh</button>
-                                    <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
-                                    <button id="copy-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded bg-accent text-white hover:brightness-110 transition-colors shadow-sm">Copy to Clipboard</button>
-                                </div>
-                            </div>
+                                    <!-- Adjustment Resolution -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Adjustment Preview Resolution (Height)</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="720">720p</button>
+                                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="1080">1080p</button>
+                                            <button class="res-btn-adj flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                        </div>
+                                    </div>
 
+                                    <!-- Undo History -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Undo History (Replay Buffer)</label>
+                                        <div class="flex gap-4">
+                                            <div class="flex-1">
+                                                <div class="flex justify-between mb-1">
+                                                    <span class="text-[10px] text-gray-400">Keyframe Interval</span>
+                                                    <span id="val-keyframe-interval" class="text-[10px] text-gray-400">10</span>
+                                                </div>
+                                                <input id="setting-keyframe-interval" type="range" min="1" max="50" step="1" class="w-full accent-accent">
+                                            </div>
+                                            <div class="flex-1">
+                                                <div class="flex justify-between mb-1">
+                                                    <span class="text-[10px] text-gray-400">Buffer Depth</span>
+                                                    <span id="val-keyframe-buffer" class="text-[10px] text-gray-400">5</span>
+                                                </div>
+                                                <input id="setting-keyframe-buffer" type="range" min="1" max="20" step="1" class="w-full accent-accent">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- TAB: DEBUG -->
+                                <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
+                                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Session Logs</label>
+                                    <textarea id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-accent rounded p-2 text-[10px] font-mono text-gray-400 resize-none focus:outline-none focus:ring-1 focus:ring-accent mb-4" readonly></textarea>
+                                    <div class="flex justify-end gap-2 shrink-0">
+                                        <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
+                                        <button id="copy-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded bg-accent text-white hover:brightness-110 transition-colors shadow-sm">Copy to Clipboard</button>
+                                    </div>
+                                </div>
+
+                            </div>
                         </div>
                     </div>
 
@@ -297,7 +301,11 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 const targetId = tab.dataset.tab;
                 document.getElementById(`tab-${targetId}`).classList.remove('hidden');
 
-                if (targetId === 'debug') refreshLogs();
+                if (targetId === 'debug') {
+                    startLogPolling();
+                } else {
+                    stopLogPolling();
+                }
             });
         });
 
@@ -454,20 +462,35 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         // --- DEBUG TAB ---
         const logViewer = document.getElementById('debug-log-viewer');
-        const refreshLogsBtn = document.getElementById('refresh-logs-btn');
+        // Removed refresh btn
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
         function refreshLogs() {
             if (window.Logger && window.Logger.getLogs) {
-                logViewer.value = window.Logger.getLogs();
-                logViewer.scrollTop = logViewer.scrollHeight;
+                const currentLogs = window.Logger.getLogs();
+                // Only update if changed to prevent selection flicker, although selection is hard in readonly
+                if (logViewer.value !== currentLogs) {
+                    logViewer.value = currentLogs;
+                    logViewer.scrollTop = logViewer.scrollHeight;
+                }
             } else {
                 logViewer.value = "Logger not active.";
             }
         }
 
-        refreshLogsBtn.addEventListener('click', refreshLogs);
+        function startLogPolling() {
+            stopLogPolling();
+            refreshLogs();
+            debugPollInterval = setInterval(refreshLogs, 500);
+        }
+
+        function stopLogPolling() {
+            if (debugPollInterval) {
+                clearInterval(debugPollInterval);
+                debugPollInterval = null;
+            }
+        }
 
         clearLogsBtn.addEventListener('click', () => {
              if (window.Logger && window.Logger.clear) {
@@ -501,11 +524,18 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             modal.style.transform = 'translate(-50%, -50%)';
             // -50% Y is centered. Start was -150% (above)
 
-            // Default to General tab
-            // (Optional: remember last tab?)
+            // Default to General tab?
+            // If debug was last active, we might want to start polling?
+            // For now, let's just leave the DOM state as is (hidden tabs).
+            // But if debug tab is currently visible class-wise, we should start polling.
+            const debugTab = document.getElementById('tab-debug');
+            if (debugTab && !debugTab.classList.contains('hidden')) {
+                startLogPolling();
+            }
         }
 
         function closeSettings() {
+            stopLogPolling(); // Ensure polling stops
             saveSettings(); // Ensure save on close
             overlay.classList.add('opacity-0');
             // Slide out to bottom

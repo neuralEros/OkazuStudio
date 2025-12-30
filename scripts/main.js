@@ -2657,9 +2657,17 @@
                 const wasCropping = state.isCropping;
                 state.isCropping = false;
 
+                // Determine Resolution Suffix
+                let resTag = '';
+                if (heightCap === 'Full') resTag = 'full';
+                else if (heightCap === 4320) resTag = '8k';
+                else if (heightCap === 2160) resTag = '4k';
+                else if (heightCap === 1080) resTag = 'hd';
+                else resTag = heightCap + 'p';
+
                 // Process Jobs
                 for (const job of jobs) {
-                    const filename = `${timeString}${job.suffix}.${ext}`;
+                    const filename = `${timeString}${job.suffix}_${resTag}.${ext}`;
 
                     // Configure Render Options
                     const options = {

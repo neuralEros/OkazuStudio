@@ -147,6 +147,33 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: absP.x / fullH, y: absP.y / fullH };
     }
 
+    function getCropPivot(e) {
+        // Calculate Truth Point under cursor considering Visual Rotation
+        const rect = els.viewport.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // 1. Visual Canvas Coordinates
+        const canvasX = (mouseX - state.view.x) / state.view.scale;
+        const canvasY = (mouseY - state.view.y) / state.view.scale;
+
+        // 2. Inverse Crop Rotation
+        // We need to rotate the point around the Visual Center back to Unrotated Space
+        const fullH = state.fullDims.h || 1;
+        const fullW = state.fullDims.w || 1;
+        const isRotated = state.rotation % 180 !== 0;
+        const visualFullW = isRotated ? fullH : fullW;
+        const visualFullH = isRotated ? fullW : fullH;
+        const canvasCx = visualFullW / 2;
+        const canvasCy = visualFullH / 2;
+
+        const unrotated = rotatePoint({x: canvasX, y: canvasY}, canvasCx, canvasCy, -state.cropRotation);
+
+        // 3. Convert to Truth
+        const absP = visualToTruthCoords(unrotated.x, unrotated.y);
+        return { x: absP.x / fullH, y: absP.y / fullH };
+    }
+
     function enforceCropView(maintainScale = false) {
         if (!state.cropRect || !state.fullDims.w) return;
 
@@ -717,7 +744,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     startView: { ...state.view },
                     startCropRect: { ...state.cropRect },
                     startRotation: state.cropRotation,
-                    startVisualRect: getVisualStartRect()
+                    startVisualRect: getVisualStartRect(),
+                    originTruth: getCropPivot(e) // Capture Pivot Point
                 };
             }
             return;
@@ -909,39 +937,26 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const zoomSpeed = 0.005;
                 const factor = Math.exp(-dyScreen * zoomSpeed);
 
-                // console.log("Scaling: Factor", factor, "StartW", startRect.w, "NewW", startRect.w * factor);
-
                 state.cropRect.w = startRect.w * factor;
                 state.cropRect.h = startRect.h * factor;
 
-                // Maintain Image Center (Grow/Shrink in place)
-                // Pivot around Image Center in Truth Space
-                const imageCx = (fullW / fullH) / 2;
-                const imageCy = 0.5;
+                // Pivot around User Click Position (originTruth)
+                const pivot = state.cropDrag.originTruth;
 
                 // Start Center in Truth
                 const startCx = startRect.x + startRect.w / 2;
                 const startCy = startRect.y + startRect.h / 2;
 
-                // Scale the distance vector from Image Center to Crop Center
-                // Dist(New) = Dist(Start) * factor
-                const distCx = startCx - imageCx;
-                const distCy = startCy - imageCy;
-
-                const newCx = imageCx + distCx * factor;
-                const newCy = imageCy + distCy * factor;
+                // New Center logic:
+                // NewCenter = Pivot + (StartCenter - Pivot) * factor
+                const newCx = pivot.x + (startCx - pivot.x) * factor;
+                const newCy = pivot.y + (startCy - pivot.y) * factor;
 
                 // Apply new W/H centered at New Center
                 state.cropRect.x = newCx - state.cropRect.w / 2;
                 state.cropRect.y = newCy - state.cropRect.h / 2;
 
                 // Inverse View Scale to keep visual size constant
-                // New Crop Size (Truth) = Start * Factor
-                // We want Visual Size = Constant.
-                // Visual = Truth * ViewScale.
-                // Constant = (Start * Factor) * NewViewScale
-                // Constant = Start * StartViewScale
-                // NewViewScale = (Start * StartViewScale) / (Start * Factor) = StartViewScale / Factor
                 state.view.scale = startView.scale / factor;
 
                 enforceCropView(true);

@@ -2267,35 +2267,9 @@
         function toggleCropMode() {
             if (!canDraw()) return;
 
-            // Clamp cropRect to valid bounds before entering crop mode
+            // Remove clamping logic to allow cropRect to be outside bounds (e.g. for rotated composition)
+            // Sanity check only for zero dimensions
             if (!state.isCropping && state.cropRect) {
-                const aspect = (state.fullDims.w || 1) / (state.fullDims.h || 1);
-
-                // 1. Clamp X, Y to be non-negative
-                if (state.cropRect.x < 0) state.cropRect.x = 0;
-                if (state.cropRect.y < 0) state.cropRect.y = 0;
-
-                // 2. Ensure Width fits within Aspect
-                if (state.cropRect.x + state.cropRect.w > aspect) {
-                    // Try to shrink width first
-                    state.cropRect.w = aspect - state.cropRect.x;
-                    // If width became too small, maybe X was too far right?
-                    if (state.cropRect.w < 0.01) {
-                         state.cropRect.x = Math.max(0, aspect - 0.1); // Shift X back
-                         state.cropRect.w = aspect - state.cropRect.x;
-                    }
-                }
-
-                // 3. Ensure Height fits within 1.0
-                if (state.cropRect.y + state.cropRect.h > 1.0) {
-                    state.cropRect.h = 1.0 - state.cropRect.y;
-                    if (state.cropRect.h < 0.01) {
-                         state.cropRect.y = Math.max(0, 1.0 - 0.1);
-                         state.cropRect.h = 1.0 - state.cropRect.y;
-                    }
-                }
-
-                // 4. Sanity check zero dimensions
                 state.cropRect.w = Math.max(0.001, state.cropRect.w);
                 state.cropRect.h = Math.max(0.001, state.cropRect.h);
             }

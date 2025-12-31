@@ -3045,7 +3045,7 @@
             // Queue of exports
             const jobs = [];
             if (layers.merged) jobs.push({ type: 'merged', suffix: '_merged' });
-            if (layers.save)   jobs.push({ type: 'save',   suffix: '_Save' });
+            if (layers.save)   jobs.push({ type: 'save',   suffix: '_save' });
             if (layers.mask)   jobs.push({ type: 'mask',   suffix: '_mask' });
             if (layers.front)  jobs.push({ type: 'front',  suffix: '_front' });
             if (layers.back)   jobs.push({ type: 'back',   suffix: '_back' });

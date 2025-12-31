@@ -4,20 +4,27 @@ const kakushi = (() => {
 
     /**
      * Checks if the image contains the Kakushi signature.
-     * Only reads the first few pixels (Header) for O(1) performance.
+     * Scans the image for the first contiguous block of opaque pixels to find the header.
      * @param {CanvasImageSource} source
      * @returns {boolean}
      */
     function peek(source) {
         try {
-            // We need 64 bits (8 bytes) for the header.
-            // 3 channels (RGB) per pixel = 21.33 pixels.
-            // Reading 24 pixels is safe (covers 72 bits).
-            const ctx = getContextForReading(source, 24, 1);
+            // Header is 8 bytes = 64 bits.
+            // 3 channels/pixel = 22 pixels needed.
+            // We'll read a reasonable chunk (e.g. 200px height or full) to find opacity.
+            // To be robust, let's just get the full context (or a large enough strip).
+            // Usually header is at top. If top is transparent, we scan down.
+
+            const w = source.naturalWidth || source.width;
+            const h = source.naturalHeight || source.height;
+            const ctx = getContextForReading(source, w, h);
             if (!ctx) return false;
 
-            const imageData = ctx.getImageData(0, 0, 24, 1);
+            const imageData = ctx.getImageData(0, 0, w, h);
             const headerBytes = extractBytes(imageData.data, HEADER_BYTES);
+            // extractBytes handles skipping transparency now
+
             return hasMagic(headerBytes);
         } catch (e) {
             console.error("Kakushi peek failed:", e);
@@ -27,27 +34,23 @@ const kakushi = (() => {
 
     /**
      * Embeds a secret string into the source image.
-     * Uses GZIP compression and dynamic resizing.
+     * Uses GZIP compression and writes only to opaque pixels.
      * @param {CanvasImageSource} source
      * @param {string} secret
      * @returns {Promise<HTMLCanvasElement>} The laced canvas.
      */
     async function seal(source, secret) {
-        // 1. Compress the secret
         const compressed = await compressString(secret);
 
-        // 2. Prepare Header
         const header = new Uint8Array(HEADER_BYTES);
         header.set(MAGIC, 0);
         const view = new DataView(header.buffer);
-        view.setUint32(4, compressed.length, false); // Big Endian length
+        view.setUint32(4, compressed.length, false);
 
-        // 3. Combine Header + Data
         const payload = new Uint8Array(header.length + compressed.length);
         payload.set(header, 0);
         payload.set(compressed, header.length);
 
-        // 4. Create output canvas (clone of source)
         const canvas = document.createElement('canvas');
         const w = source.naturalWidth || source.width;
         const h = source.naturalHeight || source.height;
@@ -56,21 +59,24 @@ const kakushi = (() => {
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(source, 0, 0);
 
-        // 5. Calculate required region
-        const channels = 3; // RGB only
-        const bitsNeeded = payload.length * 8;
-        const pixelsNeeded = Math.ceil(bitsNeeded / channels);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
 
-        if (pixelsNeeded > w * h) {
-            throw new Error(`Payload too large: need ${pixelsNeeded} pixels, have ${w * h}`);
+        // Check capacity
+        // Count opaque pixels
+        let opaquePixels = 0;
+        for (let i = 0; i < data.length; i+=4) {
+            if (data[i+3] > 0) opaquePixels++;
         }
 
-        // Optimize: Only read the rows we need
-        const rowsNeeded = Math.ceil(pixelsNeeded / w);
+        const bitsNeeded = payload.length * 8;
+        const pixelsNeeded = Math.ceil(bitsNeeded / 3);
 
-        // 6. Embed Data
-        const imageData = ctx.getImageData(0, 0, w, rowsNeeded);
-        embedBytes(imageData.data, payload);
+        if (pixelsNeeded > opaquePixels) {
+            throw new Error(`Payload too large: need ${pixelsNeeded} opaque pixels, have ${opaquePixels}`);
+        }
+
+        embedBytes(data, payload);
         ctx.putImageData(imageData, 0, 0);
 
         return canvas;
@@ -82,7 +88,6 @@ const kakushi = (() => {
      * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null }>}
      */
     async function reveal(source) {
-        // 1. Create a working copy (which will become the clean image)
         const canvas = document.createElement('canvas');
         const w = source.naturalWidth || source.width;
         const h = source.naturalHeight || source.height;
@@ -91,64 +96,51 @@ const kakushi = (() => {
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         ctx.drawImage(source, 0, 0);
 
-        // 2. Read Header (First 24 pixels)
-        const headerRegion = ctx.getImageData(0, 0, 24, 1);
-        const headerBytes = extractBytes(headerRegion.data, HEADER_BYTES);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+
+        // Extract Header
+        const headerBytes = extractBytes(data, HEADER_BYTES); // Reads first opaque bytes
 
         if (!hasMagic(headerBytes)) {
             return { cleanImage: canvas, secret: null };
         }
 
-        // 3. Get Payload Length
         const view = new DataView(headerBytes.buffer);
         const payloadLength = view.getUint32(4, false);
 
         if (payloadLength === 0) {
-             // Wipe just the header and return
-             sanitizeRegion(headerRegion.data, HEADER_BYTES * 8);
-             ctx.putImageData(headerRegion, 0, 0);
+             sanitizeRegion(data, HEADER_BYTES * 8);
+             ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "" };
         }
 
-        // 4. Calculate Full Region
         const totalBytes = HEADER_BYTES + payloadLength;
         const bitsNeeded = totalBytes * 8;
-        const pixelsNeeded = Math.ceil(bitsNeeded / 3);
-        const rowsNeeded = Math.ceil(pixelsNeeded / w);
 
-        // 5. Read Full Data Region
-        const imageData = ctx.getImageData(0, 0, w, rowsNeeded);
-        const fullBytes = extractBytes(imageData.data, totalBytes);
+        // Extract Full Payload
+        // We re-extract everything to be safe (or could just continue)
+        // extractBytes is deterministic on the opaque stream
+        const fullBytes = extractBytes(data, totalBytes);
         const compressedPayload = fullBytes.slice(HEADER_BYTES);
 
-        // 6. Sanitize (Wipe LSBs)
-        // We wipe exactly as many bits as we read, plus padding to the next pixel?
-        // Simpler: We wipe the LSBs of every pixel involved in the transaction.
-        sanitizeRegion(imageData.data, bitsNeeded);
+        sanitizeRegion(data, bitsNeeded);
         ctx.putImageData(imageData, 0, 0);
 
-        // 7. Decompress
         try {
             const secret = await decompressString(compressedPayload);
             return { cleanImage: canvas, secret };
         } catch (e) {
             console.error("Decompression failed:", e);
-            return { cleanImage: canvas, secret: null }; // Should we fail hard?
+            return { cleanImage: canvas, secret: null };
         }
     }
 
     // --- Helpers ---
 
     function getContextForReading(source, w, h) {
-        // If it's already a context or canvas, use it.
-        // If image, draw to small canvas.
-        if (source instanceof HTMLCanvasElement) {
-            return source.getContext('2d');
-        }
-        if (source instanceof CanvasRenderingContext2D) {
-            return source;
-        }
-        // HTMLImageElement or others
+        if (source instanceof HTMLCanvasElement) return source.getContext('2d');
+        if (source instanceof CanvasRenderingContext2D) return source;
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
@@ -157,17 +149,19 @@ const kakushi = (() => {
         return ctx;
     }
 
+    // Helper: Embeds bytes into pixels, skipping transparent ones
     function embedBytes(data, bytes) {
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // R, G, B only
+            // Skip transparent pixels
+            if (data[i + 3] === 0) continue;
+
             for (let c = 0; c < 3; c++) {
                 if (byteIndex >= bytes.length) return;
 
                 const bit = (bytes[byteIndex] >> (7 - bitIndex)) & 1;
-                // Clear LSB then set it
                 data[i + c] = (data[i + c] & 0xFE) | bit;
 
                 bitIndex++;
@@ -179,12 +173,16 @@ const kakushi = (() => {
         }
     }
 
+    // Helper: Extracts bytes from pixels, skipping transparent ones
     function extractBytes(data, byteCount) {
         const bytes = new Uint8Array(byteCount);
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
+            // Skip transparent pixels
+            if (data[i + 3] === 0) continue;
+
             for (let c = 0; c < 3; c++) {
                 const bit = data[i + c] & 1;
                 bytes[byteIndex] = (bytes[byteIndex] << 1) | bit;
@@ -200,12 +198,15 @@ const kakushi = (() => {
         return bytes;
     }
 
+    // Helper: Sanitizes pixels, skipping transparent ones
     function sanitizeRegion(data, bitsToWipe) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
+             // Skip transparent pixels
+             if (data[i + 3] === 0) continue;
+
              for (let c = 0; c < 3; c++) {
                  if (bitsWiped >= bitsToWipe) return;
-                 // Set LSB to 0
                  data[i + c] = data[i + c] & 0xFE;
                  bitsWiped++;
              }

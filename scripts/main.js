@@ -764,7 +764,104 @@
                                      return; // Stop loading the image itself
                                  }
                              }
-                             // Case 2: Merged / Front / Back Export
+                             // Case 2: Save (Project Restore)
+                             else if (info.type === 'save') {
+                                 // Check for Censor Project Flag
+                                 if (payload.censor) {
+                                     const confirm = await showModal(
+                                         "Restore Censor Project?",
+                                         "This image is a saved Censor Project. Do you want to restore the workspace?",
+                                         [{ label: "Restore Project", value: true }],
+                                         true
+                                     );
+                                     if (!confirm) return; // Abort (or fall through to load as image?)
+
+                                     log("Restoring Censor Project...", "info");
+
+                                     // Manual Clear
+                                     state.imgA = null; state.imgB = null;
+                                     state.history = [];
+                                     if (replayEngine && replayEngine.clear) replayEngine.clear();
+                                     resetMaskOnly();
+
+                                     // Load Base (img is the decoded Image object)
+                                     assignLayer(img, 'A', "Base Layer");
+
+                                     // Generate Censor Layer (Slot B)
+                                     await generateCensorLayer();
+
+                                     // Apply Metadata
+                                     if (payload.adjustments) {
+                                         state.adjustments = payload.adjustments;
+                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     }
+
+                                     if (payload.crop) {
+                                         state.cropRect = payload.crop;
+                                         updateCanvasDimensions();
+                                     }
+
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         resetMaskOnly();
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+
+                                     rebuildWorkingCopies(true);
+                                     render();
+                                     return; // Stop loading image (we handled it)
+                                 }
+
+                                 // Standard Project Save
+                                 const choice = await showModal(
+                                     "Load Project?",
+                                     "This is a saved project file. Restore original workspace or load as image?",
+                                     [
+                                         { label: "Restore Project", value: 'project' },
+                                         { label: "Load Image", value: 'image' }
+                                     ],
+                                     true
+                                 );
+
+                                 if (choice === 'project') {
+                                     // Clear Workspace
+                                     state.imgA = null; state.imgB = null;
+                                     state.history = [];
+                                     if (replayEngine && replayEngine.clear) replayEngine.clear();
+                                     resetMaskOnly();
+                                     resetAllAdjustments();
+
+                                     assignLayer(img, 'A', "Restored Project");
+
+                                     if (payload.adjustments) {
+                                         state.adjustments = payload.adjustments;
+                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     }
+
+                                     if (payload.crop) {
+                                         state.cropRect = payload.crop;
+                                         updateCanvasDimensions();
+                                     }
+
+                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                         resetMaskOnly();
+                                         payload.mask.forEach(action => {
+                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                         });
+                                     }
+
+                                     rebuildWorkingCopies(true);
+                                     render();
+                                     return;
+                                 }
+
+                                 if (choice === null) return;
+                                 // else fall through to load as image
+                             }
+                             // Case 3: Merged / Front / Back Export
                              // Only prompt if we already have images loaded (to apply settings TO)
                              else if (['merged', 'front', 'back'].includes(info.type) && hasImages) {
                                  const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;

@@ -66,7 +66,9 @@ const kakushi = (() => {
         // Count opaque pixels
         let opaquePixels = 0;
         for (let i = 0; i < data.length; i+=4) {
-            if (data[i+3] > 0) opaquePixels++;
+            // STRICT OPACITY CHECK: Alpha must be 255.
+            // Semi-transparent pixels (antialiasing) are corrupted by browser premultiplication logic.
+            if (data[i+3] === 255) opaquePixels++;
         }
 
         const bitsNeeded = payload.length * 8;
@@ -155,8 +157,8 @@ const kakushi = (() => {
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // Skip transparent pixels
-            if (data[i + 3] === 0) continue;
+            // STRICT OPACITY: Skip non-255 alpha
+            if (data[i + 3] < 255) continue;
 
             for (let c = 0; c < 3; c++) {
                 if (byteIndex >= bytes.length) return;
@@ -180,8 +182,8 @@ const kakushi = (() => {
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // Skip transparent pixels
-            if (data[i + 3] === 0) continue;
+            // STRICT OPACITY: Skip non-255 alpha
+            if (data[i + 3] < 255) continue;
 
             for (let c = 0; c < 3; c++) {
                 const bit = data[i + c] & 1;
@@ -202,8 +204,8 @@ const kakushi = (() => {
     function sanitizeRegion(data, bitsToWipe) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
-             // Skip transparent pixels
-             if (data[i + 3] === 0) continue;
+             // STRICT OPACITY: Skip non-255 alpha
+             if (data[i + 3] < 255) continue;
 
              for (let c = 0; c < 3; c++) {
                  if (bitsWiped >= bitsToWipe) return;

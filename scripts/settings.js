@@ -19,6 +19,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         exportHeightCap: 4320, // 'Full' or number
         exportLayers: {
             merged: true,
+            save: false, // Save Project
             mask: false,
             front: false,
             back: false
@@ -369,11 +370,16 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                     <!-- Layer Exports -->
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 mb-2">Layer Exports</label>
-                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
-                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
-                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
-                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
+                                        <div class="flex flex-col gap-2">
+                                            <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="save">Save (Project)</button>
+                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
+                                            </div>
+                                            <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
+                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
+                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -539,7 +545,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
         // Defaults check (in case not in stored settings)
         if (!state.settings.exportLayers) {
-            state.settings.exportLayers = { merged: true, mask: false, front: false, back: false };
+            state.settings.exportLayers = { merged: true, save: false, mask: false, front: false, back: false };
+        } else if (state.settings.exportLayers.save === undefined) {
+            state.settings.exportLayers.save = false; // Backfill
         }
 
         function updateLayerButtons() {

@@ -370,16 +370,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                     <!-- Layer Exports -->
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 mb-2">Layer Exports</label>
-                                        <div class="flex flex-col gap-2">
-                                            <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="save">Save (Project)</button>
-                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
-                                            </div>
-                                            <div class="flex rounded bg-panel-strong p-1 gap-1">
-                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
-                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
-                                                <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
-                                            </div>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="merged">Merged</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="save">Save</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="mask">Mask</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="front">Front</button>
+                                            <button class="export-layer-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-key="back">Back</button>
                                         </div>
                                     </div>
 

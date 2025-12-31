@@ -1,6 +1,8 @@
 const kakushi = (() => {
     const MAGIC = new Uint8Array([0x4f, 0x4b, 0x5a, 0x31]); // "OKZ1"
     const HEADER_BYTES = 8; // 4 bytes Magic + 4 bytes Length
+    const DEFAULT_ALPHA_THRESHOLD = 250;
+    const DEFAULT_TOP_STRIP = 200;
 
     /**
      * Checks if the image contains the Kakushi signature.
@@ -23,10 +25,22 @@ const kakushi = (() => {
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const mask = normalizeMask(options, imageData.data.length);
-            const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask);
-            // extractBytes handles skipping transparency now
+            const regions = getScanRegions(options, h);
+            const alphaThreshold = getAlphaThreshold(options);
 
-            return hasMagic(headerBytes);
+            for (const region of regions) {
+                const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask, {
+                    width: w,
+                    height: h,
+                    startY: region.startY,
+                    endY: region.endY,
+                    alphaThreshold
+                });
+
+                if (hasMagic(headerBytes)) return true;
+            }
+
+            return false;
         } catch (e) {
             console.error("Kakushi peek failed:", e);
             return false;
@@ -63,14 +77,15 @@ const kakushi = (() => {
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
         const mask = normalizeMask(options, data.length);
+        const alphaThreshold = getAlphaThreshold(options);
 
         // Check capacity
         // Count opaque pixels
         let opaquePixels = 0;
         for (let i = 0; i < data.length; i+=4) {
-            // STRICT OPACITY CHECK: Alpha must be 255.
+            // STRICT OPACITY CHECK: Alpha must be >= threshold.
             // Semi-transparent pixels (antialiasing) are corrupted by browser premultiplication logic.
-            if (data[i+3] === 255 && !isMasked(mask, i)) opaquePixels++;
+            if (data[i+3] >= alphaThreshold && !isMasked(mask, i)) opaquePixels++;
         }
 
         const bitsNeeded = payload.length * 8;
@@ -80,7 +95,7 @@ const kakushi = (() => {
             throw new Error(`Payload too large: need ${pixelsNeeded} opaque pixels, have ${opaquePixels}`);
         }
 
-        embedBytes(data, payload, mask);
+        embedBytes(data, payload, mask, alphaThreshold);
         ctx.putImageData(imageData, 0, 0);
 
         return canvas;
@@ -103,11 +118,26 @@ const kakushi = (() => {
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
         const mask = normalizeMask(options, data.length);
+        const alphaThreshold = getAlphaThreshold(options);
+        const regions = getScanRegions(options, h);
 
-        // Extract Header
-        const headerBytes = extractBytes(data, HEADER_BYTES, mask); // Reads first opaque bytes
+        let headerBytes = null;
+        for (const region of regions) {
+            const candidate = extractBytes(data, HEADER_BYTES, mask, {
+                width: w,
+                height: h,
+                startY: region.startY,
+                endY: region.endY,
+                alphaThreshold
+            });
 
-        if (!hasMagic(headerBytes)) {
+            if (hasMagic(candidate)) {
+                headerBytes = candidate;
+                break;
+            }
+        }
+
+        if (!headerBytes) {
             return { cleanImage: canvas, secret: null };
         }
 
@@ -115,7 +145,7 @@ const kakushi = (() => {
         const payloadLength = view.getUint32(4, false);
 
         if (payloadLength === 0) {
-             sanitizeRegion(data, HEADER_BYTES * 8, mask);
+             sanitizeRegion(data, HEADER_BYTES * 8, mask, alphaThreshold);
              ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "" };
         }
@@ -126,10 +156,16 @@ const kakushi = (() => {
         // Extract Full Payload
         // We re-extract everything to be safe (or could just continue)
         // extractBytes is deterministic on the opaque stream
-        const fullBytes = extractBytes(data, totalBytes, mask);
+        const fullBytes = extractBytes(data, totalBytes, mask, {
+            width: w,
+            height: h,
+            startY: 0,
+            endY: h,
+            alphaThreshold
+        });
         const compressedPayload = fullBytes.slice(HEADER_BYTES);
 
-        sanitizeRegion(data, bitsNeeded, mask);
+        sanitizeRegion(data, bitsNeeded, mask, alphaThreshold);
         ctx.putImageData(imageData, 0, 0);
 
         try {
@@ -155,13 +191,13 @@ const kakushi = (() => {
     }
 
     // Helper: Embeds bytes into pixels, skipping transparent ones
-    function embedBytes(data, bytes, mask) {
+    function embedBytes(data, bytes, mask, alphaThreshold) {
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+            // STRICT OPACITY: Skip below threshold alpha
+            if (data[i + 3] < alphaThreshold || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
                 if (byteIndex >= bytes.length) return;
@@ -179,24 +215,35 @@ const kakushi = (() => {
     }
 
     // Helper: Extracts bytes from pixels, skipping transparent ones
-    function extractBytes(data, byteCount, mask) {
+    function extractBytes(data, byteCount, mask, options = {}) {
         const bytes = new Uint8Array(byteCount);
         let byteIndex = 0;
         let bitIndex = 0;
+        const width = options.width;
+        const height = options.height;
+        const startY = Math.max(0, options.startY || 0);
+        const endY = Math.min(height || 0, options.endY ?? height ?? 0);
+        const alphaThreshold = options.alphaThreshold ?? DEFAULT_ALPHA_THRESHOLD;
 
-        for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+        if (!width || !height || endY <= startY) return bytes;
 
-            for (let c = 0; c < 3; c++) {
-                const bit = data[i + c] & 1;
-                bytes[byteIndex] = (bytes[byteIndex] << 1) | bit;
+        for (let y = startY; y < endY; y++) {
+            let rowIndex = y * width * 4;
+            for (let x = 0; x < width; x++) {
+                const i = rowIndex + x * 4;
+                // STRICT OPACITY: Skip below threshold alpha
+                if (data[i + 3] < alphaThreshold || isMasked(mask, i)) continue;
 
-                bitIndex++;
-                if (bitIndex === 8) {
-                    bitIndex = 0;
-                    byteIndex++;
-                    if (byteIndex >= byteCount) return bytes;
+                for (let c = 0; c < 3; c++) {
+                    const bit = data[i + c] & 1;
+                    bytes[byteIndex] = (bytes[byteIndex] << 1) | bit;
+
+                    bitIndex++;
+                    if (bitIndex === 8) {
+                        bitIndex = 0;
+                        byteIndex++;
+                        if (byteIndex >= byteCount) return bytes;
+                    }
                 }
             }
         }
@@ -204,11 +251,11 @@ const kakushi = (() => {
     }
 
     // Helper: Sanitizes pixels, skipping transparent ones
-    function sanitizeRegion(data, bitsToWipe, mask) {
+    function sanitizeRegion(data, bitsToWipe, mask, alphaThreshold) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
-             // STRICT OPACITY: Skip non-255 alpha
-             if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+             // STRICT OPACITY: Skip below threshold alpha
+             if (data[i + 3] < alphaThreshold || isMasked(mask, i)) continue;
 
              for (let c = 0; c < 3; c++) {
                  if (bitsWiped >= bitsToWipe) return;
@@ -224,6 +271,31 @@ const kakushi = (() => {
             if (header[i] !== MAGIC[i]) return false;
         }
         return true;
+    }
+
+    function getAlphaThreshold(options = {}) {
+        if (typeof options.alphaThreshold === 'number') return options.alphaThreshold;
+        return DEFAULT_ALPHA_THRESHOLD;
+    }
+
+    function getScanRegions(options, height) {
+        if (!height) return [{ startY: 0, endY: 0 }];
+        const topStrip = Math.min(DEFAULT_TOP_STRIP, height);
+        const midStart = Math.max(0, Math.floor(height / 2 - DEFAULT_TOP_STRIP / 2));
+        const midEnd = Math.min(height, midStart + DEFAULT_TOP_STRIP);
+
+        const modes = {
+            top: [{ startY: 0, endY: topStrip }],
+            middle: [{ startY: midStart, endY: midEnd }],
+            full: [{ startY: 0, endY: height }],
+            all: [
+                { startY: 0, endY: topStrip },
+                { startY: midStart, endY: midEnd },
+                { startY: 0, endY: height }
+            ]
+        };
+
+        return modes[options.scanMode] || modes.all;
     }
 
     function normalizeMask(options, dataLength) {

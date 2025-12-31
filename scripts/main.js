@@ -740,16 +740,34 @@
              els.btnB.classList.add('border-accent-strong', 'text-accent');
         }
 
-        async function loadLayerWithSmartSlotting(source, name) {
+        function isPossibleSaveName(name) {
+             if (!name) return false;
+             const lower = name.toLowerCase();
+             return lower.includes('_save') || lower.includes('_project') || lower.includes('okazu');
+        }
+
+        async function loadLayerWithSmartSlotting(source, name, options = {}) {
              bakeRotation();
              log(`Loading ${name}...`, "info");
              try {
                  const img = await loadImageSource(source);
                  const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
                  const maskData = watermarkMask ? watermarkMask.data : null;
+                 const preferSlot = options.preferredSlot || null;
+                 const autoRestore = Boolean(options.autoRestore);
+                 const stegoDiagnostics = [];
+                 const recordStegoDiag = (code, detail) => {
+                     stegoDiagnostics.push(code);
+                     Logger.info(`[Stego] ${code}${detail ? `: ${detail}` : ''}`);
+                 };
+                 const defaultStegoOptions = {
+                     mask: maskData,
+                     alphaThreshold: 250,
+                     scanMode: 'all'
+                 };
 
                  // Steganography Detection (Active Interception)
-                 let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
+                 let isStego = window.kakushi && window.kakushi.peek(img, defaultStegoOptions);
                  let cleanImg = img;
 
                  // Fallback: Check for Watermark Interference
@@ -763,18 +781,39 @@
                      // Attempt blind removal (XOR)
                      window.Watermark.checkAndRemove(tempCanvas);
 
-                     if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
+                     if (window.kakushi.peek(tempCanvas, defaultStegoOptions)) {
                          isStego = true;
                          // Update source to the clean version
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
                          log("Detected and removed watermark.", "info");
+                     } else {
+                         recordStegoDiag("peek_failed_after_watermark");
+                     }
+                 } else if (!isStego) {
+                     recordStegoDiag("peek_failed_default");
+                 }
+
+                 if (window.kakushi && !isStego && maskData) {
+                     if (window.kakushi.peek(img, { ...defaultStegoOptions, mask: null })) {
+                         isStego = true;
+                         recordStegoDiag("peek_without_mask");
                      }
                  }
 
+                 const attemptReveal = async (image, revealOptions) => {
+                     try {
+                         const result = await window.kakushi.reveal(image, revealOptions);
+                         if (result.secret) return result;
+                     } catch (e) {
+                         Logger.error("[Stego] Failed to process payload", e);
+                     }
+                     return null;
+                 };
+
                  if (isStego) {
                      try {
-                         const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
-                         if (result.secret) {
+                         const result = await attemptReveal(cleanImg, defaultStegoOptions);
+                         if (result && result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
                              const packets = Object.keys(payload).filter(k => k !== 'info');
@@ -804,6 +843,16 @@
                              }
                              // Case 2: Save (Project Restore)
                              else if (info.type === 'save') {
+                                 const choice = autoRestore ? 'project' : await showModal(
+                                     "Load Save?",
+                                     "This is a Save file. Restore original workspace or load as image?",
+                                     [
+                                         { label: "Restore Save", value: 'project' },
+                                         { label: "Load Image", value: 'image' }
+                                     ],
+                                     true
+                                 );
+
                                  // Check for Censor Project Flag
                                  if (payload.censor) {
                                      const confirm = await showModal(
@@ -862,17 +911,6 @@
                                      resetView();
                                      return; // Stop loading image (we handled it)
                                  }
-
-                                 // Standard Project Save
-                                 const choice = await showModal(
-                                     "Load Save?",
-                                     "This is a Save file. Restore original workspace or load as image?",
-                                     [
-                                         { label: "Restore Save", value: 'project' },
-                                         { label: "Load Image", value: 'image' }
-                                     ],
-                                     true
-                                 );
 
                                  if (choice === 'project') {
                                      // Clear Workspace
@@ -974,10 +1012,89 @@
                              }
 
                              cleanImg = decodedImg;
+                         } else {
+                             recordStegoDiag("reveal_missing_secret");
                          }
                      } catch (e) {
                          Logger.error("[Stego] Failed to process payload", e);
                      }
+                 } else if (window.kakushi && isPossibleSaveName(name)) {
+                     recordStegoDiag("peek_failed_name_hint");
+                     const confirm = await showModal(
+                         "Possible Save File",
+                         "This filename looks like an OkazuStudio save, but the metadata could not be verified. Try restore anyway?",
+                         [
+                             { label: "Try Restore", value: 'restore' },
+                             { label: "Load Image", value: 'image' }
+                         ],
+                         true
+                     );
+
+                     if (confirm === 'restore') {
+                         const aggressiveOptions = {
+                             mask: maskData,
+                             alphaThreshold: 240,
+                             scanMode: 'all'
+                         };
+                         const result = await attemptReveal(cleanImg, aggressiveOptions);
+                         if (result && result.secret) {
+                             const payload = JSON.parse(result.secret);
+                             const info = payload.info || {};
+                             let decodedImg = result.cleanImage;
+
+                             if (payload.watermarked && window.Watermark) {
+                                 window.Watermark.checkAndRemove(decodedImg);
+                             }
+
+                             Logger.info(`[Stego] Aggressive restore recovered payload v${info.version} (${info.type}).`);
+
+                             if (info.type === 'save') {
+                                 // Clear Workspace
+                                 state.imgA = null; state.imgB = null;
+                                 state.history = [];
+                                 if (replayEngine && replayEngine.clear) replayEngine.clear();
+                                 resetMaskOnly();
+                                 resetAllAdjustments();
+
+                                 assignLayer(decodedImg, 'A', "Restored Save");
+
+                                 if (payload.adjustments) {
+                                     state.adjustments = payload.adjustments;
+                                     if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                     if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                 }
+
+                                 if (payload.crop) {
+                                     state.cropRect = payload.crop;
+                                     state.cropRotation = payload.crop.rotation || 0;
+                                     updateCanvasDimensions(true);
+                                     state.isCropping = false;
+                                 }
+
+                                 if (payload.mask && Array.isArray(payload.mask)) {
+                                     resetMaskOnly();
+                                     payload.mask.forEach(action => {
+                                         if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                     });
+                                 }
+
+                                 rebuildWorkingCopies(true);
+                                 render();
+                                 resetView();
+                                 return;
+                             }
+
+                             cleanImg = decodedImg;
+                         } else {
+                             log("Restore failed; loading image normally.", "info");
+                             recordStegoDiag("aggressive_restore_failed");
+                         }
+                     }
+                 }
+
+                 if (preferSlot) {
+                     assignLayer(cleanImg, preferSlot, name);
+                     return;
                  }
 
                  // 0 loaded -> Slot A (Front)
@@ -2622,12 +2739,7 @@
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
 
-            return loadImageSource(file)
-                .then(img => assignLayer(img, slot, file.name))
-                .catch(e => {
-                    log("Failed to load image: " + e.message);
-                    Logger.error("Image load failed", e);
-                });
+            return loadLayerWithSmartSlotting(file, file.name, { preferredSlot: slot });
         }
 
         function fetchImage(url) {

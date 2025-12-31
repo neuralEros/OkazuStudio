@@ -195,19 +195,25 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
 
         // Center of Visual Crop Box (relative to Unscaled Canvas Top-Left)
-        const cropCx = vx + vw / 2;
-        const cropCy = vy + vh / 2;
+        let cropCx = vx + vw / 2;
+        let cropCy = vy + vh / 2;
+
+        // Apply Free Rotation (cropRotation) to the Center Point
+        // This mirrors the logic in main.js render() to find the actual visual center
+        if (state.cropRotation !== 0) {
+            const visualFullW = isRotated ? fullH : state.fullDims.w;
+            const visualFullH = isRotated ? state.fullDims.w : fullH;
+            const canvasCx = visualFullW / 2;
+            const canvasCy = visualFullH / 2;
+
+            const rotatedCenter = rotatePoint({x: cropCx, y: cropCy}, canvasCx, canvasCy, state.cropRotation);
+            cropCx = rotatedCenter.x;
+            cropCy = rotatedCenter.y;
+        }
 
         // Viewport Center
         const vpCx = els.viewport.clientWidth / 2;
         const vpCy = els.viewport.clientHeight / 2;
-
-        // Target View Position (state.view.x/y)
-        // Canvas X on screen = state.view.x
-        // Point P on canvas -> Screen X = state.view.x + P.x * scale
-        // We want Screen X of CropCenter to be vpCx.
-        // vpCx = state.view.x + cropCx * scale
-        // state.view.x = vpCx - cropCx * scale
 
         state.view.x = vpCx - cropCx * state.view.scale;
         state.view.y = vpCy - cropCy * state.view.scale;

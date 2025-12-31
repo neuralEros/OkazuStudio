@@ -828,6 +828,7 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return; // Stop loading image (we handled it)
                                  }
 
@@ -880,6 +881,7 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return;
                                  }
 
@@ -928,6 +930,7 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return; // Stop loading image
                                  }
 
@@ -2055,6 +2058,7 @@
 
                 let vx = tRect.x, vy = tRect.y, vw = tRect.w, vh = tRect.h;
 
+                // 1. Base Visual Rotation (0, 90, 180, 270)
                 if (state.rotation === 90) {
                     vx = truthH - (tRect.y + tRect.h);
                     vy = tRect.x;
@@ -2068,6 +2072,33 @@
                     vy = truthW - (tRect.x + tRect.w);
                     vw = tRect.h;
                     vh = tRect.w;
+                }
+
+                // 2. Free Rotation Adjustment (Visual Coordinates)
+                // If rotated, the crop box needs to be positioned such that its center
+                // matches the visual center of the rotated Truth Rect.
+                if (state.cropRotation !== 0) {
+                    // Center of Base Visual
+                    const cx = vx + vw / 2;
+                    const cy = vy + vh / 2;
+
+                    const isRotated = state.rotation % 180 !== 0;
+                    const visualFullW = isRotated ? truthH : truthW;
+                    const visualFullH = isRotated ? truthW : truthH;
+                    const canvasCx = visualFullW / 2;
+                    const canvasCy = visualFullH / 2;
+
+                    // Rotate this center point around canvas center
+                    const rad = state.cropRotation * Math.PI / 180;
+                    const s = Math.sin(rad);
+                    const c = Math.cos(rad);
+                    const dx = cx - canvasCx;
+                    const dy = cy - canvasCy;
+                    const newCx = canvasCx + (dx * c - dy * s);
+                    const newCy = canvasCy + (dx * s + dy * c);
+
+                    vx = newCx - vw / 2;
+                    vy = newCy - vh / 2;
                 }
 
                 els.cropBox.style.left = vx + 'px';

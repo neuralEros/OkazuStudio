@@ -777,6 +777,11 @@
                              const info = payload.info || {};
                              const packets = Object.keys(payload).filter(k => k !== 'info');
                              const hasImages = state.imgA || state.imgB;
+                             let decodedImg = result.cleanImage;
+
+                             if (payload.watermarked && window.Watermark) {
+                                 window.Watermark.checkAndRemove(decodedImg);
+                             }
 
                              Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
 
@@ -816,7 +821,7 @@
                                      resetMaskOnly();
 
                                      // Load Base (img is the decoded Image object)
-                                     assignLayer(cleanImg, 'A', "Base Layer");
+                                     assignLayer(decodedImg, 'A', "Base Layer");
 
                                      // Generate Censor Layer (Slot B)
                                      await generateCensorLayer();
@@ -875,7 +880,7 @@
                                      resetMaskOnly();
                                      resetAllAdjustments();
 
-                                     assignLayer(cleanImg, 'A', "Restored Save");
+                                     assignLayer(decodedImg, 'A', "Restored Save");
 
                                      if (payload.adjustments) {
                                          state.adjustments = payload.adjustments;
@@ -965,6 +970,8 @@
 
                                  // If 'original', fall through to normal load
                              }
+
+                             cleanImg = decodedImg;
                          }
                      } catch (e) {
                          Logger.error("[Stego] Failed to process payload", e);

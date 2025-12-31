@@ -743,9 +743,11 @@
              log(`Loading ${name}...`, "info");
              try {
                  const img = await loadImageSource(source);
+                 const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
+                 const maskData = watermarkMask ? watermarkMask.data : null;
 
                  // Steganography Detection (Active Interception)
-                 let isStego = window.kakushi && window.kakushi.peek(img);
+                 let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
                  let cleanImg = img;
 
                  // Fallback: Check for Watermark Interference
@@ -759,7 +761,7 @@
                      // Attempt blind removal (XOR)
                      window.Watermark.checkAndRemove(tempCanvas);
 
-                     if (window.kakushi.peek(tempCanvas)) {
+                     if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
                          isStego = true;
                          // Update source to the clean version
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
@@ -769,7 +771,7 @@
 
                  if (isStego) {
                      try {
-                         const result = await window.kakushi.reveal(cleanImg);
+                         const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
                          if (result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
@@ -3349,6 +3351,9 @@
                     if (format === 'image/png' && window.Stego && window.kakushi) {
                          try {
                              const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
+                             const watermarkMask = job.type === 'save' && window.Watermark?.buildMask
+                                 ? window.Watermark.buildMask(exportCanvas.width, exportCanvas.height)
+                                 : null;
 
                              // Watermark Injection for Save Files
                              if (job.type === 'save' && window.Watermark) {
@@ -3357,7 +3362,9 @@
 
                              if (payload) {
                                  const json = JSON.stringify(payload);
-                                 finalCanvas = await window.kakushi.seal(exportCanvas, json);
+                                 finalCanvas = await window.kakushi.seal(exportCanvas, json, {
+                                     mask: watermarkMask ? watermarkMask.data : null
+                                 });
                                  Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
 
                                  // Apply Visible Watermark (Reversible)

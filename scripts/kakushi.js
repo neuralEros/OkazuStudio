@@ -8,7 +8,7 @@ const kakushi = (() => {
      * @param {CanvasImageSource} source
      * @returns {boolean}
      */
-    function peek(source) {
+    function peek(source, options = {}) {
         try {
             // Header is 8 bytes = 64 bits.
             // 3 channels/pixel = 22 pixels needed.
@@ -22,7 +22,8 @@ const kakushi = (() => {
             if (!ctx) return false;
 
             const imageData = ctx.getImageData(0, 0, w, h);
-            const headerBytes = extractBytes(imageData.data, HEADER_BYTES);
+            const mask = normalizeMask(options, imageData.data.length);
+            const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask);
             // extractBytes handles skipping transparency now
 
             return hasMagic(headerBytes);
@@ -39,7 +40,7 @@ const kakushi = (() => {
      * @param {string} secret
      * @returns {Promise<HTMLCanvasElement>} The laced canvas.
      */
-    async function seal(source, secret) {
+    async function seal(source, secret, options = {}) {
         const compressed = await compressString(secret);
 
         const header = new Uint8Array(HEADER_BYTES);
@@ -61,6 +62,7 @@ const kakushi = (() => {
 
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
+        const mask = normalizeMask(options, data.length);
 
         // Check capacity
         // Count opaque pixels
@@ -68,7 +70,7 @@ const kakushi = (() => {
         for (let i = 0; i < data.length; i+=4) {
             // STRICT OPACITY CHECK: Alpha must be 255.
             // Semi-transparent pixels (antialiasing) are corrupted by browser premultiplication logic.
-            if (data[i+3] === 255) opaquePixels++;
+            if (data[i+3] === 255 && !isMasked(mask, i)) opaquePixels++;
         }
 
         const bitsNeeded = payload.length * 8;
@@ -78,7 +80,7 @@ const kakushi = (() => {
             throw new Error(`Payload too large: need ${pixelsNeeded} opaque pixels, have ${opaquePixels}`);
         }
 
-        embedBytes(data, payload);
+        embedBytes(data, payload, mask);
         ctx.putImageData(imageData, 0, 0);
 
         return canvas;
@@ -89,7 +91,7 @@ const kakushi = (() => {
      * @param {CanvasImageSource} source
      * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null }>}
      */
-    async function reveal(source) {
+    async function reveal(source, options = {}) {
         const canvas = document.createElement('canvas');
         const w = source.naturalWidth || source.width;
         const h = source.naturalHeight || source.height;
@@ -100,9 +102,10 @@ const kakushi = (() => {
 
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
+        const mask = normalizeMask(options, data.length);
 
         // Extract Header
-        const headerBytes = extractBytes(data, HEADER_BYTES); // Reads first opaque bytes
+        const headerBytes = extractBytes(data, HEADER_BYTES, mask); // Reads first opaque bytes
 
         if (!hasMagic(headerBytes)) {
             return { cleanImage: canvas, secret: null };
@@ -112,7 +115,7 @@ const kakushi = (() => {
         const payloadLength = view.getUint32(4, false);
 
         if (payloadLength === 0) {
-             sanitizeRegion(data, HEADER_BYTES * 8);
+             sanitizeRegion(data, HEADER_BYTES * 8, mask);
              ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "" };
         }
@@ -123,10 +126,10 @@ const kakushi = (() => {
         // Extract Full Payload
         // We re-extract everything to be safe (or could just continue)
         // extractBytes is deterministic on the opaque stream
-        const fullBytes = extractBytes(data, totalBytes);
+        const fullBytes = extractBytes(data, totalBytes, mask);
         const compressedPayload = fullBytes.slice(HEADER_BYTES);
 
-        sanitizeRegion(data, bitsNeeded);
+        sanitizeRegion(data, bitsNeeded, mask);
         ctx.putImageData(imageData, 0, 0);
 
         try {
@@ -152,13 +155,13 @@ const kakushi = (() => {
     }
 
     // Helper: Embeds bytes into pixels, skipping transparent ones
-    function embedBytes(data, bytes) {
+    function embedBytes(data, bytes, mask) {
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
             // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255) continue;
+            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
                 if (byteIndex >= bytes.length) return;
@@ -176,14 +179,14 @@ const kakushi = (() => {
     }
 
     // Helper: Extracts bytes from pixels, skipping transparent ones
-    function extractBytes(data, byteCount) {
+    function extractBytes(data, byteCount, mask) {
         const bytes = new Uint8Array(byteCount);
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
             // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255) continue;
+            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
                 const bit = data[i + c] & 1;
@@ -201,11 +204,11 @@ const kakushi = (() => {
     }
 
     // Helper: Sanitizes pixels, skipping transparent ones
-    function sanitizeRegion(data, bitsToWipe) {
+    function sanitizeRegion(data, bitsToWipe, mask) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
              // STRICT OPACITY: Skip non-255 alpha
-             if (data[i + 3] < 255) continue;
+             if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
              for (let c = 0; c < 3; c++) {
                  if (bitsWiped >= bitsToWipe) return;
@@ -221,6 +224,19 @@ const kakushi = (() => {
             if (header[i] !== MAGIC[i]) return false;
         }
         return true;
+    }
+
+    function normalizeMask(options, dataLength) {
+        if (!options) return null;
+        const mask = options.data || options.mask || options;
+        if (!mask) return null;
+        if (mask.length !== dataLength) return null;
+        return mask;
+    }
+
+    function isMasked(mask, index) {
+        if (!mask) return false;
+        return mask[index + 3] > 0;
     }
 
     async function compressString(str) {

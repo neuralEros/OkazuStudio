@@ -774,6 +774,12 @@
                  if (isStego) {
                      try {
                          const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
+
+                         if (result.headerFound && !result.secret) {
+                             log("Detected save file, but data is corrupt/incompatible.", "error");
+                             // Fall through to load as standard image
+                         }
+
                          if (result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};

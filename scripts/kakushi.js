@@ -10,12 +10,6 @@ const kakushi = (() => {
      */
     function peek(source, options = {}) {
         try {
-            // Header is 8 bytes = 64 bits.
-            // 3 channels/pixel = 22 pixels needed.
-            // We'll read a reasonable chunk (e.g. 200px height or full) to find opacity.
-            // To be robust, let's just get the full context (or a large enough strip).
-            // Usually header is at top. If top is transparent, we scan down.
-
             const w = source.naturalWidth || source.width;
             const h = source.naturalHeight || source.height;
             const ctx = getContextForReading(source, w, h);
@@ -24,7 +18,6 @@ const kakushi = (() => {
             const imageData = ctx.getImageData(0, 0, w, h);
             const mask = normalizeMask(options, imageData.data.length);
             const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask);
-            // extractBytes handles skipping transparency now
 
             return hasMagic(headerBytes);
         } catch (e) {
@@ -65,11 +58,9 @@ const kakushi = (() => {
         const mask = normalizeMask(options, data.length);
 
         // Check capacity
-        // Count opaque pixels
         let opaquePixels = 0;
         for (let i = 0; i < data.length; i+=4) {
             // STRICT OPACITY CHECK: Alpha must be 255.
-            // Semi-transparent pixels (antialiasing) are corrupted by browser premultiplication logic.
             if (data[i+3] === 255 && !isMasked(mask, i)) opaquePixels++;
         }
 
@@ -89,7 +80,7 @@ const kakushi = (() => {
     /**
      * Extracts the secret string and returns a sanitized image.
      * @param {CanvasImageSource} source
-     * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null }>}
+     * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null, headerFound: boolean, error: string|null }>}
      */
     async function reveal(source, options = {}) {
         const canvas = document.createElement('canvas');
@@ -105,10 +96,10 @@ const kakushi = (() => {
         const mask = normalizeMask(options, data.length);
 
         // Extract Header
-        const headerBytes = extractBytes(data, HEADER_BYTES, mask); // Reads first opaque bytes
+        const headerBytes = extractBytes(data, HEADER_BYTES, mask);
 
         if (!hasMagic(headerBytes)) {
-            return { cleanImage: canvas, secret: null };
+            return { cleanImage: canvas, secret: null, headerFound: false, error: null };
         }
 
         const view = new DataView(headerBytes.buffer);
@@ -117,15 +108,13 @@ const kakushi = (() => {
         if (payloadLength === 0) {
              sanitizeRegion(data, HEADER_BYTES * 8, mask);
              ctx.putImageData(imageData, 0, 0);
-             return { cleanImage: canvas, secret: "" };
+             return { cleanImage: canvas, secret: "", headerFound: true, error: null };
         }
 
         const totalBytes = HEADER_BYTES + payloadLength;
         const bitsNeeded = totalBytes * 8;
 
         // Extract Full Payload
-        // We re-extract everything to be safe (or could just continue)
-        // extractBytes is deterministic on the opaque stream
         const fullBytes = extractBytes(data, totalBytes, mask);
         const compressedPayload = fullBytes.slice(HEADER_BYTES);
 
@@ -134,10 +123,10 @@ const kakushi = (() => {
 
         try {
             const secret = await decompressString(compressedPayload);
-            return { cleanImage: canvas, secret };
+            return { cleanImage: canvas, secret, headerFound: true, error: null };
         } catch (e) {
             console.error("Decompression failed:", e);
-            return { cleanImage: canvas, secret: null };
+            return { cleanImage: canvas, secret: null, headerFound: true, error: e.message };
         }
     }
 
@@ -154,13 +143,11 @@ const kakushi = (() => {
         return ctx;
     }
 
-    // Helper: Embeds bytes into pixels, skipping transparent ones
     function embedBytes(data, bytes, mask) {
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
             if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
@@ -178,14 +165,12 @@ const kakushi = (() => {
         }
     }
 
-    // Helper: Extracts bytes from pixels, skipping transparent ones
     function extractBytes(data, byteCount, mask) {
         const bytes = new Uint8Array(byteCount);
         let byteIndex = 0;
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
             if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
@@ -203,11 +188,9 @@ const kakushi = (() => {
         return bytes;
     }
 
-    // Helper: Sanitizes pixels, skipping transparent ones
     function sanitizeRegion(data, bitsToWipe, mask) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
-             // STRICT OPACITY: Skip non-255 alpha
              if (data[i + 3] < 255 || isMasked(mask, i)) continue;
 
              for (let c = 0; c < 3; c++) {
@@ -239,16 +222,37 @@ const kakushi = (() => {
         return mask[index + 3] > 0;
     }
 
+    async function streamToArrayBuffer(stream) {
+        const reader = stream.getReader();
+        const chunks = [];
+        let totalLen = 0;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            totalLen += value.length;
+        }
+        const result = new Uint8Array(totalLen);
+        let offset = 0;
+        for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+        }
+        return result;
+    }
+
     async function compressString(str) {
         const encoder = new TextEncoder();
         const input = encoder.encode(str);
+        // Create stream from input
         const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
-        return new Uint8Array(await new Response(stream).arrayBuffer());
+        return await streamToArrayBuffer(stream);
     }
 
     async function decompressString(compressedBytes) {
+        // Create stream from bytes
         const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-        const decompressed = await new Response(stream).arrayBuffer();
+        const decompressed = await streamToArrayBuffer(stream);
         const decoder = new TextDecoder();
         return decoder.decode(decompressed);
     }
@@ -260,7 +264,6 @@ const kakushi = (() => {
     };
 })();
 
-// Node.js export for testing
 if (typeof module !== 'undefined') {
     module.exports = kakushi;
 } else {

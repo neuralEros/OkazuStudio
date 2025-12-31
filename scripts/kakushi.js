@@ -1,6 +1,7 @@
 const kakushi = (() => {
     const MAGIC = new Uint8Array([0x4f, 0x4b, 0x5a, 0x31]); // "OKZ1"
     const HEADER_BYTES = 8; // 4 bytes Magic + 4 bytes Length
+    const ALPHA_THRESHOLD = 250; // Relaxed from 255 to allow for minor decoding errors/compression noise
 
     /**
      * Checks if the image contains the Kakushi signature.
@@ -10,12 +11,6 @@ const kakushi = (() => {
      */
     function peek(source, options = {}) {
         try {
-            // Header is 8 bytes = 64 bits.
-            // 3 channels/pixel = 22 pixels needed.
-            // We'll read a reasonable chunk (e.g. 200px height or full) to find opacity.
-            // To be robust, let's just get the full context (or a large enough strip).
-            // Usually header is at top. If top is transparent, we scan down.
-
             const w = source.naturalWidth || source.width;
             const h = source.naturalHeight || source.height;
             const ctx = getContextForReading(source, w, h);
@@ -23,10 +18,12 @@ const kakushi = (() => {
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const mask = normalizeMask(options, imageData.data.length);
-            const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask);
-            // extractBytes handles skipping transparency now
 
-            return hasMagic(headerBytes);
+            // Tolerant Scan: Read first 512 bytes (covers ~170 pixels) to find magic
+            const SCAN_DEPTH = 512;
+            const scanBytes = extractBytes(imageData.data, SCAN_DEPTH, mask);
+
+            return findMagicIndex(scanBytes) !== -1;
         } catch (e) {
             console.error("Kakushi peek failed:", e);
             return false;
@@ -68,9 +65,8 @@ const kakushi = (() => {
         // Count opaque pixels
         let opaquePixels = 0;
         for (let i = 0; i < data.length; i+=4) {
-            // STRICT OPACITY CHECK: Alpha must be 255.
-            // Semi-transparent pixels (antialiasing) are corrupted by browser premultiplication logic.
-            if (data[i+3] === 255 && !isMasked(mask, i)) opaquePixels++;
+            // RELAXED OPACITY CHECK
+            if (data[i+3] >= ALPHA_THRESHOLD && !isMasked(mask, i)) opaquePixels++;
         }
 
         const bitsNeeded = payload.length * 8;
@@ -104,31 +100,42 @@ const kakushi = (() => {
         const data = imageData.data;
         const mask = normalizeMask(options, data.length);
 
-        // Extract Header
-        const headerBytes = extractBytes(data, HEADER_BYTES, mask); // Reads first opaque bytes
+        // Attempt detection
+        // 1. Try immediate header
+        let headerBytes = extractBytes(data, HEADER_BYTES, mask);
+        let streamOffset = 0; // Byte offset in the extracted stream
 
         if (!hasMagic(headerBytes)) {
-            return { cleanImage: canvas, secret: null };
+             // 2. Try deep scan (Tolerant Mode)
+             const SCAN_DEPTH = 1024;
+             const deepBytes = extractBytes(data, SCAN_DEPTH, mask);
+             const foundIdx = findMagicIndex(deepBytes);
+             if (foundIdx !== -1) {
+                 streamOffset = foundIdx;
+                 // Re-extract header from found offset
+                 headerBytes = deepBytes.slice(foundIdx, foundIdx + HEADER_BYTES);
+             } else {
+                 return { cleanImage: canvas, secret: null };
+             }
         }
 
         const view = new DataView(headerBytes.buffer);
         const payloadLength = view.getUint32(4, false);
 
         if (payloadLength === 0) {
-             sanitizeRegion(data, HEADER_BYTES * 8, mask);
+             sanitizeRegion(data, (streamOffset + HEADER_BYTES) * 8, mask);
              ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "" };
         }
 
-        const totalBytes = HEADER_BYTES + payloadLength;
+        const totalBytes = streamOffset + HEADER_BYTES + payloadLength;
         const bitsNeeded = totalBytes * 8;
 
-        // Extract Full Payload
-        // We re-extract everything to be safe (or could just continue)
-        // extractBytes is deterministic on the opaque stream
+        // Extract Full Payload including offset padding
         const fullBytes = extractBytes(data, totalBytes, mask);
-        const compressedPayload = fullBytes.slice(HEADER_BYTES);
+        const compressedPayload = fullBytes.slice(streamOffset + HEADER_BYTES);
 
+        // Sanitize everything we read (including offset garbage)
         sanitizeRegion(data, bitsNeeded, mask);
         ctx.putImageData(imageData, 0, 0);
 
@@ -160,8 +167,8 @@ const kakushi = (() => {
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+            // RELAXED OPACITY: Skip non-opaque
+            if (data[i + 3] < ALPHA_THRESHOLD || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
                 if (byteIndex >= bytes.length) return;
@@ -185,8 +192,8 @@ const kakushi = (() => {
         let bitIndex = 0;
 
         for (let i = 0; i < data.length; i += 4) {
-            // STRICT OPACITY: Skip non-255 alpha
-            if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+            // RELAXED OPACITY: Skip non-opaque
+            if (data[i + 3] < ALPHA_THRESHOLD || isMasked(mask, i)) continue;
 
             for (let c = 0; c < 3; c++) {
                 const bit = data[i + c] & 1;
@@ -207,8 +214,8 @@ const kakushi = (() => {
     function sanitizeRegion(data, bitsToWipe, mask) {
         let bitsWiped = 0;
         for (let i = 0; i < data.length; i += 4) {
-             // STRICT OPACITY: Skip non-255 alpha
-             if (data[i + 3] < 255 || isMasked(mask, i)) continue;
+             // RELAXED OPACITY: Skip non-opaque
+             if (data[i + 3] < ALPHA_THRESHOLD || isMasked(mask, i)) continue;
 
              for (let c = 0; c < 3; c++) {
                  if (bitsWiped >= bitsToWipe) return;
@@ -224,6 +231,22 @@ const kakushi = (() => {
             if (header[i] !== MAGIC[i]) return false;
         }
         return true;
+    }
+
+    function findMagicIndex(bytes) {
+        if (bytes.length < MAGIC.length) return -1;
+        // Simple search
+        for (let i = 0; i <= bytes.length - MAGIC.length; i++) {
+            let match = true;
+            for (let j = 0; j < MAGIC.length; j++) {
+                if (bytes[i+j] !== MAGIC[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            if (match) return i;
+        }
+        return -1;
     }
 
     function normalizeMask(options, dataLength) {

@@ -740,35 +740,60 @@
              els.btnB.classList.add('border-accent-strong', 'text-accent');
         }
 
-        async function loadLayerWithSmartSlotting(source, name) {
+        async function loadLayerWithSmartSlotting(source, name, options = {}) {
              bakeRotation();
              log(`Loading ${name}...`, "info");
              try {
-                 const img = await loadImageSource(source);
+                 let img = await loadImageSource(source);
                  const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
                  const maskData = watermarkMask ? watermarkMask.data : null;
 
-                 // Steganography Detection (Active Interception)
+                 // 1. Primary Steganography Detection
                  let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
                  let cleanImg = img;
 
-                 // Fallback: Check for Watermark Interference
-                 if (!isStego && window.Watermark && window.kakushi) {
-                     const tempCanvas = document.createElement('canvas');
-                     tempCanvas.width = img.width;
-                     tempCanvas.height = img.height;
-                     const tCtx = tempCanvas.getContext('2d');
-                     tCtx.drawImage(img, 0, 0);
+                 // 2. Retry Logic: Multi-Resolution / Re-Decode (Action Item 8)
+                 // Sometimes Image object decoding is lossy or size-mismatched.
+                 // Try drawing to canvas and re-reading.
+                 if (!isStego && window.kakushi) {
+                     // Check natural dimensions vs current
+                     const nw = img.naturalWidth || img.width;
+                     const nh = img.naturalHeight || img.height;
 
-                     // Attempt blind removal (XOR)
-                     window.Watermark.checkAndRemove(tempCanvas);
+                     // Force canvas redraw to normalize pixel data
+                     const tempCanvas = document.createElement('canvas');
+                     tempCanvas.width = nw;
+                     tempCanvas.height = nh;
+                     const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+                     tCtx.drawImage(img, 0, 0);
 
                      if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
                          isStego = true;
-                         // Update source to the clean version
+                         // We must use this canvas as the source now because it has the readable data
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
-                         log("Detected and removed watermark.", "info");
+                         Logger.info("[Stego] Detected payload via canvas redraw fallback");
+                     } else if (window.Watermark) {
+                         // 3. Fallback: Check for Watermark Interference
+                         // Attempt blind removal (XOR) on the canvas version
+                         window.Watermark.checkAndRemove(tempCanvas);
+
+                         if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
+                             isStego = true;
+                             cleanImg = await loadImageSource(tempCanvas.toDataURL());
+                             log("Detected and removed watermark.", "info");
+                         }
                      }
+                 }
+
+                 // 4. Force Reveal Check (Action Item 2)
+                 // If filename looks like a save but detection failed, try revealing anyway.
+                 const isLikelySave = name && (name.includes('_save') || name.includes('_project'));
+                 if (!isStego && isLikelySave && window.kakushi) {
+                      Logger.warn(`[Stego] '${name}' looks like a save file but peek failed. Attempting force reveal.`);
+                      // We'll proceed to the stego block and let reveal() handle it.
+                      // Note: We use the last 'cleanImg' candidate (which might have had watermark removed).
+                      // If it wasn't stego, reveal() returns { secret: null }.
+                      isStego = true;
                  }
 
                  if (isStego) {
@@ -978,6 +1003,13 @@
                      } catch (e) {
                          Logger.error("[Stego] Failed to process payload", e);
                      }
+                 }
+
+                 // 0 loaded -> Slot A (Front)
+                 // Respect explicit slot option
+                 if (options.forceSlot) {
+                     assignLayer(cleanImg, options.forceSlot, name);
+                     return;
                  }
 
                  // 0 loaded -> Slot A (Front)
@@ -1324,11 +1356,16 @@
 
             els.fileA.addEventListener('change', (e) => {
                 Logger.interaction("File Input A", "selected file");
-                handleFileLoad(e.target.files[0], 'A');
+                // Unified Load Path (Action Item 1)
+                loadLayerWithSmartSlotting(e.target.files[0], e.target.files[0].name, { forceSlot: 'A' });
+                // Reset value so change event triggers again for same file
+                e.target.value = '';
             });
             els.fileB.addEventListener('change', (e) => {
                 Logger.interaction("File Input B", "selected file");
-                handleFileLoad(e.target.files[0], 'B');
+                // Unified Load Path (Action Item 1)
+                loadLayerWithSmartSlotting(e.target.files[0], e.target.files[0].name, { forceSlot: 'B' });
+                e.target.value = '';
             });
 
             // Preview Panel Logic

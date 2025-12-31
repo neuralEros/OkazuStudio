@@ -57,99 +57,111 @@
         }
     }
 
+    function buildMaskCanvas(width, height) {
+        // 1. Setup Scaled Buffer
+        // We draw to a temporary canvas matching the target dimensions
+        // so we can apply global binarization (thresholding) at the end.
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        const tCtx = tempCanvas.getContext('2d');
+
+        // 2. Configuration
+        // Scale: Reduced by 60% from previous 4% -> 1.6% of image height
+        // Glyph is 5 units high.
+        // targetPx = height * 0.016
+        // scale = targetPx / 5
+        const scale = Math.max(1, Math.floor((height * 0.016) / 5));
+
+        // Text Config
+        // "FILE ・ DO" and "ALTER ・ " (spaced bullets)
+        const text = "OKAZUSTUDIO SAVE FILE ・ DO NOT ALTER ・ ";
+
+        const charWidth = (GLYPH_SIZE * scale);
+        const spaceWidth = (SPACING * scale);
+        const singleCharAdvance = charWidth + spaceWidth;
+        const totalTextWidth = text.length * singleCharAdvance;
+        const textHeight = GLYPH_SIZE * scale;
+        const lineSpacing = textHeight * 4; // Double the spacing (gap increases from 1xHeight to 3xHeight)
+
+        // Rotation: ~20 degrees
+        const angle = 20 * Math.PI / 180;
+
+        // 3. Draw Rotated & Tiled Text
+        tCtx.fillStyle = '#FFFFFF';
+        tCtx.save();
+
+        // Rotate around center
+        tCtx.translate(width / 2, height / 2);
+        tCtx.rotate(angle);
+
+        // Determine bounds to cover after rotation
+        const diag = Math.sqrt(width*width + height*height);
+        const rangeX = diag * 1.2; // slight buffer
+        const rangeY = diag * 1.2;
+
+        let rowIndex = 0;
+        // Draw from top to bottom
+        for (let y = -rangeY; y < rangeY; y += lineSpacing) {
+            // Determine X Start Position
+            // We calculate a base start position that is far to the left (-rangeX)
+            // but aligned to the text grid to ensure continuity.
+
+            // Base grid alignment (snap to totalTextWidth)
+            let x = Math.floor(-rangeX / totalTextWidth) * totalTextWidth;
+
+            // Offset Odd Rows (Brick Pattern)
+            // Shift by half width
+            if (rowIndex % 2 !== 0) {
+                const brickOffset = (totalTextWidth / 2) * 2.5;
+                x -= brickOffset;
+            }
+
+            // Fill the line
+            while (x < rangeX) {
+                drawText(tCtx, text, x, y, scale);
+                x += totalTextWidth;
+            }
+            rowIndex++;
+        }
+
+        tCtx.restore();
+
+        // 4. Binarize (Threshold) to ensure Reversibility
+        // Remove anti-aliasing artifacts from rotation
+        const imageData = tCtx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            // Threshold Alpha
+            const alpha = data[i + 3];
+            const binary = alpha >= 128 ? 255 : 0;
+
+            // Force White + Binary Alpha
+            data[i] = 255;
+            data[i+1] = 255;
+            data[i+2] = 255;
+            data[i+3] = binary;
+        }
+        tCtx.putImageData(imageData, 0, 0);
+
+        return tempCanvas;
+    }
+
     const Watermark = {
         apply: function(ctx, width, height) {
-            // 1. Setup Scaled Buffer
-            // We draw to a temporary canvas matching the target dimensions
-            // so we can apply global binarization (thresholding) at the end.
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-            const tCtx = tempCanvas.getContext('2d');
+            const tempCanvas = buildMaskCanvas(width, height);
 
-            // 2. Configuration
-            // Scale: Reduced by 60% from previous 4% -> 1.6% of image height
-            // Glyph is 5 units high.
-            // targetPx = height * 0.016
-            // scale = targetPx / 5
-            const scale = Math.max(1, Math.floor((height * 0.016) / 5));
-
-            // Text Config
-            // "FILE ・ DO" and "ALTER ・ " (spaced bullets)
-            const text = "OKAZUSTUDIO SAVE FILE ・ DO NOT ALTER ・ ";
-
-            const charWidth = (GLYPH_SIZE * scale);
-            const spaceWidth = (SPACING * scale);
-            const singleCharAdvance = charWidth + spaceWidth;
-            const totalTextWidth = text.length * singleCharAdvance;
-            const textHeight = GLYPH_SIZE * scale;
-            const lineSpacing = textHeight * 4; // Double the spacing (gap increases from 1xHeight to 3xHeight)
-
-            // Rotation: ~20 degrees
-            const angle = 20 * Math.PI / 180;
-
-            // 3. Draw Rotated & Tiled Text
-            tCtx.fillStyle = '#FFFFFF';
-            tCtx.save();
-
-            // Rotate around center
-            tCtx.translate(width / 2, height / 2);
-            tCtx.rotate(angle);
-
-            // Determine bounds to cover after rotation
-            const diag = Math.sqrt(width*width + height*height);
-            const rangeX = diag * 1.2; // slight buffer
-            const rangeY = diag * 1.2;
-
-            let rowIndex = 0;
-            // Draw from top to bottom
-            for (let y = -rangeY; y < rangeY; y += lineSpacing) {
-                // Determine X Start Position
-                // We calculate a base start position that is far to the left (-rangeX)
-                // but aligned to the text grid to ensure continuity.
-
-                // Base grid alignment (snap to totalTextWidth)
-                let x = Math.floor(-rangeX / totalTextWidth) * totalTextWidth;
-
-                // Offset Odd Rows (Brick Pattern)
-                // Shift by half width
-                if (rowIndex % 2 !== 0) {
-                    const brickOffset = (totalTextWidth / 2) * 2.5;
-                    x -= brickOffset;
-                }
-
-                // Fill the line
-                while (x < rangeX) {
-                    drawText(tCtx, text, x, y, scale);
-                    x += totalTextWidth;
-                }
-                rowIndex++;
-            }
-
-            tCtx.restore();
-
-            // 4. Binarize (Threshold) to ensure Reversibility
-            // Remove anti-aliasing artifacts from rotation
-            const imageData = tCtx.getImageData(0, 0, width, height);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                // Threshold Alpha
-                const alpha = data[i + 3];
-                const binary = alpha >= 128 ? 255 : 0;
-
-                // Force White + Binary Alpha
-                data[i] = 255;
-                data[i+1] = 255;
-                data[i+2] = 255;
-                data[i+3] = binary;
-            }
-            tCtx.putImageData(imageData, 0, 0);
-
-            // 5. Apply to Destination
+            // Apply to Destination
             ctx.save();
             ctx.globalCompositeOperation = 'difference';
             ctx.drawImage(tempCanvas, 0, 0);
             ctx.restore();
+        },
+
+        buildMask: function(width, height) {
+            const tempCanvas = buildMaskCanvas(width, height);
+            const tCtx = tempCanvas.getContext('2d');
+            return tCtx.getImageData(0, 0, width, height);
         },
 
         checkAndRemove: function(sourceCanvas) {

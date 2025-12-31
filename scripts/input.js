@@ -941,7 +941,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.cropRect.h = startRect.h * factor;
 
                 // Pivot around User Click Position (originTruth)
-                const pivot = state.cropDrag.originTruth;
+                const pivot = state.cropDrag.originTruth || {
+                    x: startRect.x + startRect.w / 2,
+                    y: startRect.y + startRect.h / 2
+                };
 
                 // Start Center in Truth
                 const startCx = startRect.x + startRect.w / 2;
@@ -959,7 +962,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 // Inverse View Scale to keep visual size constant
                 state.view.scale = startView.scale / factor;
 
-                enforceCropView(true);
+                // Anchor view to the user's click point, even outside crop bounds.
+                const rect = els.viewport.getBoundingClientRect();
+                const mouseX = state.cropDrag.startX - rect.left;
+                const mouseY = state.cropDrag.startY - rect.top;
+
+                const pivotPx = { x: pivot.x * fullH, y: pivot.y * fullH };
+                const pivotVisual = truthToVisualCoords(pivotPx, state.rotation, fullW, fullH);
+                const rotatedPivot = rotatePoint(pivotVisual, canvasCx, canvasCy, startRotation);
+
+                state.view.x = mouseX - rotatedPivot.x * state.view.scale;
+                state.view.y = mouseY - rotatedPivot.y * state.view.scale;
+
+                updateViewTransform();
                 render();
             }
             else if (state.cropDrag.type === 'handle') {
@@ -1214,6 +1229,23 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: vx, y: vy, w: vw, h: vh };
     }
 
+    function truthToVisualCoords(p, rot, fullW, fullH) {
+        if (rot === 0) return { x: p.x, y: p.y };
+        let vx = p.x;
+        let vy = p.y;
+        if (rot === 90) {
+            vx = fullH - p.y;
+            vy = p.x;
+        } else if (rot === 180) {
+            vx = fullW - p.x;
+            vy = fullH - p.y;
+        } else if (rot === 270) {
+            vx = p.y;
+            vy = fullW - p.x;
+        }
+        return { x: vx, y: vy };
+    }
+
     function visualToTruthRect(v, rot, fullW, fullH) {
         if (rot === 0) return { ...v };
         let tx = v.x, ty = v.y, tw = v.w, th = v.h;
@@ -1288,6 +1320,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 startCropRect: { ...state.cropRect },
                 startRotation: state.cropRotation,
                 startVisualRect: getVisualStartRect(),
+                originTruth: getCropPivot(e),
                 ...extra
             };
         };

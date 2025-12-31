@@ -847,10 +847,10 @@
 
                                  // Standard Project Save
                                  const choice = await showModal(
-                                     "Load Project?",
-                                     "This is a saved project file. Restore original workspace or load as image?",
+                                     "Load Save?",
+                                     "This is a Save file. Restore original workspace or load as image?",
                                      [
-                                         { label: "Restore Project", value: 'project' },
+                                         { label: "Restore Save", value: 'project' },
                                          { label: "Load Image", value: 'image' }
                                      ],
                                      true
@@ -864,7 +864,7 @@
                                      resetMaskOnly();
                                      resetAllAdjustments();
 
-                                     assignLayer(cleanImg, 'A', "Restored Project");
+                                     assignLayer(cleanImg, 'A', "Restored Save");
 
                                      if (payload.adjustments) {
                                          state.adjustments = payload.adjustments;
@@ -1057,6 +1057,101 @@
                         await handleFileLoad(files[0], 'A');
                         await handleFileLoad(files[1], 'B');
                         resetView();
+                    } else if (files.length === 3) {
+                         // Smart Multi-Load (3 Files)
+                         // Scenarios:
+                         // 1. Save + Front + Back
+                         // 2. Front + Back + Mask
+
+                         // Identify files by suffix
+                         const getRole = (name) => {
+                             const n = name.toLowerCase();
+                             if (n.includes('_save') || n.includes('_project')) return 'save';
+                             if (n.includes('_mask')) return 'mask';
+                             if (n.includes('_front') || n.includes('_a.') || n.includes('(a)')) return 'front';
+                             if (n.includes('_back') || n.includes('_b.') || n.includes('(b)')) return 'back';
+                             return 'unknown';
+                         };
+
+                         let saveFile = files.find(f => getRole(f.name) === 'save');
+                         let maskFile = files.find(f => getRole(f.name) === 'mask');
+                         let frontFile = files.find(f => getRole(f.name) === 'front');
+                         let backFile = files.find(f => getRole(f.name) === 'back');
+
+                         const others = files.filter(f => f !== saveFile && f !== maskFile && f !== frontFile && f !== backFile);
+
+                         // Fill gaps in Front/Back if not explicit
+                         if (!frontFile && others.length > 0) frontFile = others.shift();
+                         if (!backFile && others.length > 0) backFile = others.shift();
+
+                         // Scenario 1: Save + Front + Back
+                         if (saveFile && frontFile && backFile) {
+                             log("Detected Save + Front + Back drop", "info");
+
+                             // 1. Restore Save (Automated)
+                             // Use loadLayerWithSmartSlotting with autoRestore
+                             await loadLayerWithSmartSlotting(saveFile, saveFile.name, { autoRestore: true });
+
+                             // 2. Overwrite Front and Back (Automated)
+                             // Use handleFileLoad (which wraps assignLayer)
+                             await handleFileLoad(frontFile, 'A');
+                             await handleFileLoad(backFile, 'B');
+
+                             resetView();
+                             return;
+                         }
+
+                         // Scenario 2: Front + Back + Mask
+                         if (maskFile && frontFile && backFile) {
+                             log("Detected Front + Back + Mask drop", "info");
+
+                             await handleFileLoad(frontFile, 'A');
+                             await handleFileLoad(backFile, 'B');
+
+                             // Load Mask
+                             const maskImg = await loadImageSource(maskFile);
+
+                             // Update dims first
+                             updateCanvasDimensions(true);
+
+                             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                             maskCtx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
+
+                             // Peek Adjustments
+                             if (window.kakushi) {
+                                 let adjFound = false;
+                                 try {
+                                     const frontImg = await loadImageSource(frontFile);
+                                     const res = await window.kakushi.reveal(frontImg);
+                                     if (res.secret) {
+                                         const p = JSON.parse(res.secret);
+                                         if (p.adjustments) {
+                                             state.adjustments = p.adjustments;
+                                             adjFound = true;
+                                         }
+                                     }
+                                 } catch(e) {}
+
+                                 if (!adjFound) {
+                                     try {
+                                         const backImg = await loadImageSource(backFile);
+                                         const res = await window.kakushi.reveal(backImg);
+                                         if (res.secret) {
+                                             const p = JSON.parse(res.secret);
+                                             if (p.adjustments) {
+                                                 state.adjustments = p.adjustments;
+                                             }
+                                         }
+                                     } catch(e) {}
+                                 }
+
+                                 if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                 recalculateColorTuning();
+                                 rebuildWorkingCopies();
+                             }
+
+                             render();
+                         }
                     }
                 } else if (uriList) {
                     const lines = uriList.split(/\r?\n/);
@@ -2950,7 +3045,7 @@
             // Queue of exports
             const jobs = [];
             if (layers.merged) jobs.push({ type: 'merged', suffix: '_merged' });
-            if (layers.save)   jobs.push({ type: 'save',   suffix: '_project' });
+            if (layers.save)   jobs.push({ type: 'save',   suffix: '_Save' });
             if (layers.mask)   jobs.push({ type: 'mask',   suffix: '_mask' });
             if (layers.front)  jobs.push({ type: 'front',  suffix: '_front' });
             if (layers.back)   jobs.push({ type: 'back',   suffix: '_back' });
@@ -2962,7 +3057,8 @@
             const wasCropping = state.isCropping;
             state.isCropping = false; // Drive via cropRect
 
-            try {
+            scheduleHeavyTask(async () => {
+             try {
                 for (const job of jobs) {
                     // Config for this job
                     let targetW, targetH, currentResTag;
@@ -3094,14 +3190,15 @@
                 log("Export complete", "info");
                 Logger.info(`Export Batch Complete: ${jobs.map(j => j.suffix).join(', ')}`);
 
-            } catch (e) {
+             } catch (e) {
                 log("Save failed: " + e.message);
                 Logger.error("Export Failed", e);
-            } finally {
+             } finally {
                 // Restore Global State
                 state.isCropping = wasCropping;
                 state.cropRect = userCropRect;
-            }
+             }
+            });
         }
 
         async function resetWorkspace() {

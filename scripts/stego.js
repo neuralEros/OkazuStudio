@@ -144,11 +144,16 @@ const Stego = (() => {
         const isHOne = Math.abs(r.h - 1.0) < 0.01;
         const isWAspect = Math.abs(r.w - fullAspect) < 0.01;
 
-        if (isXZero && isYZero && isHOne && isWAspect) {
+        if (isXZero && isYZero && isHOne && isWAspect && state.cropRotation === 0) {
             return null; // Is effectively full
         }
 
-        return r;
+        const packet = { ...r };
+        if (state.cropRotation && state.cropRotation !== 0) {
+            packet.rotation = state.cropRotation;
+        }
+
+        return packet;
     }
 
     /**

@@ -13,12 +13,18 @@
 
         let hintTimer = null;
         function showHints() {
-            const legend = document.getElementById('hint-legend');
-            legend.style.opacity = '1';
-            if (hintTimer) clearTimeout(hintTimer);
-            hintTimer = setTimeout(() => {
-                legend.style.opacity = '0';
-            }, 3000);
+            const legend = state.isCropping ? document.getElementById('crop-hint-legend') : document.getElementById('hint-legend');
+            if (legend) {
+                legend.style.opacity = '1';
+                if (hintTimer) clearTimeout(hintTimer);
+
+                // Only auto-hide standard legend. Crop legend stays persistent.
+                if (!state.isCropping) {
+                    hintTimer = setTimeout(() => {
+                        legend.style.opacity = '0';
+                    }, 3000);
+                }
+            }
         }
 
         const DEFAULT_BRUSH_SIZE = 0.1;
@@ -74,7 +80,8 @@
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
-            activeDrawerTab: null
+            activeDrawerTab: null,
+            cropRotation: 0
         };
 
         const els = {
@@ -738,9 +745,31 @@
                  const img = await loadImageSource(source);
 
                  // Steganography Detection (Active Interception)
-                 if (window.kakushi && window.kakushi.peek(img)) {
+                 let isStego = window.kakushi && window.kakushi.peek(img);
+                 let cleanImg = img;
+
+                 // Fallback: Check for Watermark Interference
+                 if (!isStego && window.Watermark && window.kakushi) {
+                     const tempCanvas = document.createElement('canvas');
+                     tempCanvas.width = img.width;
+                     tempCanvas.height = img.height;
+                     const tCtx = tempCanvas.getContext('2d');
+                     tCtx.drawImage(img, 0, 0);
+
+                     // Attempt blind removal (XOR)
+                     window.Watermark.checkAndRemove(tempCanvas);
+
+                     if (window.kakushi.peek(tempCanvas)) {
+                         isStego = true;
+                         // Update source to the clean version
+                         cleanImg = await loadImageSource(tempCanvas.toDataURL());
+                         log("Detected and removed watermark.", "info");
+                     }
+                 }
+
+                 if (isStego) {
                      try {
-                         const result = await window.kakushi.reveal(img);
+                         const result = await window.kakushi.reveal(cleanImg);
                          if (result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
@@ -785,7 +814,7 @@
                                      resetMaskOnly();
 
                                      // Load Base (img is the decoded Image object)
-                                     assignLayer(img, 'A', "Base Layer");
+                                     assignLayer(cleanImg, 'A', "Base Layer");
 
                                      // Generate Censor Layer (Slot B)
                                      await generateCensorLayer();
@@ -799,6 +828,7 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(true); // Preserve view (don't reset crop)
                                          state.isCropping = false;
                                      }
@@ -820,15 +850,16 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return; // Stop loading image (we handled it)
                                  }
 
                                  // Standard Project Save
                                  const choice = await showModal(
-                                     "Load Project?",
-                                     "This is a saved project file. Restore original workspace or load as image?",
+                                     "Load Save?",
+                                     "This is a Save file. Restore original workspace or load as image?",
                                      [
-                                         { label: "Restore Project", value: 'project' },
+                                         { label: "Restore Save", value: 'project' },
                                          { label: "Load Image", value: 'image' }
                                      ],
                                      true
@@ -842,7 +873,7 @@
                                      resetMaskOnly();
                                      resetAllAdjustments();
 
-                                     assignLayer(img, 'A', "Restored Project");
+                                     assignLayer(cleanImg, 'A', "Restored Save");
 
                                      if (payload.adjustments) {
                                          state.adjustments = payload.adjustments;
@@ -852,6 +883,7 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(true); // Preserve view
                                          state.isCropping = false;
                                      }
@@ -871,6 +903,7 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return;
                                  }
 
@@ -905,6 +938,7 @@
                                      // Apply Crop
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(); // Apply crop dims
                                      }
 
@@ -918,6 +952,7 @@
 
                                      rebuildWorkingCopies(true);
                                      render();
+                                     resetView();
                                      return; // Stop loading image
                                  }
 
@@ -936,7 +971,7 @@
 
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                      return;
                  }
 
@@ -957,7 +992,7 @@
                          return;
                      }
 
-                     assignLayer(img, choice, name);
+                     assignLayer(cleanImg, choice, name);
                      return;
                  }
 
@@ -982,10 +1017,10 @@
                      if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
 
                      // Now Load New into A
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                  } else {
                      // B is loaded. A is empty. Load into A.
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                  }
              } catch(e) {
                  log("Failed to load image: " + e.message);
@@ -1035,6 +1070,101 @@
                         await handleFileLoad(files[0], 'A');
                         await handleFileLoad(files[1], 'B');
                         resetView();
+                    } else if (files.length === 3) {
+                         // Smart Multi-Load (3 Files)
+                         // Scenarios:
+                         // 1. Save + Front + Back
+                         // 2. Front + Back + Mask
+
+                         // Identify files by suffix
+                         const getRole = (name) => {
+                             const n = name.toLowerCase();
+                             if (n.includes('_save') || n.includes('_project')) return 'save';
+                             if (n.includes('_mask')) return 'mask';
+                             if (n.includes('_front') || n.includes('_a.') || n.includes('(a)')) return 'front';
+                             if (n.includes('_back') || n.includes('_b.') || n.includes('(b)')) return 'back';
+                             return 'unknown';
+                         };
+
+                         let saveFile = files.find(f => getRole(f.name) === 'save');
+                         let maskFile = files.find(f => getRole(f.name) === 'mask');
+                         let frontFile = files.find(f => getRole(f.name) === 'front');
+                         let backFile = files.find(f => getRole(f.name) === 'back');
+
+                         const others = files.filter(f => f !== saveFile && f !== maskFile && f !== frontFile && f !== backFile);
+
+                         // Fill gaps in Front/Back if not explicit
+                         if (!frontFile && others.length > 0) frontFile = others.shift();
+                         if (!backFile && others.length > 0) backFile = others.shift();
+
+                         // Scenario 1: Save + Front + Back
+                         if (saveFile && frontFile && backFile) {
+                             log("Detected Save + Front + Back drop", "info");
+
+                             // 1. Restore Save (Automated)
+                             // Use loadLayerWithSmartSlotting with autoRestore
+                             await loadLayerWithSmartSlotting(saveFile, saveFile.name, { autoRestore: true });
+
+                             // 2. Overwrite Front and Back (Automated)
+                             // Use handleFileLoad (which wraps assignLayer)
+                             await handleFileLoad(frontFile, 'A');
+                             await handleFileLoad(backFile, 'B');
+
+                             resetView();
+                             return;
+                         }
+
+                         // Scenario 2: Front + Back + Mask
+                         if (maskFile && frontFile && backFile) {
+                             log("Detected Front + Back + Mask drop", "info");
+
+                             await handleFileLoad(frontFile, 'A');
+                             await handleFileLoad(backFile, 'B');
+
+                             // Load Mask
+                             const maskImg = await loadImageSource(maskFile);
+
+                             // Update dims first
+                             updateCanvasDimensions(true);
+
+                             maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+                             maskCtx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
+
+                             // Peek Adjustments
+                             if (window.kakushi) {
+                                 let adjFound = false;
+                                 try {
+                                     const frontImg = await loadImageSource(frontFile);
+                                     const res = await window.kakushi.reveal(frontImg);
+                                     if (res.secret) {
+                                         const p = JSON.parse(res.secret);
+                                         if (p.adjustments) {
+                                             state.adjustments = p.adjustments;
+                                             adjFound = true;
+                                         }
+                                     }
+                                 } catch(e) {}
+
+                                 if (!adjFound) {
+                                     try {
+                                         const backImg = await loadImageSource(backFile);
+                                         const res = await window.kakushi.reveal(backImg);
+                                         if (res.secret) {
+                                             const p = JSON.parse(res.secret);
+                                             if (p.adjustments) {
+                                                 state.adjustments = p.adjustments;
+                                             }
+                                         }
+                                     } catch(e) {}
+                                 }
+
+                                 if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                 recalculateColorTuning();
+                                 rebuildWorkingCopies();
+                             }
+
+                             render();
+                         }
                     }
                 } else if (uriList) {
                     const lines = uriList.split(/\r?\n/);
@@ -1551,6 +1681,24 @@
             targetCtx.save();
             applyRotation(targetCtx, w, h, state.rotation);
 
+            // Helpers for crop rotation transform
+            const useCropRotation = state.cropRotation !== 0;
+            const cx = sX + sW / 2;
+            const cy = sY + sH / 2;
+            const dx = drawW / 2;
+            const dy = drawH / 2;
+            const renderScale = drawW / sW; // Assuming uniform scaling
+
+            const applyCropTransform = (ctx) => {
+                if (!useCropRotation) return false;
+                ctx.save();
+                ctx.translate(dx, dy);
+                ctx.rotate(state.cropRotation * Math.PI / 180);
+                ctx.scale(renderScale, renderScale);
+                ctx.translate(-cx, -cy);
+                return true;
+            };
+
             // Special Render Modes (Mask Export)
             if (renderMode.startsWith('mask_')) {
                 // Background: White
@@ -1562,21 +1710,34 @@
                 const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
 
                 if (maskSource.width > 0 && maskSource.height > 0) {
+                    const transformed = applyCropTransform(targetCtx);
+
                     if (renderMode === 'mask_alpha') {
                         // Alpha Mode: Destination Out (Transparent where Masked)
                         targetCtx.globalCompositeOperation = 'destination-out';
-                        targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        if (transformed) {
+                             targetCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                        } else {
+                             targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        }
                     } else {
                          // Grayscale Mode: White Visible, Black Masked
                          // 1. Cut holes (Transparent) where mask exists
                          targetCtx.globalCompositeOperation = 'destination-out';
-                         targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                         if (transformed) {
+                             targetCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                         } else {
+                             targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                         }
+
+                         if (transformed) targetCtx.restore();
 
                          // 2. Fill holes with Black (Behind)
                          targetCtx.globalCompositeOperation = 'destination-over';
                          targetCtx.fillStyle = '#000000';
                          targetCtx.fillRect(0, 0, drawW, drawH);
                     }
+                    if (transformed && renderMode === 'mask_alpha') targetCtx.restore();
                 }
                 targetCtx.restore();
                 return;
@@ -1589,17 +1750,26 @@
                 targetCtx.globalAlpha = 1.0;
                 targetCtx.globalCompositeOperation = 'source-over';
 
+                const transformed = applyCropTransform(targetCtx);
+
                 const scale = state.fullDims.h / backImg.height;
                 const backW = backImg.width * scale;
                 const backH = state.fullDims.h;
                 const backX = (state.fullDims.w - backW) / 2;
 
-                const bSrcX = (sX - backX) / scale;
-                const bSrcY = sY / scale;
-                const bSrcW = sW / scale;
-                const bSrcH = sH / scale;
+                // If transformed: Draw Full Back Image, positioned at Union Origin
+                // applyCropTransform sets origin to (0,0) of Union Space (since cX, cY are in Union Space).
 
-                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                if (transformed) {
+                    targetCtx.drawImage(backImg, backX, 0, backW, state.fullDims.h);
+                    targetCtx.restore();
+                } else {
+                    const bSrcX = (sX - backX) / scale;
+                    const bSrcY = sY / scale;
+                    const bSrcW = sW / scale;
+                    const bSrcH = sH / scale;
+                    targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                }
             }
 
             // Draw Front
@@ -1617,28 +1787,38 @@
 
                     fCtx.globalCompositeOperation = 'source-over';
 
+                    // Front Layer Transform
+                    const fTransformed = applyCropTransform(fCtx);
+
                     const frontScale = (state.fullDims.h / frontImg.height) || 1; // Visual Scale
                     const frontVisualW = frontImg.width * frontScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
-                    const fSrcX = (sX - frontOffX) / frontScale;
-                    const fSrcY = (sY - 0) / frontScale;
-                    const fSrcW = sW / frontScale;
-                    const fSrcH = sH / frontScale;
-
-                    // Render
-                    fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    if (fTransformed) {
+                        fCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                    } else {
+                        const fSrcX = (sX - frontOffX) / frontScale;
+                        const fSrcY = (sY - 0) / frontScale;
+                        const fSrcW = sW / frontScale;
+                        const fSrcH = sH / frontScale;
+                        fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    }
 
                     if (applyMask) {
                         fCtx.globalCompositeOperation = 'destination-out';
                         const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
                         const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
 
-                        // Guard against drawing 0-size mask source
                         if (maskSource.width > 0 && maskSource.height > 0) {
-                            fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                            if (fTransformed) {
+                                fCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                            } else {
+                                fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                            }
                         }
                     }
+
+                    if (fTransformed) fCtx.restore();
 
                     targetCtx.globalCompositeOperation = 'source-over';
                     // Use forceOpacity for adjustments preview (so we see true pixels)
@@ -1734,23 +1914,57 @@
                 pCtx.save();
                 applyRotation(pCtx, pw, ph, state.rotation);
 
+            // Helpers for crop rotation transform (Preview Scaled)
+            const useCropRotation = state.cropRotation !== 0;
+            const cx = sX + sW / 2;
+            const cy = sY + sH / 2;
+            const dx = pDrawW / 2;
+            const dy = pDrawH / 2;
+            const renderScale = pDrawW / sW;
+
+            // Apply CSS rotation for display, Context rotation for export
+            if (useCropRotation && !finalOutput && state.isCropping) {
+                els.previewCanvas.style.transform = `rotate(${state.cropRotation}deg)`;
+            } else {
+                els.previewCanvas.style.transform = '';
+            }
+
+            const applyPreviewCropTransform = (ctx) => {
+                // If not final output (display), skip context rotation because we use CSS
+                if (!useCropRotation) return false;
+                if (!finalOutput && state.isCropping) return false;
+
+                ctx.save();
+                ctx.translate(dx, dy);
+                ctx.rotate(state.cropRotation * Math.PI / 180);
+                ctx.scale(renderScale, renderScale);
+                ctx.translate(-cx, -cy);
+                return true;
+            };
+
                 // Modified export logic: Only render back if state.backVisible is true
                 const shouldRenderBack = backImg && state.backVisible;
                 if (shouldRenderBack) {
                     pCtx.globalAlpha = 1.0;
                     pCtx.globalCompositeOperation = 'source-over';
 
+                const transformed = applyPreviewCropTransform(pCtx);
+
                     const scale = state.fullDims.h / backImg.height;
                     const backW = backImg.width * scale;
                     const backH = state.fullDims.h;
                     const backX = (state.fullDims.w - backW) / 2;
 
+                if (transformed) {
+                     pCtx.drawImage(backImg, backX, 0, backW, backH);
+                     pCtx.restore();
+                } else {
                     const bSrcX = (sX - backX) / scale;
                     const bSrcY = sY / scale;
                     const bSrcW = sW / scale;
                     const bSrcH = sH / scale;
-
                     pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pDrawW, pDrawH);
+                }
                 }
 
                 if (frontImg) {
@@ -1760,6 +1974,8 @@
                     }
                     frontLayerCtx.clearRect(0, 0, pDrawW, pDrawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
+
+                const fTransformed = applyPreviewCropTransform(frontLayerCtx);
 
                     // Fast Preview: Map Union-Space Crop to Source/Buffer Coordinates
                     // frontImg might be Source (Full Res) or Buffer (Downscaled)
@@ -1785,6 +2001,9 @@
                     const frontVisualW = frontImg.width / truthToBufferScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
+                if (fTransformed) {
+                     frontLayerCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                } else {
                     // 2. Map Crop Rect (sX...) to Buffer Source Rect
                     const fSrcX = (sX - frontOffX) * truthToBufferScale;
                     const fSrcY = (sY - 0) * truthToBufferScale; // Aligned Top
@@ -1792,6 +2011,7 @@
                     const fSrcH = sH * truthToBufferScale;
 
                     frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, pDrawW, pDrawH);
+                }
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1800,8 +2020,14 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pDrawW, pDrawH);
+                    if (fTransformed) {
+                         frontLayerCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                    } else {
+                         frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pDrawW, pDrawH);
                     }
+                    }
+
+                if (fTransformed) frontLayerCtx.restore();
 
                     frontLayerCtx.globalCompositeOperation = 'source-over';
                     // Force opacity if only one layer
@@ -1820,6 +2046,34 @@
                 ctx.save();
                 applyRotation(ctx, cw, ch, state.rotation);
 
+                // Helpers for crop rotation transform
+                const useCropRotation = state.cropRotation !== 0;
+                const cx = sX + sW / 2;
+                const cy = sY + sH / 2;
+                const dx = drawW / 2;
+                const dy = drawH / 2;
+                const renderScale = drawW / sW;
+
+                // Apply CSS rotation for display, Context rotation for export
+                if (useCropRotation && !finalOutput && state.isCropping) {
+                    els.mainCanvas.style.transform = `rotate(${state.cropRotation}deg)`;
+                } else {
+                    els.mainCanvas.style.transform = '';
+                }
+
+                const applyCropTransform = (c) => {
+                    // If not final output (display), skip context rotation because we use CSS
+                    if (!useCropRotation) return false;
+                    if (!finalOutput && state.isCropping) return false;
+
+                    c.save();
+                    c.translate(dx, dy);
+                    c.rotate(state.cropRotation * Math.PI / 180);
+                    c.scale(renderScale, renderScale);
+                    c.translate(-cx, -cy);
+                    return true;
+                };
+
                 // 1. Draw Back
                 // Modified export logic: Only render back if state.backVisible is true
                 const shouldRenderBack = backImg && state.backVisible;
@@ -1828,18 +2082,24 @@
                     ctx.globalAlpha = 1.0;
                     ctx.globalCompositeOperation = 'source-over';
 
+                    const transformed = applyCropTransform(ctx);
+
                     const scale = state.fullDims.h / backImg.height;
                     const backW = backImg.width * scale;
                     const backH = state.fullDims.h;
                     const backX = (state.fullDims.w - backW) / 2;
 
-                    // Mapping crop rect to back image source rect
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
-
-                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                    if (transformed) {
+                        ctx.drawImage(backImg, backX, 0, backW, backH);
+                        ctx.restore();
+                    } else {
+                        // Mapping crop rect to back image source rect
+                        const bSrcX = (sX - backX) / scale;
+                        const bSrcY = sY / scale;
+                        const bSrcW = sW / scale;
+                        const bSrcH = sH / scale;
+                        ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                    }
                 }
 
                 // 2. Prepare Front Layer
@@ -1851,19 +2111,24 @@
                     frontLayerCtx.clearRect(0, 0, drawW, drawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
 
+                    const fTransformed = applyCropTransform(frontLayerCtx);
+
                     // Render Front Image Centered in Union Dims
                     const frontScale = (state.fullDims.h / frontImg.height) || 1;
                     const frontVisualW = frontImg.width * frontScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
-                    // Map Crop Rect (sX...sH) to Front Image Source
-                    // sX/Y are in Union Pixels.
-                    const fSrcX = (sX - frontOffX) / frontScale;
-                    const fSrcY = (sY - 0) / frontScale;
-                    const fSrcW = sW / frontScale;
-                    const fSrcH = sH / frontScale;
-
-                    frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    if (fTransformed) {
+                         frontLayerCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                    } else {
+                        // Map Crop Rect (sX...sH) to Front Image Source
+                        // sX/Y are in Union Pixels.
+                        const fSrcX = (sX - frontOffX) / frontScale;
+                        const fSrcY = (sY - 0) / frontScale;
+                        const fSrcW = sW / frontScale;
+                        const fSrcH = sH / frontScale;
+                        frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    }
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1872,8 +2137,14 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        if (fTransformed) {
+                             frontLayerCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                        } else {
+                             frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        }
                     }
+
+                    if (fTransformed) frontLayerCtx.restore();
 
                     // 3. Composite Front to Main
                     frontLayerCtx.globalCompositeOperation = 'source-over';
@@ -1904,6 +2175,7 @@
 
                 let vx = tRect.x, vy = tRect.y, vw = tRect.w, vh = tRect.h;
 
+                // 1. Base Visual Rotation (0, 90, 180, 270)
                 if (state.rotation === 90) {
                     vx = truthH - (tRect.y + tRect.h);
                     vy = tRect.x;
@@ -1917,6 +2189,33 @@
                     vy = truthW - (tRect.x + tRect.w);
                     vw = tRect.h;
                     vh = tRect.w;
+                }
+
+                // 2. Free Rotation Adjustment (Visual Coordinates)
+                // If rotated, the crop box needs to be positioned such that its center
+                // matches the visual center of the rotated Truth Rect.
+                if (state.cropRotation !== 0) {
+                    // Center of Base Visual
+                    const cx = vx + vw / 2;
+                    const cy = vy + vh / 2;
+
+                    const isRotated = state.rotation % 180 !== 0;
+                    const visualFullW = isRotated ? truthH : truthW;
+                    const visualFullH = isRotated ? truthW : truthH;
+                    const canvasCx = visualFullW / 2;
+                    const canvasCy = visualFullH / 2;
+
+                    // Rotate this center point around canvas center
+                    const rad = state.cropRotation * Math.PI / 180;
+                    const s = Math.sin(rad);
+                    const c = Math.cos(rad);
+                    const dx = cx - canvasCx;
+                    const dy = cy - canvasCy;
+                    const newCx = canvasCx + (dx * c - dy * s);
+                    const newCy = canvasCy + (dx * s + dy * c);
+
+                    vx = newCx - vw / 2;
+                    vy = newCy - vh / 2;
                 }
 
                 els.cropBox.style.left = vx + 'px';
@@ -2001,6 +2300,15 @@
                 els.cropBtn.classList.add('active', 'text-yellow-400');
                 updateCanvasDimensions(true);
                 els.viewport.classList.add('cropping');
+
+                // Toggle legends
+                const stdLegend = document.getElementById('hint-legend');
+                const cropLegend = document.getElementById('crop-hint-legend');
+                if (stdLegend) stdLegend.style.display = 'none';
+                if (cropLegend) {
+                    cropLegend.style.display = '';
+                    cropLegend.style.opacity = '1';
+                }
             } else {
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
@@ -2010,6 +2318,12 @@
                     const r = state.cropRect;
                     Logger.info(`Crop mode exited: x=${r.x.toFixed(4)}, y=${r.y.toFixed(4)}, w=${r.w.toFixed(4)}, h=${r.h.toFixed(4)}`);
                 }
+
+                // Toggle legends
+                const stdLegend = document.getElementById('hint-legend');
+                const cropLegend = document.getElementById('crop-hint-legend');
+                if (stdLegend) stdLegend.style.display = '';
+                if (cropLegend) cropLegend.style.display = 'none';
             }
             resetView();
             render();
@@ -2756,6 +3070,9 @@
 
                  resetMaskOnly(); // Don't reset adjustments
 
+                 // Reset crop rotation after bake
+                 state.cropRotation = 0;
+
                  // Restore view state
                  state.isCropping = wasCropping;
                  if (!wasCropping) {
@@ -2829,6 +3146,9 @@
                 }
 
                 resetMaskOnly(); // Don't reset adjustments
+
+                // Reset crop rotation after bake
+                state.cropRotation = 0;
 
                 // Restore view
                 state.isCropping = wasCropping;
@@ -2929,7 +3249,7 @@
             // Queue of exports
             const jobs = [];
             if (layers.merged) jobs.push({ type: 'merged', suffix: '_merged' });
-            if (layers.save)   jobs.push({ type: 'save',   suffix: '_project' });
+            if (layers.save)   jobs.push({ type: 'save',   suffix: '_save' });
             if (layers.mask)   jobs.push({ type: 'mask',   suffix: '_mask' });
             if (layers.front)  jobs.push({ type: 'front',  suffix: '_front' });
             if (layers.back)   jobs.push({ type: 'back',   suffix: '_back' });
@@ -2941,20 +3261,24 @@
             const wasCropping = state.isCropping;
             state.isCropping = false; // Drive via cropRect
 
-            try {
+            scheduleHeavyTask(async () => {
+             try {
                 for (const job of jobs) {
                     // Config for this job
                     let targetW, targetH, currentResTag;
+                    const originalRotation = state.cropRotation; // Capture
 
                     if (job.type === 'save') {
                         targetW = projW;
                         targetH = projH;
                         state.cropRect = projRect;
+                        state.cropRotation = 0; // Disable rotation for save to preserve raw pixels
                         currentResTag = 'full';
                     } else {
                         targetW = stdW;
                         targetH = stdH;
                         state.cropRect = userCropRect;
+                        // state.cropRotation remains active for baked exports
                         currentResTag = stdResTag;
                     }
 
@@ -2983,7 +3307,7 @@
                         options.useBakedLayers = false;
                         options.renderBack = state.backVisible;
                         options.renderFront = true;
-                        options.applyMask = state.maskVisible;
+                        options.applyMask = false; // Do NOT bake mask into pixels. Mask is saved in metadata.
 
                         // Censor Project Special Case:
                         // If it is a Censor project (Back layer is 'Censored Layer'), the 'Save' export
@@ -3014,9 +3338,10 @@
                     // Render
                     renderToContext(expCtx, targetW, targetH, options);
 
-                    // Restore User Crop IMMEDIATELY after render, so metadata (assembled next) is correct
+                    // Restore User Crop & Rotation IMMEDIATELY after render, so metadata (assembled next) is correct
                     if (job.type === 'save') {
                         state.cropRect = userCropRect;
+                        state.cropRotation = originalRotation;
                     }
 
                     // Steganography Stamping (PNG Only)
@@ -3024,10 +3349,26 @@
                     if (format === 'image/png' && window.Stego && window.kakushi) {
                          try {
                              const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
+
+                             // Watermark Injection for Save Files
+                             if (job.type === 'save' && window.Watermark) {
+                                 payload.watermarked = true;
+                             }
+
                              if (payload) {
                                  const json = JSON.stringify(payload);
                                  finalCanvas = await window.kakushi.seal(exportCanvas, json);
                                  Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
+
+                                 // Apply Visible Watermark (Reversible)
+                                 // We apply this AFTER sealing so the stego data is buried in the pixels,
+                                 // and the watermark inverts those pixels (MSB+LSB).
+                                 // Restoration requires reversing watermark -> then reading stego.
+                                 if (job.type === 'save' && window.Watermark) {
+                                     const wCtx = finalCanvas.getContext('2d');
+                                     window.Watermark.apply(wCtx, finalCanvas.width, finalCanvas.height);
+                                     Logger.info(`[Watermark] Applied reversible watermark to save file`);
+                                 }
                              }
                          } catch (err) {
                              Logger.error("[Stego] Failed to stamp image", err);
@@ -3057,14 +3398,15 @@
                 log("Export complete", "info");
                 Logger.info(`Export Batch Complete: ${jobs.map(j => j.suffix).join(', ')}`);
 
-            } catch (e) {
+             } catch (e) {
                 log("Save failed: " + e.message);
                 Logger.error("Export Failed", e);
-            } finally {
+             } finally {
                 // Restore Global State
                 state.isCropping = wasCropping;
                 state.cropRect = userCropRect;
-            }
+             }
+            });
         }
 
         async function resetWorkspace() {
@@ -3127,6 +3469,7 @@
             // 8. Reset View
             resetView();
             state.rotation = 0;
+            state.cropRotation = 0;
 
             // 9. Update UI
             updateVisibilityToggles();

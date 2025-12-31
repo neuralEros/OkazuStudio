@@ -770,7 +770,7 @@
                                  if (payload.censor) {
                                      const confirm = await showModal(
                                          "Restore Censor Project?",
-                                         "This image is a saved Censor Project. Do you want to restore the workspace?",
+                                         "This image is a saved Censor Project. Restoring it will clear your current workspace.",
                                          [{ label: "Restore Project", value: true }],
                                          true
                                      );
@@ -800,7 +800,7 @@
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
                                          updateCanvasDimensions(true); // Preserve view (don't reset crop)
-                                         state.isCropping = true; // Enter crop mode to show it
+                                         state.isCropping = false;
                                      }
 
                                      if (payload.mask && Array.isArray(payload.mask)) {
@@ -853,7 +853,7 @@
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
                                          updateCanvasDimensions(true); // Preserve view
-                                         state.isCropping = true;
+                                         state.isCropping = false;
                                      }
 
                                      if (payload.mask && Array.isArray(payload.mask)) {

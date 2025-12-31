@@ -3,6 +3,15 @@ const kakushi = (() => {
     const HEADER_BYTES = 8; // 4 bytes Magic + 4 bytes Length
     const ALPHA_THRESHOLD = 250; // Relaxed from 255 to allow minor alpha erosion
 
+    function debugLog(msg) {
+        if (window.Logger) window.Logger.info(`[Kakushi] ${msg}`);
+        else console.log(`[Kakushi] ${msg}`);
+    }
+
+    function bytesToHex(bytes) {
+        return Array.from(bytes).map(b => '0x' + b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+    }
+
     /**
      * Checks if the image contains the Kakushi signature.
      * Scans the image for the first contiguous block of opaque pixels to find the header.
@@ -13,17 +22,31 @@ const kakushi = (() => {
         try {
             const w = source.naturalWidth || source.width;
             const h = source.naturalHeight || source.height;
+            debugLog(`Peek scanning image: ${w}x${h}`);
+
             const ctx = getContextForReading(source, w, h);
-            if (!ctx) return false;
+            if (!ctx) {
+                debugLog("Peek failed: No context.");
+                return false;
+            }
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const mask = normalizeMask(options, imageData.data.length);
 
             // Tolerant Scan: Read first 1024 bytes (approx 2700 pixels) to find header
             const scanBytes = extractBytes(imageData.data, 1024, mask);
+            debugLog(`Peek read header bytes: ${bytesToHex(scanBytes.slice(0, 8))}...`);
 
-            return findMagic(scanBytes) !== -1;
+            const offset = findMagic(scanBytes);
+            if (offset !== -1) {
+                debugLog(`Peek result: FOUND at offset ${offset}`);
+                return true;
+            } else {
+                debugLog("Peek result: NOT FOUND");
+                return false;
+            }
         } catch (e) {
+            debugLog(`Peek error: ${e.message}`);
             console.error("Kakushi peek failed:", e);
             return false;
         }
@@ -86,6 +109,7 @@ const kakushi = (() => {
      * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null }>}
      */
     async function reveal(source, options = {}) {
+        debugLog("Reveal started.");
         const canvas = document.createElement('canvas');
         const w = source.naturalWidth || source.width;
         const h = source.naturalHeight || source.height;
@@ -103,19 +127,24 @@ const kakushi = (() => {
         const offset = findMagic(scanBytes);
 
         if (offset === -1) {
+            debugLog("Reveal failed: Magic header not found.");
             return { cleanImage: canvas, secret: null };
         }
+        debugLog(`Reveal: Header found at offset ${offset}.`);
 
         // Header found at offset. Length is at offset + 4.
         const view = new DataView(scanBytes.buffer);
         // Safety check
         if (offset + 8 > scanBytes.length) {
+             debugLog("Reveal error: Header boundary exceeds scan buffer.");
              return { cleanImage: canvas, secret: null };
         }
 
         const payloadLength = view.getUint32(offset + 4, false);
+        debugLog(`Reveal: Payload Length ${payloadLength} bytes.`);
 
         if (payloadLength === 0) {
+             debugLog("Reveal: Payload is empty.");
              sanitizeRegion(data, (offset + HEADER_BYTES) * 8, mask);
              ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "" };
@@ -129,9 +158,10 @@ const kakushi = (() => {
         const fullBytes = extractBytes(data, totalBytes, mask);
 
         if (fullBytes.length < totalBytes) {
-             console.warn(`Kakushi: Insufficient opaque pixels. Need ${totalBytes}, got ${fullBytes.length}`);
+             debugLog(`Reveal error: Insufficient opaque pixels. Need ${totalBytes}, got ${fullBytes.length}`);
              return { cleanImage: canvas, secret: null };
         }
+        debugLog(`Reveal: Extracted ${fullBytes.length} bytes.`);
 
         const compressedPayload = fullBytes.slice(offset + HEADER_BYTES);
 
@@ -140,8 +170,10 @@ const kakushi = (() => {
 
         try {
             const secret = await decompressString(compressedPayload);
+            debugLog(`Reveal: Decompression successful (${secret.length} chars).`);
             return { cleanImage: canvas, secret };
         } catch (e) {
+            debugLog(`Reveal error: Decompression failed - ${e.message}`);
             console.error("Decompression failed:", e);
             return { cleanImage: canvas, secret: null };
         }
@@ -275,6 +307,9 @@ const kakushi = (() => {
                     totalLen += value.length;
                 }
             }
+        } catch (e) {
+            debugLog(`Stream Read Error: ${e.message}`);
+            throw e;
         } finally {
             reader.releaseLock();
         }

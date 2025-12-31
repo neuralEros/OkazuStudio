@@ -744,20 +744,25 @@
              const { autoRestore = false, forceSlot = null } = options;
              bakeRotation();
              log(`Loading ${name}...`, "info");
+             if (window.Logger) window.Logger.info(`[SmartLoad] Init '${name}'. SourceType: ${source.constructor.name}. Kakushi: ${!!window.kakushi}, Watermark: ${!!window.Watermark}`);
 
              try {
                  const img = await loadImageSource(source);
+                 if (window.Logger) window.Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
 
                  const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
                  const maskData = watermarkMask ? watermarkMask.data : null;
 
                  // Steganography Detection (Active Interception)
+                 if (window.Logger) window.Logger.info("[SmartLoad] Attempting Standard Peek...");
                  let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
+                 if (window.Logger) window.Logger.info(`[SmartLoad] Standard Peek Result: ${isStego}`);
 
                  let cleanImg = img;
 
                  // Fallback 1: Check for Watermark Interference
                  if (!isStego && window.Watermark && window.kakushi) {
+                     if (window.Logger) window.Logger.info("[SmartLoad] Attempting Watermark Fallback...");
                      const tempCanvas = document.createElement('canvas');
                      tempCanvas.width = img.width;
                      tempCanvas.height = img.height;
@@ -772,6 +777,9 @@
                          // Update source to the clean version
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
                          log("Detected and removed watermark.", "info");
+                         if (window.Logger) window.Logger.info("[SmartLoad] Watermark Fallback Succeeded.");
+                     } else {
+                         if (window.Logger) window.Logger.info("[SmartLoad] Watermark Fallback Failed.");
                      }
                  }
 
@@ -2576,6 +2584,7 @@
         function loadImageSource(source) {
             return new Promise((resolve, reject) => {
                 if (source instanceof Blob) {
+                    if (window.Logger) window.Logger.info(`[LoadImageSource] Loading Blob: ${source.type}, ${source.size} bytes`);
                     const url = URL.createObjectURL(source);
                     const img = new Image();
                     img.onload = () => {

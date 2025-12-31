@@ -136,8 +136,92 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: absP.x / fullH, y: absP.y / fullH };
     }
 
+    function enforceCropView(maintainScale = false) {
+        if (!state.cropRect || !state.fullDims.w) return;
+
+        // Calculate Visual Size of Crop Box
+        // 1. Get Visual Dims (Rotated) of the *Image*
+        const isRotated = state.rotation % 180 !== 0;
+        const fullH = state.fullDims.h || 1;
+
+        // Base Crop Dimensions (Unrotated Truth)
+        const cropW = state.cropRect.w * fullH;
+        const cropH = state.cropRect.h * fullH;
+
+        // Visual Dimensions of Crop Box (after 0,90,180,270 rotation)
+        const visCropW = isRotated ? cropH : cropW;
+        const visCropH = isRotated ? cropW : cropH;
+
+        // If we are auto-fitting (not maintaining current manual zoom)
+        if (!maintainScale) {
+            const vpW = els.viewport.clientWidth;
+            const vpH = els.viewport.clientHeight;
+            // Target: Fit crop box in viewport with padding
+            const padding = 80;
+            const availW = vpW - padding;
+            const availH = vpH - padding;
+
+            const scaleW = availW / visCropW;
+            const scaleH = availH / visCropH;
+            state.view.scale = Math.min(scaleW, scaleH);
+        }
+
+        // Center Position
+        // We want the CENTER of the Visual Crop Box to be at CENTER of Viewport.
+
+        // 1. Where is the Top-Left of the Crop Box relative to the Canvas Origin (0,0)?
+        // Use standard visual rect calculation logic
+        const truthH = state.fullDims.h;
+        const truthW = state.fullDims.w;
+        const r = state.cropRect;
+        const tRect = { x: r.x * truthH, y: r.y * truthH, w: r.w * truthH, h: r.h * truthH };
+
+        let vx = tRect.x, vy = tRect.y, vw = tRect.w, vh = tRect.h;
+
+        // Apply Base Rotation (0,90,180,270)
+        if (state.rotation === 90) {
+            vx = truthH - (tRect.y + tRect.h);
+            vy = tRect.x;
+            vw = tRect.h;
+            vh = tRect.w;
+        } else if (state.rotation === 180) {
+            vx = truthW - (tRect.x + tRect.w);
+            vy = truthH - (tRect.y + tRect.h);
+        } else if (state.rotation === 270) {
+            vx = tRect.y;
+            vy = truthW - (tRect.x + tRect.w);
+            vw = tRect.h;
+            vh = tRect.w;
+        }
+
+        // Center of Visual Crop Box (relative to Unscaled Canvas Top-Left)
+        const cropCx = vx + vw / 2;
+        const cropCy = vy + vh / 2;
+
+        // Viewport Center
+        const vpCx = els.viewport.clientWidth / 2;
+        const vpCy = els.viewport.clientHeight / 2;
+
+        // Target View Position (state.view.x/y)
+        // Canvas X on screen = state.view.x
+        // Point P on canvas -> Screen X = state.view.x + P.x * scale
+        // We want Screen X of CropCenter to be vpCx.
+        // vpCx = state.view.x + cropCx * scale
+        // state.view.x = vpCx - cropCx * scale
+
+        state.view.x = vpCx - cropCx * state.view.scale;
+        state.view.y = vpCy - cropCy * state.view.scale;
+
+        updateViewTransform();
+    }
+
     function resetView() {
         if (!state.imgA && !state.imgB) return;
+
+        if (state.isCropping) {
+            enforceCropView(false);
+            return;
+        }
 
         const vpW = els.viewport.clientWidth;
         const vpH = els.viewport.clientHeight;
@@ -715,169 +799,176 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             updateViewTransform();
             // Optional: updateCursorPos(e) if we want to redraw cursor, but it's hidden during zoom
         } else if (state.isCropping && state.cropDrag) {
-            // Shared Logic: Get Visual Dimensions (Standard Orientation)
+            // Updated Crop Logic: Center-Fixed
+            // 1. Pan (Drag inside): Move Image (Inverse Crop Move)
+            // 2. Rotate (Ctrl): Spin Image (Update CropRotation)
+            // 3. Scale (Shift): Zoom Content (Scale CropRect)
+            // 4. Handle: Resize Crop (Update CropRect W/H + AutoFit)
+
+            const fullH = state.fullDims.h || 1;
+            const fullW = state.fullDims.w || 1;
             const isRotated = state.rotation % 180 !== 0;
-            const visualFullW = isRotated ? state.fullDims.h : state.fullDims.w;
-            const visualFullH = isRotated ? state.fullDims.w : state.fullDims.h;
+            const visualFullW = isRotated ? fullH : fullW;
+            const visualFullH = isRotated ? fullW : fullH;
+
+            // Shared Transform Helpers
+            const canvasCx = visualFullW / 2;
+            const canvasCy = visualFullH / 2;
 
             if (state.cropDrag.type === 'rotate') {
-                // 1. Rotation Drag
                 const dx = e.clientX - state.cropDrag.startX;
                 state.cropRotation = state.cropDrag.startRotation + (dx * 0.5);
-
-                // 2. Re-Constraint: Ensure existing crop stays within new rotated bounds
-                const bounds = getRotatedAABB(visualFullW, visualFullH, state.cropRotation);
-
-                // Get Current Visual Rect (Before constraint) based on Truth + New Rotation
-                // Visual Center = rotate(TruthCenter, angle) around CanvasCenter
-                // Wait, truthCenter is relative to unrotated canvas top-left.
-                // Canvas Center is (visualFullW/2, visualFullH/2).
-                const truthPx = {
-                    x: state.cropRect.x * state.fullDims.h,
-                    y: state.cropRect.y * state.fullDims.h,
-                    w: state.cropRect.w * state.fullDims.h,
-                    h: state.cropRect.h * state.fullDims.h
-                };
-
-                // Convert TruthRect to Standard Visual Rect (0, 90 deg steps)
-                const baseVisualRect = truthToVisualRect(truthPx, state.rotation, state.fullDims.w, state.fullDims.h);
-
-                // Center of Base Visual Rect
-                const cx = baseVisualRect.x + baseVisualRect.w / 2;
-                const cy = baseVisualRect.y + baseVisualRect.h / 2;
-                const canvasCx = visualFullW / 2;
-                const canvasCy = visualFullH / 2;
-
-                // Rotate this center by cropRotation around canvas center
-                const newCenter = rotatePoint({x: cx, y: cy}, canvasCx, canvasCy, state.cropRotation);
-
-                // Construct Candidate Visual Rect (Upright)
-                let vRect = {
-                    x: newCenter.x - baseVisualRect.w / 2,
-                    y: newCenter.y - baseVisualRect.h / 2,
-                    w: baseVisualRect.w,
-                    h: baseVisualRect.h
-                };
-
-                // 3. Push/Scale Logic
-                // Constrain vRect to bounds (minX, maxX, minY, maxY)
-                // Note: Bounds are relative to Canvas Top-Left (which stays 0,0 in layout but visual content rotates around center).
-                // Actually, CSS rotation rotates content AND bounds visually? No.
-                // The AABB is in the coordinate system of the parent container (if we assume parent matches canvas size).
-                // But the crop box is positioned in parent coordinates.
-                // So getRotatedAABB returns bounds in Parent Coordinates (relative to canvas top-left origin).
-                // But wait, getRotatedAABB corners might be negative if we rotate around center?
-                // Yes. (0,0) is top-left. Center is (W/2, H/2).
-                // If we rotate, TL (0,0) moves.
-                // The AABB calculated by getRotatedAABB returns absolute coords in the same space as the canvas rect.
-
-                // Check Bounds
-                const b = bounds;
-                // Clamp Size first
-                if (vRect.w > b.w) vRect.w = b.w; // Scale down if too big for diamond
-                if (vRect.h > b.h) vRect.h = b.h;
-
-                // Push Position
-                if (vRect.x < b.minX) vRect.x = b.minX;
-                if (vRect.x + vRect.w > b.maxX) vRect.x = b.maxX - vRect.w;
-                if (vRect.y < b.minY) vRect.y = b.minY;
-                if (vRect.y + vRect.h > b.maxY) vRect.y = b.maxY - vRect.h;
-
-                // 4. Map Back to Truth
-                // New Visual Center
-                const constrainedCenter = { x: vRect.x + vRect.w / 2, y: vRect.y + vRect.h / 2 };
-                // Inverse Rotate to find Base Visual Center
-                const baseCenter = rotatePoint(constrainedCenter, canvasCx, canvasCy, -state.cropRotation);
-
-                // Reconstruct Base Visual Rect
-                const newBaseVisual = {
-                    x: baseCenter.x - vRect.w / 2,
-                    y: baseCenter.y - vRect.h / 2,
-                    w: vRect.w,
-                    h: vRect.h
-                };
-
-                // Convert Base Visual -> Truth
-                const newTruth = visualToTruthRect(newBaseVisual, state.rotation, state.fullDims.w, state.fullDims.h);
-                state.cropRect = {
-                    x: newTruth.x / state.fullDims.h,
-                    y: newTruth.y / state.fullDims.h,
-                    w: newTruth.w / state.fullDims.h,
-                    h: newTruth.h / state.fullDims.h
-                };
-
+                enforceCropView(true);
                 render();
-            } else {
-                // Box/Handle Drag
+            } else if (state.cropDrag.type === 'pan') {
+                // Move Image = Move Crop Rect in Opposite Direction
+                // We need delta in *Screen Pixels* converted to *Visual Canvas Pixels*
+                // Then rotated back to *Truth Pixels*
+
+                const dx = -(e.clientX - state.cropDrag.startX) / state.view.scale;
+                const dy = -(e.clientY - state.cropDrag.startY) / state.view.scale;
+
+                state.cropDrag.startX = e.clientX;
+                state.cropDrag.startY = e.clientY;
+
+                // Current Visual Rect (Truth -> BaseVisual -> RotatedVisual)
+                const truthRectPx = {
+                    x: state.cropRect.x * fullH,
+                    y: state.cropRect.y * fullH,
+                    w: state.cropRect.w * fullH,
+                    h: state.cropRect.h * fullH
+                };
+
+                // 1. Get Base Visual (Standard Rotation 0,90...)
+                const baseVisual = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
+
+                // 2. Apply Crop Rotation to find Visual Center
+                const cx = baseVisual.x + baseVisual.w / 2;
+                const cy = baseVisual.y + baseVisual.h / 2;
+
+                const rotRad = state.cropRotation * Math.PI / 180;
+                // We don't strictly need the visual center point if we just rotate the delta vector
+                // Delta Vector (dx, dy) is in Screen Space (Upright).
+                // We need to apply Inverse Crop Rotation to this vector to get Base Visual Delta.
+
+                const cos = Math.cos(-rotRad);
+                const sin = Math.sin(-rotRad);
+                const baseDx = dx * cos - dy * sin;
+                const baseDy = dx * sin + dy * cos;
+
+                // Apply Base Visual Delta to Base Visual Rect
+                baseVisual.x += baseDx;
+                baseVisual.y += baseDy;
+
+                // Convert back to Truth
+                const newTruth = visualToTruthRect(baseVisual, state.rotation, fullW, fullH);
+
+                state.cropRect.x = newTruth.x / fullH;
+                state.cropRect.y = newTruth.y / fullH;
+
+                // Maintain View Center
+                enforceCropView(true);
+                render();
+            } else if (state.cropDrag.type === 'scale') {
+                // Content Zoom (Shift+Drag)
+                // Scales Crop Rect around its center
+                // Drag UP = Zoom In (Crop gets smaller)
+                const dy = state.cropDrag.startY - e.clientY;
+                state.cropDrag.startY = e.clientY;
+
+                const zoomSpeed = 0.005;
+                const factor = Math.exp(-dy * zoomSpeed); // Invert: Drag Up (pos) -> Exp(-) -> <1 -> Crop Shrinks -> Zoom In
+
+                const newW = state.cropRect.w * factor;
+                const newH = state.cropRect.h * factor;
+
+                // Apply around center
+                const cx = state.cropRect.x + state.cropRect.w / 2;
+                const cy = state.cropRect.y + state.cropRect.h / 2;
+
+                state.cropRect.x = cx - newW / 2;
+                state.cropRect.y = cy - newH / 2;
+                state.cropRect.w = newW;
+                state.cropRect.h = newH;
+
+                // Inversely scale the view to keep the visual box size constant
+                // If crop shrinks (factor < 1), we must Zoom View IN (scale > 1) by same ratio?
+                // Visual Size = Crop Size * Scale.
+                // New Visual = (Crop * factor) * (Scale / factor) = Crop * Scale.
+                // So divide scale by factor.
+                state.view.scale /= factor;
+
+                enforceCropView(true);
+                render();
+            } else if (state.cropDrag.type === 'handle') {
+                // Handle Drag: Resizes the Crop Box visually
+                // Logic is similar to before, but we must respect the "Visual Rect" in the context of rotation
+
                 const rect = els.viewport.getBoundingClientRect();
                 const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
                 const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
 
-                // Current Visual Rect (Start of Drag)
-                let newVisualRect = { ...state.cropDrag.startVisualRect };
+                // We need to act on the *Visual* Crop Rect (Rotated)
+                // 1. Get current Visual Rect
+                // (Re-using getVisualStartRect logic effectively, but current state)
+                const truthRectPx = {
+                    x: state.cropRect.x * fullH,
+                    y: state.cropRect.y * fullH,
+                    w: state.cropRect.w * fullH,
+                    h: state.cropRect.h * fullH
+                };
+                const baseVisual = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
+                const cx = baseVisual.x + baseVisual.w / 2;
+                const cy = baseVisual.y + baseVisual.h / 2;
+                const newCenter = rotatePoint({x: cx, y: cy}, canvasCx, canvasCy, state.cropRotation);
 
-                // Get Rotated Bounds
-                const bounds = getRotatedAABB(visualFullW, visualFullH, state.cropRotation);
+                let visualRect = {
+                    x: newCenter.x - baseVisual.w / 2,
+                    y: newCenter.y - baseVisual.h / 2,
+                    w: baseVisual.w,
+                    h: baseVisual.h
+                };
 
-                if (state.cropDrag.type === 'box') {
-                    const dx = mx - state.cropDrag.startX;
-                    const dy = my - state.cropDrag.startY;
+                const h = state.cropDrag.h;
 
-                    newVisualRect.x += dx;
-                    newVisualRect.y += dy;
-
-                    // Clamp to Rotated AABB
-                    newVisualRect.x = Math.max(bounds.minX, Math.min(bounds.maxX - newVisualRect.w, newVisualRect.x));
-                    newVisualRect.y = Math.max(bounds.minY, Math.min(bounds.maxY - newVisualRect.h, newVisualRect.y));
-                } else {
-                    const h = state.cropDrag.h;
-                    // Resizing Logic with Bounds
-                    // Note: Handle logic needs to respect bounds too
-                    if (h.includes('e')) newVisualRect.w = Math.max(10, Math.min(bounds.maxX - newVisualRect.x, mx - newVisualRect.x));
-                    if (h.includes('s')) newVisualRect.h = Math.max(10, Math.min(bounds.maxY - newVisualRect.y, my - newVisualRect.y));
-
-                    if (h.includes('w')) {
-                        const oldR = newVisualRect.x + newVisualRect.w;
-                        let targetX = Math.min(mx, oldR - 10);
-                        targetX = Math.max(bounds.minX, targetX);
-                        newVisualRect.x = targetX;
-                        newVisualRect.w = oldR - targetX;
-                    }
-
-                    if (h.includes('n')) {
-                        const oldB = newVisualRect.y + newVisualRect.h;
-                        let targetY = Math.min(my, oldB - 10);
-                        targetY = Math.max(bounds.minY, targetY);
-                        newVisualRect.y = targetY;
-                        newVisualRect.h = oldB - targetY;
-                    }
+                // Handle Logic (Upright Visual Space)
+                if (h.includes('e')) visualRect.w = Math.max(10, mx - visualRect.x);
+                if (h.includes('s')) visualRect.h = Math.max(10, my - visualRect.y);
+                if (h.includes('w')) {
+                    const right = visualRect.x + visualRect.w;
+                    visualRect.x = Math.min(right - 10, mx);
+                    visualRect.w = right - visualRect.x;
+                }
+                if (h.includes('n')) {
+                    const bottom = visualRect.y + visualRect.h;
+                    visualRect.y = Math.min(bottom - 10, my);
+                    visualRect.h = bottom - visualRect.y;
                 }
 
-                // Map Back to Truth:
-                // Visual Rect Center -> Inverse Rotate -> Base Visual Center -> Truth
-                const canvasCx = visualFullW / 2;
-                const canvasCy = visualFullH / 2;
-
-                const vCx = newVisualRect.x + newVisualRect.w / 2;
-                const vCy = newVisualRect.y + newVisualRect.h / 2;
-
-                const baseCenter = rotatePoint({x: vCx, y: vCy}, canvasCx, canvasCy, -state.cropRotation);
+                // Map Back to Truth
+                // Visual Center
+                const vCx = visualRect.x + visualRect.w / 2;
+                const vCy = visualRect.y + visualRect.h / 2;
+                // Inverse Rotate -> Base Center
+                const baseC = rotatePoint({x: vCx, y: vCy}, canvasCx, canvasCy, -state.cropRotation);
 
                 const newBaseVisual = {
-                    x: baseCenter.x - newVisualRect.w / 2,
-                    y: baseCenter.y - newVisualRect.h / 2,
-                    w: newVisualRect.w,
-                    h: newVisualRect.h
+                    x: baseC.x - visualRect.w / 2,
+                    y: baseC.y - visualRect.h / 2,
+                    w: visualRect.w,
+                    h: visualRect.h
                 };
 
-                const newTruth = visualToTruthRect(newBaseVisual, state.rotation, state.fullDims.w, state.fullDims.h);
+                const newTruth = visualToTruthRect(newBaseVisual, state.rotation, fullW, fullH);
                 state.cropRect = {
-                    x: newTruth.x / state.fullDims.h,
-                    y: newTruth.y / state.fullDims.h,
-                    w: newTruth.w / state.fullDims.h,
-                    h: newTruth.h / state.fullDims.h
+                    x: newTruth.x / fullH,
+                    y: newTruth.y / fullH,
+                    w: newTruth.w / fullH,
+                    h: newTruth.h / fullH
                 };
 
+                // Auto-Fit (Center)
+                enforceCropView(false); // Recalculate scale to fit new box
                 render();
                 forceCropHandleUpdate();
             }
@@ -1042,18 +1133,29 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             setBrushPercent(state.brushPercent + delta);
             return;
         }
+
         const zoomSpeed = 0.1;
         const delta = -Math.sign(e.deltaY) * zoomSpeed;
-        const newScale = Math.max(0.1, Math.min(10, state.view.scale * (1 + delta)));
-        const rect = els.viewport.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        const canvasX = (mouseX - state.view.x) / state.view.scale;
-        const canvasY = (mouseY - state.view.y) / state.view.scale;
-        state.view.scale = newScale;
-        state.view.x = mouseX - canvasX * newScale;
-        state.view.y = mouseY - canvasY * newScale;
-        updateViewTransform();
+        const newScale = Math.max(0.01, Math.min(50, state.view.scale * (1 + delta)));
+
+        if (state.isCropping) {
+            // Crop Mode: Zoom = Scale Viewport around Center (Crop Box stays centered)
+            // Just update scale and re-enforce center
+            state.view.scale = newScale;
+            enforceCropView(true);
+        } else {
+            // Standard Zoom (Mouse Position Anchored)
+            const rect = els.viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const canvasX = (mouseX - state.view.x) / state.view.scale;
+            const canvasY = (mouseY - state.view.y) / state.view.scale;
+
+            state.view.scale = newScale;
+            state.view.x = mouseX - canvasX * newScale;
+            state.view.y = mouseY - canvasY * newScale;
+            updateViewTransform();
+        }
         updateCursorPos(e);
     }
 

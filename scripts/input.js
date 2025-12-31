@@ -664,42 +664,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             return;
         }
 
-        if (e.shiftKey && e.button === 0) {
-            state.isZooming = true;
-            state.lastZoomY = e.clientY;
-            const rect = els.viewport.getBoundingClientRect();
-            state.zoomStartClientX = e.clientX - rect.left;
-            state.zoomStartClientY = e.clientY - rect.top;
-            updateCursorStyle();
-            return;
-        }
-
+        // Crop Mode Interaction (Priority over Standard Zoom)
         if (state.isCropping) {
             if (e.button === 0) {
                 // Determine drag type based on modifiers
-                // Note: Handle drags are caught by attachCropHandlers listeners which stopPropagation.
-                // If we are here, we clicked on the viewport/overlay but NOT a handle.
-
-                // Dimmer/Outside click: handled by backdrop listener?
-                // Actually the backdrop listener was removed in previous patch?
-                // Let's assume this catches drags on the image/overlay.
-
-                // Wait, if I removed backdrop listener, where does outside click go?
-                // To viewport.
-
-                // Logic:
-                // Ctrl -> Rotate
-                // Shift -> Scale
-                // None -> Pan (if inside box? No, inside box caught by cropBox listener)
-                // If outside box (dimmer area)? Pan too?
-                // User said "move the image, not the crop box".
-                // Dragging outside usually moves image too.
-
+                // Matches logic in attachCropHandlers getDragType
                 let type = 'pan';
                 if (e.ctrlKey || e.metaKey) type = 'rotate';
                 else if (e.shiftKey) type = 'scale';
 
-                // Helper to get visual rect for start state
                 const getVisualStartRect = () => {
                     const fullH = state.fullDims.h;
                     const fullW = state.fullDims.w;
@@ -736,6 +709,16 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     startVisualRect: getVisualStartRect()
                 };
             }
+            return;
+        }
+
+        if (e.shiftKey && e.button === 0) {
+            state.isZooming = true;
+            state.lastZoomY = e.clientY;
+            const rect = els.viewport.getBoundingClientRect();
+            state.zoomStartClientX = e.clientX - rect.left;
+            state.zoomStartClientY = e.clientY - rect.top;
+            updateCursorStyle();
             return;
         }
 
@@ -914,6 +897,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 // Drag UP = Zoom In (Crop Shrinks).
                 const zoomSpeed = 0.005;
                 const factor = Math.exp(-dyScreen * zoomSpeed);
+
+                // console.log("Scaling: Factor", factor, "StartW", startRect.w, "NewW", startRect.w * factor);
 
                 state.cropRect.w = startRect.w * factor;
                 state.cropRect.h = startRect.h * factor;
@@ -1269,6 +1254,12 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             };
         };
 
+        const getDragType = (e) => {
+            if (e.ctrlKey || e.metaKey) return 'rotate';
+            if (e.shiftKey) return 'scale';
+            return 'pan';
+        };
+
         handles.forEach(h => {
             h.addEventListener('pointerdown', (e) => {
                 initDrag(e, 'handle', { h: h.dataset.handle });
@@ -1277,15 +1268,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
         els.cropBox.addEventListener('pointerdown', (e) => {
             if (e.target !== els.cropBox) return;
-            initDrag(e, 'pan'); // Dragging inside box = Pan
+            initDrag(e, getDragType(e));
         });
 
-        // Add Scale/Rotate modifiers to box click if needed, but usually handled in handlePointerDown logic globally.
-        // However, standard pointerdown logic handles the modifiers (Ctrl/Shift) detection.
-        // We will detect modifier override in handlePointerMove based on key state,
-        // OR we just rely on handlePointerDown global handler to set up the specialized drag?
-        // Wait, global handlePointerDown sets up cropDrag too?
-        // Let's check handlePointerDown.
+        const dimmer = document.getElementById('backdrop-dimmer');
+        if (dimmer) {
+            dimmer.addEventListener('pointerdown', (e) => {
+                initDrag(e, getDragType(e));
+            });
+        }
     }
 
     function attachInputHandlers() {

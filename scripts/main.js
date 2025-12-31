@@ -2514,8 +2514,8 @@
 
         function loadImageSource(source) {
             return new Promise((resolve, reject) => {
-                if (source instanceof Blob) {
-                    const url = URL.createObjectURL(source);
+                const loadViaImageTag = (blob) => {
+                    const url = URL.createObjectURL(blob);
                     const img = new Image();
                     img.onload = () => {
                         URL.revokeObjectURL(url);
@@ -2526,6 +2526,20 @@
                         reject(e);
                     };
                     img.src = url;
+                };
+
+                if (source instanceof Blob) {
+                    // Try createImageBitmap to avoid color profile conversion (Chromium fix)
+                    if (window.createImageBitmap) {
+                        createImageBitmap(source, { colorSpaceConversion: 'none' })
+                            .then(resolve)
+                            .catch(err => {
+                                console.warn("createImageBitmap failed, falling back to Image tag", err);
+                                loadViaImageTag(source);
+                            });
+                        return;
+                    }
+                    loadViaImageTag(source);
                 } else if (typeof source === 'string') {
                     const img = new Image();
                     img.onload = () => resolve(img);

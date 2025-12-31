@@ -799,14 +799,23 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
-                                         updateCanvasDimensions();
+                                         updateCanvasDimensions(true); // Preserve view (don't reset crop)
+                                         state.isCropping = true; // Enter crop mode to show it
                                      }
 
                                      if (payload.mask && Array.isArray(payload.mask)) {
-                                         resetMaskOnly();
-                                         payload.mask.forEach(action => {
-                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
-                                         });
+                                         els.loadingOverlay.classList.remove('hidden');
+                                         // Force paint
+                                         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                                         try {
+                                             resetMaskOnly();
+                                             payload.mask.forEach(action => {
+                                                 if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                             });
+                                         } finally {
+                                             els.loadingOverlay.classList.add('hidden');
+                                         }
                                      }
 
                                      rebuildWorkingCopies(true);
@@ -843,14 +852,21 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
-                                         updateCanvasDimensions();
+                                         updateCanvasDimensions(true); // Preserve view
+                                         state.isCropping = true;
                                      }
 
                                      if (payload.mask && Array.isArray(payload.mask)) {
-                                         resetMaskOnly();
-                                         payload.mask.forEach(action => {
-                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
-                                         });
+                                         els.loadingOverlay.classList.remove('hidden');
+                                         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                                         try {
+                                             resetMaskOnly();
+                                             payload.mask.forEach(action => {
+                                                 if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                             });
+                                         } finally {
+                                             els.loadingOverlay.classList.add('hidden');
+                                         }
                                      }
 
                                      rebuildWorkingCopies(true);

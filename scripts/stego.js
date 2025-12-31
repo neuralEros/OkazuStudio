@@ -138,11 +138,11 @@ const Stego = (() => {
         // Full Image aspect = state.fullDims.w / state.fullDims.h
         const fullAspect = fullW / fullH;
 
-        // Tolerances
-        const isXZero = Math.abs(r.x) < 0.001;
-        const isYZero = Math.abs(r.y) < 0.001;
-        const isHOne = Math.abs(r.h - 1.0) < 0.001;
-        const isWAspect = Math.abs(r.w - fullAspect) < 0.001;
+        // Tolerances (Relaxed to 0.01 for floating point safety)
+        const isXZero = Math.abs(r.x) < 0.01;
+        const isYZero = Math.abs(r.y) < 0.01;
+        const isHOne = Math.abs(r.h - 1.0) < 0.01;
+        const isWAspect = Math.abs(r.w - fullAspect) < 0.01;
 
         if (isXZero && isYZero && isHOne && isWAspect) {
             return null; // Is effectively full

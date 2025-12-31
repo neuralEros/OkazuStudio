@@ -740,7 +740,8 @@
              els.btnB.classList.add('border-accent-strong', 'text-accent');
         }
 
-        async function loadLayerWithSmartSlotting(source, name) {
+        async function loadLayerWithSmartSlotting(source, name, options = {}) {
+             const { autoRestore = false, forceSlot = null } = options;
              bakeRotation();
              log(`Loading ${name}...`, "info");
              try {
@@ -752,7 +753,7 @@
                  let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
                  let cleanImg = img;
 
-                 // Fallback: Check for Watermark Interference
+                 // Fallback 1: Check for Watermark Interference
                  if (!isStego && window.Watermark && window.kakushi) {
                      const tempCanvas = document.createElement('canvas');
                      tempCanvas.width = img.width;
@@ -768,6 +769,56 @@
                          // Update source to the clean version
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
                          log("Detected and removed watermark.", "info");
+                     }
+                 }
+
+                 // Fallback 2: Check Filename Hints (Force Reveal)
+                 if (!isStego && window.kakushi) {
+                     const n = name.toLowerCase();
+                     if (n.includes('_save') || n.includes('_project') || n.includes('okazustudio')) {
+                         // Likely a save file where peek failed (maybe header corrupted or deep in stream)
+                         Logger.warn("Stego header missing but filename suggests save file. Prompting for forced reveal...");
+
+                         const confirm = await showModal(
+                             "Try restore anyway?",
+                             "This looks like an OkazuStudio save file, but the metadata header wasn't found (possibly due to compression or resizing). Do you want to attempt a forced restoration?",
+                             [{ label: "Attempt Restore", value: true }],
+                             true
+                         );
+
+                         if (confirm) {
+                             try {
+                                 // Try reveal directly on cleanImg (or unwatermarked version if available?)
+                                 const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
+                                 if (result.secret) {
+                                     isStego = true;
+                                     Logger.info("Forced reveal successful.");
+                                 } else if (window.Watermark) {
+                                     // Try unwatermarking blindly then revealing
+                                     const tempCanvas = document.createElement('canvas');
+                                     tempCanvas.width = img.width;
+                                     tempCanvas.height = img.height;
+                                     const tCtx = tempCanvas.getContext('2d');
+                                     tCtx.drawImage(img, 0, 0);
+                                     window.Watermark.checkAndRemove(tempCanvas);
+
+                                     const result2 = await window.kakushi.reveal(tempCanvas, { mask: maskData });
+                                     if (result2.secret) {
+                                         isStego = true;
+                                         cleanImg = await loadImageSource(tempCanvas.toDataURL());
+                                         Logger.info("Forced reveal (after unwatermark) successful.");
+                                     } else {
+                                         Logger.warn("Forced reveal failed even after watermark removal.");
+                                         log("Restoration failed: No hidden data found.", "error");
+                                     }
+                                 } else {
+                                     log("Restoration failed: No hidden data found.", "error");
+                                 }
+                             } catch(e) {
+                                 Logger.error("Forced reveal failed", e);
+                                 log("Restoration error: " + e.message, "error");
+                             }
+                         }
                      }
                  }
 
@@ -864,7 +915,7 @@
                                  }
 
                                  // Standard Project Save
-                                 const choice = await showModal(
+                                     const choice = autoRestore ? 'project' : await showModal(
                                      "Load Save?",
                                      "This is a Save file. Restore original workspace or load as image?",
                                      [
@@ -978,6 +1029,12 @@
                      } catch (e) {
                          Logger.error("[Stego] Failed to process payload", e);
                      }
+                 }
+
+                 // Determine Target Slot
+                 if (forceSlot) {
+                     assignLayer(cleanImg, forceSlot, name);
+                     return;
                  }
 
                  // 0 loaded -> Slot A (Front)
@@ -1324,11 +1381,15 @@
 
             els.fileA.addEventListener('change', (e) => {
                 Logger.interaction("File Input A", "selected file");
-                handleFileLoad(e.target.files[0], 'A');
+                if (e.target.files[0]) {
+                    loadLayerWithSmartSlotting(e.target.files[0], e.target.files[0].name, { forceSlot: 'A' });
+                }
             });
             els.fileB.addEventListener('change', (e) => {
                 Logger.interaction("File Input B", "selected file");
-                handleFileLoad(e.target.files[0], 'B');
+                if (e.target.files[0]) {
+                    loadLayerWithSmartSlotting(e.target.files[0], e.target.files[0].name, { forceSlot: 'B' });
+                }
             });
 
             // Preview Panel Logic
@@ -2513,8 +2574,25 @@
         }
 
         function loadImageSource(source) {
-            return new Promise((resolve, reject) => {
+            return new Promise(async (resolve, reject) => {
                 if (source instanceof Blob) {
+                    // Try createImageBitmap for color fidelity (Chromium fix)
+                    if (window.createImageBitmap) {
+                        try {
+                            const bitmap = await createImageBitmap(source, { colorSpaceConversion: 'none' });
+                            // Convert Bitmap to Canvas to ensure downstream compatibility (ImageBitmap is not a DOM Node)
+                            const canvas = document.createElement('canvas');
+                            canvas.width = bitmap.width;
+                            canvas.height = bitmap.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(bitmap, 0, 0);
+                            resolve(canvas);
+                            return;
+                        } catch(e) {
+                            Logger.warn("createImageBitmap failed, falling back to Image", e);
+                        }
+                    }
+
                     const url = URL.createObjectURL(source);
                     const img = new Image();
                     img.onload = () => {

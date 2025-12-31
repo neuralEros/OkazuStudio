@@ -191,6 +191,10 @@
             cursor: grabbing !important;
         }
         
+        #viewport.zooming {
+            cursor: ns-resize !important;
+        }
+
         #viewport.disabled {
             cursor: not-allowed !important;
         }

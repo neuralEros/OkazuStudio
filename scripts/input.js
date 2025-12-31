@@ -297,7 +297,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function updateCursorPos(e) {
-        if (!canDraw() || state.isPanning || state.isSpacePressed || state.isCropping) {
+        if (!canDraw() || state.isPanning || state.isSpacePressed || state.isCropping || state.isZooming) {
             els.cursor.style.display = 'none';
             return;
         }
@@ -539,6 +539,16 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             return;
         }
 
+        if (e.shiftKey && e.button === 0) {
+            state.isZooming = true;
+            state.lastZoomY = e.clientY;
+            const rect = els.viewport.getBoundingClientRect();
+            state.zoomStartClientX = e.clientX - rect.left;
+            state.zoomStartClientY = e.clientY - rect.top;
+            updateCursorStyle();
+            return;
+        }
+
         if (state.isCropping) return;
 
         if (e.button === 0) {
@@ -636,6 +646,29 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.lastPanX = e.clientX;
             state.lastPanY = e.clientY;
             updateViewTransform();
+        } else if (state.isZooming) {
+            const dy = state.lastZoomY - e.clientY; // Drag UP (decreasing Y) -> Positive Delta -> Zoom In
+            state.lastZoomY = e.clientY;
+
+            const zoomSpeed = 0.005; // Granular control
+            const factor = Math.exp(dy * zoomSpeed);
+
+            const newScale = Math.max(0.1, Math.min(50, state.view.scale * factor));
+
+            // Zoom around drag start point
+            const mouseX = state.zoomStartClientX;
+            const mouseY = state.zoomStartClientY;
+
+            // Maintain the point under mouseX, mouseY fixed relative to the viewport
+            // state.view.x = mouseX - (mouseX - state.view.x) * (newScale / state.view.scale)
+
+            const scaleRatio = newScale / state.view.scale;
+            state.view.x = mouseX - (mouseX - state.view.x) * scaleRatio;
+            state.view.y = mouseY - (mouseY - state.view.y) * scaleRatio;
+            state.view.scale = newScale;
+
+            updateViewTransform();
+            // Optional: updateCursorPos(e) if we want to redraw cursor, but it's hidden during zoom
         } else if (state.isCropping && state.cropDrag) {
             const rect = els.viewport.getBoundingClientRect();
             // Mouse in Visual Canvas Coords
@@ -714,6 +747,12 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.longPressTimer) {
             clearTimeout(state.longPressTimer);
             state.longPressTimer = null;
+        }
+
+        if (state.isZooming) {
+            state.isZooming = false;
+            updateCursorStyle();
+            return;
         }
 
         if (state.isDrawing) {

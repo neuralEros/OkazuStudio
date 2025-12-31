@@ -112,10 +112,21 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const mouseY = e.clientY - rect.top;
 
         // Visual Canvas Coordinates (Pixels)
-        const canvasX = (mouseX - state.view.x) / state.view.scale;
-        const canvasY = (mouseY - state.view.y) / state.view.scale;
+        let canvasX = (mouseX - state.view.x) / state.view.scale;
+        let canvasY = (mouseY - state.view.y) / state.view.scale;
 
         const fullH = state.fullDims.h || 1;
+
+        if (!state.isCropping && state.cropRotation !== 0 && state.cropRect) {
+            const isRotated = state.rotation % 180 !== 0;
+            const baseW = state.cropRect.w * fullH;
+            const baseH = state.cropRect.h * fullH;
+            const visualW = isRotated ? baseH : baseW;
+            const visualH = isRotated ? baseW : baseH;
+            const rotated = rotatePoint({ x: canvasX, y: canvasY }, visualW / 2, visualH / 2, -state.cropRotation);
+            canvasX = rotated.x;
+            canvasY = rotated.y;
+        }
 
         if (!state.isCropping && state.cropRect) {
             // Local Truth Dimensions (Pixels)

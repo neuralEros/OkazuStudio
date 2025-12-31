@@ -651,6 +651,86 @@
             rebuildWorkingCopies();
         }
 
+        // Logic extracted from applyCensor for reuse in Project Restoration
+        async function generateCensorLayer() {
+             log("Generating Censor layer...", "info");
+             const imgBase = state.imgA;
+             if (!imgBase) return;
+
+             const w = imgBase.width; const h = imgBase.height;
+             const blurRadius = Math.max(1, h * 0.01);
+             const pad = Math.ceil(blurRadius * 3);
+
+             const paddedCanvas = document.createElement('canvas');
+             paddedCanvas.width = w + pad * 2; paddedCanvas.height = h + pad * 2;
+             const pCtx = paddedCanvas.getContext('2d');
+             pCtx.drawImage(imgBase, pad, pad);
+
+             // Edge clamping for blur
+             pCtx.drawImage(imgBase, 0, 0, w, 1, pad, 0, w, pad);
+             pCtx.drawImage(imgBase, 0, h-1, w, 1, pad, h+pad, w, pad);
+             pCtx.drawImage(imgBase, 0, 0, 1, h, 0, pad, pad, h);
+             pCtx.drawImage(imgBase, w-1, 0, 1, h, w+pad, pad, pad, h);
+
+             const blurCanvas = document.createElement('canvas');
+             blurCanvas.width = w; blurCanvas.height = h;
+             const bCtx = blurCanvas.getContext('2d');
+             bCtx.filter = `blur(${blurRadius}px)`;
+             bCtx.drawImage(paddedCanvas, -pad, -pad);
+             bCtx.filter = 'none';
+
+             const blockSize = Math.max(1, h * 0.025);
+             const sw = Math.ceil(w / blockSize); const sh = Math.ceil(h / blockSize);
+             const tinyCanvas = document.createElement('canvas');
+             tinyCanvas.width = sw; tinyCanvas.height = sh;
+             const tinyCtx = tinyCanvas.getContext('2d');
+             tinyCtx.drawImage(blurCanvas, 0, 0, sw, sh);
+
+             const tempCanvas = document.createElement('canvas');
+             tempCanvas.width = w; tempCanvas.height = h;
+             const tCtx = tempCanvas.getContext('2d');
+             tCtx.imageSmoothingEnabled = false;
+             tCtx.drawImage(tinyCanvas, 0, 0, sw, sh, 0, 0, w, h);
+
+             const imgCensored = await loadImageSource(tempCanvas.toDataURL('image/png'));
+
+             let assetId = null;
+             if (window.AssetManager) {
+                 assetId = window.AssetManager.addAsset(imgCensored, "Censored Layer");
+             }
+             state.assetIdB = assetId;
+
+             setLayerSource('B', imgCensored);
+             state.nameB = "Censored Layer";
+
+             // Init Dims
+             state.fullDims = { w, h };
+             // Use user's crop if restored (set later by caller), else full
+             if (!state.cropRect) state.cropRect = { x: 0, y: 0, w: w/h, h: 1.0 };
+
+             // Setup UI for Censor Mode
+             state.maskVisible = true;
+             els.maskEyeOpen.classList.remove('hidden'); els.maskEyeClosed.classList.add('hidden');
+             state.backVisible = true;
+             els.rearEyeOpen.classList.remove('hidden'); els.rearEyeClosed.classList.add('hidden');
+
+             state.brushSettings = {
+                 erase: { brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                 repair: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE }
+             };
+             setMode('erase');
+             setFeatherMode(true, { value: DEFAULT_FEATHER_SIZE, applyToAll: true });
+             syncBrushUIToActive();
+
+             state.opacity = 1.0; els.opacitySlider.value = 100; els.opacityVal.textContent = "100%";
+             state.isAFront = true;
+
+             updateLoadButton(els.btnA, "Base", "front");
+             els.btnA.classList.add('border-accent-strong', 'text-accent');
+             updateLoadButton(els.btnB, "Censored", "back");
+             els.btnB.classList.add('border-accent-strong', 'text-accent');
+        }
+
         async function loadLayerWithSmartSlotting(source, name) {
              bakeRotation();
              log(`Loading ${name}...`, "info");
@@ -2684,41 +2764,58 @@
             if (format === 'image/jpeg') ext = 'jpg';
             else if (format === 'image/webp') ext = 'webp';
 
-            // Calculate Base Dimensions (Truth Pixels)
-            // state.cropRect is Proportional.
+            // --- Dimension Calculation ---
+            // We need to calculate two sets of dimensions:
+            // 1. Standard Dims: Based on User Crop + Height Cap
+            // 2. Project Dims: Based on Full Union Dims (Uncropped, Full Res)
+
             const fullH = state.fullDims.h || 1;
             const fullW = state.fullDims.w || 1;
-
-            const truthW = Math.round(state.cropRect.w * fullH);
-            const truthH = Math.round(state.cropRect.h * fullH);
-
-            // Handle Rotation for final dimensions
             const isRotated = state.rotation % 180 !== 0;
-            const unscaledW = isRotated ? truthH : truthW;
-            const unscaledH = isRotated ? truthW : truthH;
 
-            // Height Cap Logic (Downscale Only)
-            let finalW = unscaledW;
-            let finalH = unscaledH;
+            // 1. Standard (User View)
+            const userCropRect = state.cropRect ? { ...state.cropRect } : { x: 0, y: 0, w: fullW / fullH, h: 1.0 };
+            const truthW = Math.round(userCropRect.w * fullH);
+            const truthH = Math.round(userCropRect.h * fullH);
+            const stdUnscaledW = isRotated ? truthH : truthW;
+            const stdUnscaledH = isRotated ? truthW : truthH;
 
+            let stdW = stdUnscaledW;
+            let stdH = stdUnscaledH;
+
+            // Apply Height Cap to Standard
             if (heightCap !== 'Full') {
                 const cap = parseInt(heightCap);
-                if (finalH > cap) {
-                    const scale = cap / finalH;
-                    finalW = Math.round(finalW * scale);
-                    finalH = Math.round(finalH * scale);
+                if (stdH > cap) {
+                    const scale = cap / stdH;
+                    stdW = Math.round(stdW * scale);
+                    stdH = Math.round(stdH * scale);
                 }
             }
 
+            // 2. Project (Full Source)
+            // Union Dims, Uncropped.
+            // If rotated, output dims are swapped.
+            const projW = isRotated ? fullH : fullW;
+            const projH = isRotated ? fullW : fullH;
+            const projRect = { x: 0, y: 0, w: fullW / fullH, h: 1.0 };
+
+            // Determine Standard Res Suffix
+            let stdResTag = '';
+            if (heightCap === 'Full') stdResTag = 'full';
+            else if (heightCap === 4320) stdResTag = '8k';
+            else if (heightCap === 2160) stdResTag = '4k';
+            else if (heightCap === 1080) stdResTag = 'hd';
+            else stdResTag = heightCap + 'p';
+
             // Prepare Temporary Canvas
             const exportCanvas = document.createElement('canvas');
-            exportCanvas.width = finalW;
-            exportCanvas.height = finalH;
             const expCtx = exportCanvas.getContext('2d');
 
             // Queue of exports
             const jobs = [];
             if (layers.merged) jobs.push({ type: 'merged', suffix: '_merged' });
+            if (layers.save)   jobs.push({ type: 'save',   suffix: '_project' });
             if (layers.mask)   jobs.push({ type: 'mask',   suffix: '_mask' });
             if (layers.front)  jobs.push({ type: 'front',  suffix: '_front' });
             if (layers.back)   jobs.push({ type: 'back',   suffix: '_back' });
@@ -2726,36 +2823,38 @@
             // If nothing selected (shouldn't happen with defaults, but safety)
             if (jobs.length === 0) jobs.push({ type: 'merged', suffix: '_merged' });
 
+            // State Management for Export
+            const wasCropping = state.isCropping;
+            state.isCropping = false; // Drive via cropRect
+
             try {
-                // We need to disable cropping temporarily to render correctly?
-                // Actually renderToContext handles crop logic via state.cropRect/isCropping.
-                // But renderToContext renders to TARGET size using SOURCE rects.
-                // So we just need to pass finalW/finalH to renderToContext,
-                // and it will map state.cropRect (which is proportional) to finalW/finalH.
-                // However, renderToContext assumes it's drawing to the "view" usually?
-                // No, renderToContext is generic. It takes w/h.
-
-                // Temporarily disable isCropping flag so renderToContext uses cropRect logic
-                // (If isCropping is true, it ignores cropRect and draws full source)
-                // We want to draw cropRect content.
-                const wasCropping = state.isCropping;
-                state.isCropping = false;
-
-                // Determine Resolution Suffix
-                let resTag = '';
-                if (heightCap === 'Full') resTag = 'full';
-                else if (heightCap === 4320) resTag = '8k';
-                else if (heightCap === 2160) resTag = '4k';
-                else if (heightCap === 1080) resTag = 'hd';
-                else resTag = heightCap + 'p';
-
-                // Process Jobs
                 for (const job of jobs) {
-                    const filename = `${timeString}${job.suffix}_${resTag}.${ext}`;
+                    // Config for this job
+                    let targetW, targetH, currentResTag;
+
+                    if (job.type === 'save') {
+                        targetW = projW;
+                        targetH = projH;
+                        state.cropRect = projRect;
+                        currentResTag = 'full';
+                    } else {
+                        targetW = stdW;
+                        targetH = stdH;
+                        state.cropRect = userCropRect;
+                        currentResTag = stdResTag;
+                    }
+
+                    const filename = `${timeString}${job.suffix}_${currentResTag}.${ext}`;
+
+                    // Resize Canvas
+                    if (exportCanvas.width !== targetW || exportCanvas.height !== targetH) {
+                        exportCanvas.width = targetW;
+                        exportCanvas.height = targetH;
+                    }
 
                     // Configure Render Options
                     const options = {
-                        forceOpacity: true, // Export should generally be opaque composite unless alpha is needed
+                        forceOpacity: true,
                         useBakedLayers: true,
                         preferPreview: false,
                         allowRebuild: true,
@@ -2765,21 +2864,32 @@
                         renderMode: 'composite'
                     };
 
-                    if (job.type === 'merged') {
+                    if (job.type === 'save') {
+                        // Project Save: Unbaked Adjustments (so they can be restored via metadata)
+                        options.useBakedLayers = false;
+                        options.renderBack = state.backVisible;
+                        options.renderFront = true;
+                        options.applyMask = state.maskVisible;
+
+                        // Censor Project Special Case:
+                        // If it is a Censor project (Back layer is 'Censored Layer'), the 'Save' export
+                        // should strictly export the BASE LAYER (Slot A) pixels only.
+                        // This allows full reconstruction (Base + Metadata -> Generate Censor -> Replay Mask).
+                        // If we export the Merged view, we lose the clean Base under the blur.
+                        if (state.nameB === "Censored Layer") {
+                            options.renderBack = false; // Disable Censor Layer
+                            options.renderFront = true; // Base Layer
+                            options.applyMask = false;  // Raw Base (No holes)
+                        }
+                    } else if (job.type === 'merged') {
                         options.renderBack = state.backVisible;
                         options.renderFront = true;
                         options.applyMask = state.maskVisible;
                     } else if (job.type === 'front') {
                         options.renderFront = true;
                         // "If Mask Export is OFF, apply mask to Front. If Mask Export is ON, export front intact."
-                        // Invariant: Front Export always has baked adjustments/crop.
-                        if (layers.mask) {
-                             // Mask IS selected for export -> Front Intact (No Mask)
-                             options.applyMask = false;
-                        } else {
-                             // Mask IS NOT selected -> Apply Mask to Front
-                             options.applyMask = true; // (Assuming user wants the cutout if they aren't getting the mask separately)
-                        }
+                        if (layers.mask) options.applyMask = false;
+                        else options.applyMask = true;
                     } else if (job.type === 'back') {
                         options.renderBack = true;
                     } else if (job.type === 'mask') {
@@ -2788,25 +2898,25 @@
                     }
 
                     // Render
-                    // renderToContext clears the canvas
-                    renderToContext(expCtx, finalW, finalH, options);
+                    renderToContext(expCtx, targetW, targetH, options);
+
+                    // Restore User Crop IMMEDIATELY after render, so metadata (assembled next) is correct
+                    if (job.type === 'save') {
+                        state.cropRect = userCropRect;
+                    }
 
                     // Steganography Stamping (PNG Only)
                     let finalCanvas = exportCanvas;
                     if (format === 'image/png' && window.Stego && window.kakushi) {
                          try {
-                             // We use window.ActionHistory directly as it's the source of truth for actions
                              const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
-                             // Only stamp if we have meaningful data (always has info, but let's assume we proceed)
                              if (payload) {
-                                 // kakushi.seal returns a NEW canvas with data
                                  const json = JSON.stringify(payload);
                                  finalCanvas = await window.kakushi.seal(exportCanvas, json);
                                  Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
                              }
                          } catch (err) {
                              Logger.error("[Stego] Failed to stamp image", err);
-                             // Fallback to original canvas (unstamped)
                              finalCanvas = exportCanvas;
                          }
                     }
@@ -2830,13 +2940,16 @@
                     });
                 }
 
-                state.isCropping = wasCropping;
                 log("Export complete", "info");
                 Logger.info(`Export Batch Complete: ${jobs.map(j => j.suffix).join(', ')}`);
 
             } catch (e) {
                 log("Save failed: " + e.message);
                 Logger.error("Export Failed", e);
+            } finally {
+                // Restore Global State
+                state.isCropping = wasCropping;
+                state.cropRect = userCropRect;
             }
         }
 

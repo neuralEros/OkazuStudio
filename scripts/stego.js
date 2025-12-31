@@ -155,7 +155,7 @@ const Stego = (() => {
      * Assembles the full payload for the image.
      * @param {Object} state - Application state
      * @param {Object} history - ActionHistory instance
-     * @param {string} exportType - 'merged', 'front', 'back', 'mask'
+     * @param {string} exportType - 'merged', 'front', 'back', 'mask', 'save'
      * @returns {Object|null} Payload object or null if nothing to save
      */
     function assemblePayload(state, history, exportType) {
@@ -163,23 +163,25 @@ const Stego = (() => {
             info: {
                 software: SOFTWARE_NAME,
                 version: SOFTWARE_VERSION,
-                type: exportType, // 'merged', 'front', 'back', 'mask'
+                type: exportType,
                 timestamp: Date.now()
             }
         };
 
         let hasContent = false;
 
+        // Packet: Censor (Specific for Save Jobs)
+        // Detect "Censor Project" state by checking if Back Layer (Slot B) is "Censored Layer"
+        // (This name is hardcoded in applyCensor in main.js)
+        if (exportType === 'save') {
+             if (state.nameB === "Censored Layer") {
+                 payload.censor = true;
+                 hasContent = true;
+             }
+        }
+
         // Packet: Adjustments
-        // Logic: Stamp on Merged.
-        // Stamp on Front/Back IF they have adjustments baked.
-        // main.js: export options has `useBakedLayers: true` for merged/front (usually).
-        // Let's assume if exportType is 'front' or 'merged', we stamp adjustments if present.
-        // For 'back', adjustments are usually not applied in main app flow (unless user did logic I missed).
-        // Wait, main.js logic for Back render: `getLayerForRender` uses `useBakedLayers`.
-        // If Back Layer has its own adjustments (working copy B), they are baked.
-        // So yes, stamp for Back too if it has changes.
-        // Simplification: Always stamp adjustments if they exist and aren't default.
+        // Stamp on Merged, Front, Back, and Save.
         if (exportType !== 'mask') {
              const adj = getAdjustmentsPacket(state);
              if (adj) {
@@ -189,9 +191,6 @@ const Stego = (() => {
         }
 
         // Packet: Crop
-        // Always stamp if cropped, except maybe mask? (Mask usually exported as crop)
-        // If the image IS the crop, we should store the crop rect so we know where it came from relative to original?
-        // Yes.
         const crop = getCropPacket(state);
         if (crop) {
             payload.crop = crop;
@@ -199,24 +198,15 @@ const Stego = (() => {
         }
 
         // Packet: Mask
-        // Stamp on Merged and Mask exports.
-        if (exportType === 'merged' || exportType === 'mask') {
+        // Stamp on Merged, Mask, and Save exports.
+        // (Save needs mask history to restore the session)
+        if (exportType === 'merged' || exportType === 'mask' || exportType === 'save') {
             const maskActions = getMaskActions(history);
             if (maskActions) {
                 payload.mask = maskActions;
                 hasContent = true;
             }
         }
-
-        // Info always exists, but do we stamp if *only* info exists?
-        // User said: "only stamp on packets we have actual changes for."
-        // "if adjustments are all at default, don't stamp adjustments"
-        // But implied we might want Info always?
-        // "I just want to be able to, on load, determine if the image has been touched by our steganography system"
-        // This implies we should always stamp *something* if we are exporting from the system, to allow detection.
-        // But user also said "only stamp on packets we have actual changes for."
-        // Let's interpret "packets" as the data blocks. Info is metadata.
-        // I will always stamp the Info packet.
 
         return payload;
     }

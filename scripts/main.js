@@ -654,6 +654,8 @@
         }
 
         function updateWorkingCopiesAfterAdjustments() {
+            if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+            if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
             markAdjustmentsDirty();
             rebuildWorkingCopies();
         }

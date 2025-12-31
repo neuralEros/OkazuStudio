@@ -75,16 +75,15 @@
             const scale = Math.max(1, Math.floor((height * 0.016) / 5));
 
             // Text Config
-            // Removed spaces around bullets to prevent uneven gaps
-            // "FILE・DO" and "ALTER・"
-            const text = "OKAZUSTUDIO SAVE FILE・DO NOT ALTER・";
+            // "FILE ・ DO" and "ALTER ・ " (spaced bullets)
+            const text = "OKAZUSTUDIO SAVE FILE ・ DO NOT ALTER ・ ";
 
             const charWidth = (GLYPH_SIZE * scale);
             const spaceWidth = (SPACING * scale);
             const singleCharAdvance = charWidth + spaceWidth;
             const totalTextWidth = text.length * singleCharAdvance;
             const textHeight = GLYPH_SIZE * scale;
-            const lineSpacing = textHeight * 2; // "Double the distance" -> 100% gap
+            const lineSpacing = textHeight * 4; // Double the spacing (gap increases from 1xHeight to 3xHeight)
 
             // Rotation: ~20 degrees
             const angle = 20 * Math.PI / 180;

@@ -114,7 +114,8 @@
                 // Offset Odd Rows (Brick Pattern)
                 // Shift by half width
                 if (rowIndex % 2 !== 0) {
-                    x -= (totalTextWidth / 2);
+                    const brickOffset = (totalTextWidth / 2) * 2.5;
+                    x -= brickOffset;
                 }
 
                 // Fill the line

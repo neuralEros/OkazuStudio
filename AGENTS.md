@@ -20,6 +20,7 @@
 - **Rendering pipeline**: image load updates canvas dimensions, the render routine composites the front/back images through the mask with optional opacity, applies LUT-driven adjustments and color operations, and refreshes previews during slider drags. Snapshot history enables undo/redo of mask and adjustment changes.
 - **Exports & utilities**: export saves the adjusted composition as PNG; merge moves the visible composite into slot A; censor creates blurred/mosaicked background mask; clear/reset helpers wipe mask and adjustments.
 - **Watermark + Stego**: reversible watermarking uses a deterministic mask, and stego embedding skips watermark pixels so payloads remain readable even with visible watermark applied.
+  - Stego metadata now supports redundant headers with CRC checks (OKZ2) plus relaxed alpha thresholds and multi-region scans to improve restore reliability across browsers.
 
 ## Universal Coordinate System
 - **Height-Based Proportions**: All stored spatial data—including crop rectangles, brush strokes, polyline points, brush sizes, and feather radii—are normalized as **proportions of the uncropped image height** (0.0 to 1.0+). This ensures resolution independence, allowing mask history to be deterministically replayed even if the underlying image is swapped for a higher/lower resolution version or a different asset.

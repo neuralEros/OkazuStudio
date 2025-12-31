@@ -3004,7 +3004,7 @@
                         options.useBakedLayers = false;
                         options.renderBack = state.backVisible;
                         options.renderFront = true;
-                        options.applyMask = state.maskVisible;
+                        options.applyMask = false; // Do NOT bake mask into pixels. Mask is saved in metadata.
 
                         // Censor Project Special Case:
                         // If it is a Censor project (Back layer is 'Censored Layer'), the 'Save' export

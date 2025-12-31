@@ -68,24 +68,25 @@
             const tCtx = tempCanvas.getContext('2d');
 
             // 2. Configuration
-            // Scale: Text height = 4% of image height
+            // Scale: Reduced by 60% from previous 4% -> 1.6% of image height
             // Glyph is 5 units high.
-            // targetPx = height * 0.04
+            // targetPx = height * 0.016
             // scale = targetPx / 5
-            const scale = Math.max(1, Math.floor((height * 0.04) / 5));
+            const scale = Math.max(1, Math.floor((height * 0.016) / 5));
 
             // Text Config
-            // Symmetric spacing around bullets: "FILE ・ DO" and "ALTER ・ "
-            const text = "OKAZUSTUDIO SAVE FILE ・ DO NOT ALTER ・ ";
+            // Removed spaces around bullets to prevent uneven gaps
+            // "FILE・DO" and "ALTER・"
+            const text = "OKAZUSTUDIO SAVE FILE・DO NOT ALTER・";
 
             const charWidth = (GLYPH_SIZE * scale);
             const spaceWidth = (SPACING * scale);
             const singleCharAdvance = charWidth + spaceWidth;
             const totalTextWidth = text.length * singleCharAdvance;
             const textHeight = GLYPH_SIZE * scale;
-            const lineSpacing = textHeight * 2; // "Double the distance" -> 100% gap (line height + gap = 2x height)
+            const lineSpacing = textHeight * 2; // "Double the distance" -> 100% gap
 
-            // Rotation: Shallower (~20 degrees)
+            // Rotation: ~20 degrees
             const angle = 20 * Math.PI / 180;
 
             // 3. Draw Rotated & Tiled Text
@@ -97,7 +98,6 @@
             tCtx.rotate(angle);
 
             // Determine bounds to cover after rotation
-            // The diagonal of the image is the max distance we need to cover.
             const diag = Math.sqrt(width*width + height*height);
             const rangeX = diag * 1.2; // slight buffer
             const rangeY = diag * 1.2;
@@ -105,16 +105,18 @@
             let rowIndex = 0;
             // Draw from top to bottom
             for (let y = -rangeY; y < rangeY; y += lineSpacing) {
-                // Determine X Offset (Brick Pattern)
-                // Even rows: 0, Odd rows: width / 2
-                let startX = -rangeX;
-                if (rowIndex % 2 !== 0) {
-                    startX -= (totalTextWidth / 2);
-                }
+                // Determine X Start Position
+                // We calculate a base start position that is far to the left (-rangeX)
+                // but aligned to the text grid to ensure continuity.
 
-                // Align startX to grid to prevent gaps
-                const gridOffset = Math.floor(startX / totalTextWidth) * totalTextWidth;
-                let x = gridOffset;
+                // Base grid alignment (snap to totalTextWidth)
+                let x = Math.floor(-rangeX / totalTextWidth) * totalTextWidth;
+
+                // Offset Odd Rows (Brick Pattern)
+                // Shift by half width
+                if (rowIndex % 2 !== 0) {
+                    x -= (totalTextWidth / 2);
+                }
 
                 // Fill the line
                 while (x < rangeX) {

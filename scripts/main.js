@@ -13,12 +13,14 @@
 
         let hintTimer = null;
         function showHints() {
-            const legend = document.getElementById('hint-legend');
-            legend.style.opacity = '1';
-            if (hintTimer) clearTimeout(hintTimer);
-            hintTimer = setTimeout(() => {
-                legend.style.opacity = '0';
-            }, 3000);
+            const legend = state.isCropping ? document.getElementById('crop-hint-legend') : document.getElementById('hint-legend');
+            if (legend) {
+                legend.style.opacity = '1';
+                if (hintTimer) clearTimeout(hintTimer);
+                hintTimer = setTimeout(() => {
+                    legend.style.opacity = '0';
+                }, 3000);
+            }
         }
 
         const DEFAULT_BRUSH_SIZE = 0.1;
@@ -74,7 +76,8 @@
             fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
-            activeDrawerTab: null
+            activeDrawerTab: null,
+            cropRotation: 0
         };
 
         const els = {
@@ -799,6 +802,7 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(true); // Preserve view (don't reset crop)
                                          state.isCropping = false;
                                      }
@@ -852,6 +856,7 @@
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(true); // Preserve view
                                          state.isCropping = false;
                                      }
@@ -905,6 +910,7 @@
                                      // Apply Crop
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
+                                         state.cropRotation = payload.crop.rotation || 0;
                                          updateCanvasDimensions(); // Apply crop dims
                                      }
 
@@ -1551,6 +1557,24 @@
             targetCtx.save();
             applyRotation(targetCtx, w, h, state.rotation);
 
+            // Helpers for crop rotation transform
+            const useCropRotation = state.cropRotation !== 0;
+            const cx = sX + sW / 2;
+            const cy = sY + sH / 2;
+            const dx = drawW / 2;
+            const dy = drawH / 2;
+            const renderScale = drawW / sW; // Assuming uniform scaling
+
+            const applyCropTransform = (ctx) => {
+                if (!useCropRotation) return false;
+                ctx.save();
+                ctx.translate(dx, dy);
+                ctx.rotate(state.cropRotation * Math.PI / 180);
+                ctx.scale(renderScale, renderScale);
+                ctx.translate(-cx, -cy);
+                return true;
+            };
+
             // Special Render Modes (Mask Export)
             if (renderMode.startsWith('mask_')) {
                 // Background: White
@@ -1562,21 +1586,34 @@
                 const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
 
                 if (maskSource.width > 0 && maskSource.height > 0) {
+                    const transformed = applyCropTransform(targetCtx);
+
                     if (renderMode === 'mask_alpha') {
                         // Alpha Mode: Destination Out (Transparent where Masked)
                         targetCtx.globalCompositeOperation = 'destination-out';
-                        targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        if (transformed) {
+                             targetCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                        } else {
+                             targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        }
                     } else {
                          // Grayscale Mode: White Visible, Black Masked
                          // 1. Cut holes (Transparent) where mask exists
                          targetCtx.globalCompositeOperation = 'destination-out';
-                         targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                         if (transformed) {
+                             targetCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                         } else {
+                             targetCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                         }
+
+                         if (transformed) targetCtx.restore();
 
                          // 2. Fill holes with Black (Behind)
                          targetCtx.globalCompositeOperation = 'destination-over';
                          targetCtx.fillStyle = '#000000';
                          targetCtx.fillRect(0, 0, drawW, drawH);
                     }
+                    if (transformed && renderMode === 'mask_alpha') targetCtx.restore();
                 }
                 targetCtx.restore();
                 return;
@@ -1589,17 +1626,26 @@
                 targetCtx.globalAlpha = 1.0;
                 targetCtx.globalCompositeOperation = 'source-over';
 
+                const transformed = applyCropTransform(targetCtx);
+
                 const scale = state.fullDims.h / backImg.height;
                 const backW = backImg.width * scale;
                 const backH = state.fullDims.h;
                 const backX = (state.fullDims.w - backW) / 2;
 
-                const bSrcX = (sX - backX) / scale;
-                const bSrcY = sY / scale;
-                const bSrcW = sW / scale;
-                const bSrcH = sH / scale;
+                // If transformed: Draw Full Back Image, positioned at Union Origin
+                // applyCropTransform sets origin to (0,0) of Union Space (since cX, cY are in Union Space).
 
-                targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                if (transformed) {
+                    targetCtx.drawImage(backImg, backX, 0, backW, state.fullDims.h);
+                    targetCtx.restore();
+                } else {
+                    const bSrcX = (sX - backX) / scale;
+                    const bSrcY = sY / scale;
+                    const bSrcW = sW / scale;
+                    const bSrcH = sH / scale;
+                    targetCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                }
             }
 
             // Draw Front
@@ -1617,28 +1663,38 @@
 
                     fCtx.globalCompositeOperation = 'source-over';
 
+                    // Front Layer Transform
+                    const fTransformed = applyCropTransform(fCtx);
+
                     const frontScale = (state.fullDims.h / frontImg.height) || 1; // Visual Scale
                     const frontVisualW = frontImg.width * frontScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
-                    const fSrcX = (sX - frontOffX) / frontScale;
-                    const fSrcY = (sY - 0) / frontScale;
-                    const fSrcW = sW / frontScale;
-                    const fSrcH = sH / frontScale;
-
-                    // Render
-                    fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    if (fTransformed) {
+                        fCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                    } else {
+                        const fSrcX = (sX - frontOffX) / frontScale;
+                        const fSrcY = (sY - 0) / frontScale;
+                        const fSrcW = sW / frontScale;
+                        const fSrcH = sH / frontScale;
+                        fCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    }
 
                     if (applyMask) {
                         fCtx.globalCompositeOperation = 'destination-out';
                         const maskScale = state.isPreviewing && state.previewMaskCanvas ? (state.previewMaskScale || state.fastMaskScale || 1) : 1;
                         const maskSource = state.isPreviewing && state.previewMaskCanvas ? state.previewMaskCanvas : maskCanvas;
 
-                        // Guard against drawing 0-size mask source
                         if (maskSource.width > 0 && maskSource.height > 0) {
-                            fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                            if (fTransformed) {
+                                fCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                            } else {
+                                fCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                            }
                         }
                     }
+
+                    if (fTransformed) fCtx.restore();
 
                     targetCtx.globalCompositeOperation = 'source-over';
                     // Use forceOpacity for adjustments preview (so we see true pixels)
@@ -1734,23 +1790,47 @@
                 pCtx.save();
                 applyRotation(pCtx, pw, ph, state.rotation);
 
+            // Helpers for crop rotation transform (Preview Scaled)
+            const useCropRotation = state.cropRotation !== 0;
+            const cx = sX + sW / 2;
+            const cy = sY + sH / 2;
+            const dx = pDrawW / 2;
+            const dy = pDrawH / 2;
+            const renderScale = pDrawW / sW;
+
+            const applyPreviewCropTransform = (ctx) => {
+                if (!useCropRotation) return false;
+                ctx.save();
+                ctx.translate(dx, dy);
+                ctx.rotate(state.cropRotation * Math.PI / 180);
+                ctx.scale(renderScale, renderScale);
+                ctx.translate(-cx, -cy);
+                return true;
+            };
+
                 // Modified export logic: Only render back if state.backVisible is true
                 const shouldRenderBack = backImg && state.backVisible;
                 if (shouldRenderBack) {
                     pCtx.globalAlpha = 1.0;
                     pCtx.globalCompositeOperation = 'source-over';
 
+                const transformed = applyPreviewCropTransform(pCtx);
+
                     const scale = state.fullDims.h / backImg.height;
                     const backW = backImg.width * scale;
                     const backH = state.fullDims.h;
                     const backX = (state.fullDims.w - backW) / 2;
 
+                if (transformed) {
+                     pCtx.drawImage(backImg, backX, 0, backW, backH);
+                     pCtx.restore();
+                } else {
                     const bSrcX = (sX - backX) / scale;
                     const bSrcY = sY / scale;
                     const bSrcW = sW / scale;
                     const bSrcH = sH / scale;
-
                     pCtx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, pDrawW, pDrawH);
+                }
                 }
 
                 if (frontImg) {
@@ -1760,6 +1840,8 @@
                     }
                     frontLayerCtx.clearRect(0, 0, pDrawW, pDrawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
+
+                const fTransformed = applyPreviewCropTransform(frontLayerCtx);
 
                     // Fast Preview: Map Union-Space Crop to Source/Buffer Coordinates
                     // frontImg might be Source (Full Res) or Buffer (Downscaled)
@@ -1785,6 +1867,9 @@
                     const frontVisualW = frontImg.width / truthToBufferScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
+                if (fTransformed) {
+                     frontLayerCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                } else {
                     // 2. Map Crop Rect (sX...) to Buffer Source Rect
                     const fSrcX = (sX - frontOffX) * truthToBufferScale;
                     const fSrcY = (sY - 0) * truthToBufferScale; // Aligned Top
@@ -1792,6 +1877,7 @@
                     const fSrcH = sH * truthToBufferScale;
 
                     frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, pDrawW, pDrawH);
+                }
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1800,8 +1886,14 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pDrawW, pDrawH);
+                    if (fTransformed) {
+                         frontLayerCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                    } else {
+                         frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, pDrawW, pDrawH);
                     }
+                    }
+
+                if (fTransformed) frontLayerCtx.restore();
 
                     frontLayerCtx.globalCompositeOperation = 'source-over';
                     // Force opacity if only one layer
@@ -1820,6 +1912,24 @@
                 ctx.save();
                 applyRotation(ctx, cw, ch, state.rotation);
 
+                // Helpers for crop rotation transform
+                const useCropRotation = state.cropRotation !== 0;
+                const cx = sX + sW / 2;
+                const cy = sY + sH / 2;
+                const dx = drawW / 2;
+                const dy = drawH / 2;
+                const renderScale = drawW / sW;
+
+                const applyCropTransform = (c) => {
+                    if (!useCropRotation) return false;
+                    c.save();
+                    c.translate(dx, dy);
+                    c.rotate(state.cropRotation * Math.PI / 180);
+                    c.scale(renderScale, renderScale);
+                    c.translate(-cx, -cy);
+                    return true;
+                };
+
                 // 1. Draw Back
                 // Modified export logic: Only render back if state.backVisible is true
                 const shouldRenderBack = backImg && state.backVisible;
@@ -1828,18 +1938,24 @@
                     ctx.globalAlpha = 1.0;
                     ctx.globalCompositeOperation = 'source-over';
 
+                    const transformed = applyCropTransform(ctx);
+
                     const scale = state.fullDims.h / backImg.height;
                     const backW = backImg.width * scale;
                     const backH = state.fullDims.h;
                     const backX = (state.fullDims.w - backW) / 2;
 
-                    // Mapping crop rect to back image source rect
-                    const bSrcX = (sX - backX) / scale;
-                    const bSrcY = sY / scale;
-                    const bSrcW = sW / scale;
-                    const bSrcH = sH / scale;
-
-                    ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                    if (transformed) {
+                        ctx.drawImage(backImg, backX, 0, backW, backH);
+                        ctx.restore();
+                    } else {
+                        // Mapping crop rect to back image source rect
+                        const bSrcX = (sX - backX) / scale;
+                        const bSrcY = sY / scale;
+                        const bSrcW = sW / scale;
+                        const bSrcH = sH / scale;
+                        ctx.drawImage(backImg, bSrcX, bSrcY, bSrcW, bSrcH, 0, 0, drawW, drawH);
+                    }
                 }
 
                 // 2. Prepare Front Layer
@@ -1851,19 +1967,24 @@
                     frontLayerCtx.clearRect(0, 0, drawW, drawH);
                     frontLayerCtx.globalCompositeOperation = 'source-over';
 
+                    const fTransformed = applyCropTransform(frontLayerCtx);
+
                     // Render Front Image Centered in Union Dims
                     const frontScale = (state.fullDims.h / frontImg.height) || 1;
                     const frontVisualW = frontImg.width * frontScale;
                     const frontOffX = (state.fullDims.w - frontVisualW) / 2;
 
-                    // Map Crop Rect (sX...sH) to Front Image Source
-                    // sX/Y are in Union Pixels.
-                    const fSrcX = (sX - frontOffX) / frontScale;
-                    const fSrcY = (sY - 0) / frontScale;
-                    const fSrcW = sW / frontScale;
-                    const fSrcH = sH / frontScale;
-
-                    frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    if (fTransformed) {
+                         frontLayerCtx.drawImage(frontImg, frontOffX, 0, frontVisualW, state.fullDims.h);
+                    } else {
+                        // Map Crop Rect (sX...sH) to Front Image Source
+                        // sX/Y are in Union Pixels.
+                        const fSrcX = (sX - frontOffX) / frontScale;
+                        const fSrcY = (sY - 0) / frontScale;
+                        const fSrcW = sW / frontScale;
+                        const fSrcH = sH / frontScale;
+                        frontLayerCtx.drawImage(frontImg, fSrcX, fSrcY, fSrcW, fSrcH, 0, 0, drawW, drawH);
+                    }
 
                     let maskSource = maskCanvas;
                     if (state.isPreviewing && state.previewMaskCanvas) {
@@ -1872,8 +1993,14 @@
 
                     if (state.maskVisible) {
                         frontLayerCtx.globalCompositeOperation = 'destination-out';
-                        frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        if (fTransformed) {
+                             frontLayerCtx.drawImage(maskSource, 0, 0, maskSource.width / maskScale, maskSource.height / maskScale);
+                        } else {
+                             frontLayerCtx.drawImage(maskSource, sX * maskScale, sY * maskScale, sW * maskScale, sH * maskScale, 0, 0, drawW, drawH);
+                        }
                     }
+
+                    if (fTransformed) frontLayerCtx.restore();
 
                     // 3. Composite Front to Main
                     frontLayerCtx.globalCompositeOperation = 'source-over';
@@ -2001,6 +2128,15 @@
                 els.cropBtn.classList.add('active', 'text-yellow-400');
                 updateCanvasDimensions(true);
                 els.viewport.classList.add('cropping');
+
+                // Toggle legends
+                const stdLegend = document.getElementById('hint-legend');
+                const cropLegend = document.getElementById('crop-hint-legend');
+                if (stdLegend) stdLegend.style.display = 'none';
+                if (cropLegend) {
+                    cropLegend.style.display = '';
+                    cropLegend.style.opacity = '1';
+                }
             } else {
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
@@ -2010,6 +2146,12 @@
                     const r = state.cropRect;
                     Logger.info(`Crop mode exited: x=${r.x.toFixed(4)}, y=${r.y.toFixed(4)}, w=${r.w.toFixed(4)}, h=${r.h.toFixed(4)}`);
                 }
+
+                // Toggle legends
+                const stdLegend = document.getElementById('hint-legend');
+                const cropLegend = document.getElementById('crop-hint-legend');
+                if (stdLegend) stdLegend.style.display = '';
+                if (cropLegend) cropLegend.style.display = 'none';
             }
             resetView();
             render();
@@ -2756,6 +2898,9 @@
 
                  resetMaskOnly(); // Don't reset adjustments
 
+                 // Reset crop rotation after bake
+                 state.cropRotation = 0;
+
                  // Restore view state
                  state.isCropping = wasCropping;
                  if (!wasCropping) {
@@ -2829,6 +2974,9 @@
                 }
 
                 resetMaskOnly(); // Don't reset adjustments
+
+                // Reset crop rotation after bake
+                state.cropRotation = 0;
 
                 // Restore view
                 state.isCropping = wasCropping;
@@ -3127,6 +3275,7 @@
             // 8. Reset View
             resetView();
             state.rotation = 0;
+            state.cropRotation = 0;
 
             // 9. Update UI
             updateVisibilityToggles();

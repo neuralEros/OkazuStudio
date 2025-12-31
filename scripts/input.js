@@ -549,7 +549,17 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             return;
         }
 
-        if (state.isCropping) return;
+        if (state.isCropping) {
+            if (e.button === 0 && (e.ctrlKey || e.metaKey)) {
+                // Start Rotation Drag
+                state.cropDrag = {
+                    type: 'rotate',
+                    startX: e.clientX,
+                    startRotation: state.cropRotation
+                };
+            }
+            return;
+        }
 
         if (e.button === 0) {
             if (state.isCtrlPressed) {
@@ -670,57 +680,68 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             updateViewTransform();
             // Optional: updateCursorPos(e) if we want to redraw cursor, but it's hidden during zoom
         } else if (state.isCropping && state.cropDrag) {
-            const rect = els.viewport.getBoundingClientRect();
-            // Mouse in Visual Canvas Coords
-            const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
-            const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
-
-            const isRotated = state.rotation % 180 !== 0;
-            // Visual Dimensions (Swapped if rotated)
-            const visualFullW = isRotated ? state.fullDims.h : state.fullDims.w;
-            const visualFullH = isRotated ? state.fullDims.w : state.fullDims.h;
-
-            // Work with a Visual Rect
-            let newVisualRect = { ...state.cropDrag.startVisualRect };
-
-            if (state.cropDrag.type === 'box') {
-                const dx = mx - state.cropDrag.startX;
-                const dy = my - state.cropDrag.startY;
-
-                newVisualRect.x = Math.max(0, Math.min(visualFullW - newVisualRect.w, newVisualRect.x + dx));
-                newVisualRect.y = Math.max(0, Math.min(visualFullH - newVisualRect.h, newVisualRect.y + dy));
+            if (state.cropDrag.type === 'rotate') {
+                // Rotation Logic: X-Axis Drag
+                const dx = e.clientX - state.cropDrag.startX;
+                // Sensitivity: 0.5 degrees per pixel
+                let newRot = state.cropDrag.startRotation + (dx * 0.5);
+                // Wrap to -180 to 180
+                // newRot = ((newRot + 180) % 360) - 180; // Optional, but usually simple angle is fine
+                state.cropRotation = newRot;
+                render();
             } else {
-                const h = state.cropDrag.h;
+                const rect = els.viewport.getBoundingClientRect();
+                // Mouse in Visual Canvas Coords
+                const mx = (e.clientX - rect.left - state.view.x) / state.view.scale;
+                const my = (e.clientY - rect.top - state.view.y) / state.view.scale;
 
-                // Visual Resizing Logic
-                if (h.includes('e')) newVisualRect.w = Math.max(10, Math.min(visualFullW - newVisualRect.x, mx - newVisualRect.x));
-                if (h.includes('s')) newVisualRect.h = Math.max(10, Math.min(visualFullH - newVisualRect.y, my - newVisualRect.y));
+                const isRotated = state.rotation % 180 !== 0;
+                // Visual Dimensions (Swapped if rotated)
+                const visualFullW = isRotated ? state.fullDims.h : state.fullDims.w;
+                const visualFullH = isRotated ? state.fullDims.w : state.fullDims.h;
 
-                if (h.includes('w')) {
-                    const oldR = newVisualRect.x + newVisualRect.w;
-                    newVisualRect.x = Math.min(mx, oldR - 10);
-                    newVisualRect.x = Math.max(0, newVisualRect.x);
-                    newVisualRect.w = oldR - newVisualRect.x;
+                // Work with a Visual Rect
+                let newVisualRect = { ...state.cropDrag.startVisualRect };
+
+                if (state.cropDrag.type === 'box') {
+                    const dx = mx - state.cropDrag.startX;
+                    const dy = my - state.cropDrag.startY;
+
+                    newVisualRect.x = Math.max(0, Math.min(visualFullW - newVisualRect.w, newVisualRect.x + dx));
+                    newVisualRect.y = Math.max(0, Math.min(visualFullH - newVisualRect.h, newVisualRect.y + dy));
+                } else {
+                    const h = state.cropDrag.h;
+
+                    // Visual Resizing Logic
+                    if (h.includes('e')) newVisualRect.w = Math.max(10, Math.min(visualFullW - newVisualRect.x, mx - newVisualRect.x));
+                    if (h.includes('s')) newVisualRect.h = Math.max(10, Math.min(visualFullH - newVisualRect.y, my - newVisualRect.y));
+
+                    if (h.includes('w')) {
+                        const oldR = newVisualRect.x + newVisualRect.w;
+                        newVisualRect.x = Math.min(mx, oldR - 10);
+                        newVisualRect.x = Math.max(0, newVisualRect.x);
+                        newVisualRect.w = oldR - newVisualRect.x;
+                    }
+
+                    if (h.includes('n')) {
+                        const oldB = newVisualRect.y + newVisualRect.h;
+                        newVisualRect.y = Math.min(my, oldB - 10);
+                        newVisualRect.y = Math.max(0, newVisualRect.y);
+                        newVisualRect.h = oldB - newVisualRect.y;
+                    }
                 }
 
-                if (h.includes('n')) {
-                    const oldB = newVisualRect.y + newVisualRect.h;
-                    newVisualRect.y = Math.min(my, oldB - 10);
-                    newVisualRect.y = Math.max(0, newVisualRect.y);
-                    newVisualRect.h = oldB - newVisualRect.y;
-                }
+                // Convert back to Truth Space for state (TruthPixels -> TruthProps)
+                const truthPx = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
+                state.cropRect = {
+                    x: truthPx.x / state.fullDims.h,
+                    y: truthPx.y / state.fullDims.h,
+                    w: truthPx.w / state.fullDims.h,
+                    h: truthPx.h / state.fullDims.h
+                };
+                render();
+                forceCropHandleUpdate();
             }
-
-            // Convert back to Truth Space for state (TruthPixels -> TruthProps)
-            const truthPx = visualToTruthRect(newVisualRect, state.rotation, state.fullDims.w, state.fullDims.h);
-            state.cropRect = {
-                x: truthPx.x / state.fullDims.h,
-                y: truthPx.y / state.fullDims.h,
-                w: truthPx.w / state.fullDims.h,
-                h: truthPx.h / state.fullDims.h
-            };
-            render();
-            forceCropHandleUpdate();
         } else if (state.isDrawing) {
             addFastStrokePoint(coords);
 

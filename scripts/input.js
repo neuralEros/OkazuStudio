@@ -903,14 +903,26 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.cropRect.w = startRect.w * factor;
                 state.cropRect.h = startRect.h * factor;
 
-                // Maintain Center
+                // Maintain Image Center (Grow/Shrink in place)
+                // Pivot around Image Center in Truth Space
+                const imageCx = (fullW / fullH) / 2;
+                const imageCy = 0.5;
+
                 // Start Center in Truth
                 const startCx = startRect.x + startRect.w / 2;
                 const startCy = startRect.y + startRect.h / 2;
 
-                // Apply new W/H centered at Start Center
-                state.cropRect.x = startCx - state.cropRect.w / 2;
-                state.cropRect.y = startCy - state.cropRect.h / 2;
+                // Scale the distance vector from Image Center to Crop Center
+                // Dist(New) = Dist(Start) * factor
+                const distCx = startCx - imageCx;
+                const distCy = startCy - imageCy;
+
+                const newCx = imageCx + distCx * factor;
+                const newCy = imageCy + distCy * factor;
+
+                // Apply new W/H centered at New Center
+                state.cropRect.x = newCx - state.cropRect.w / 2;
+                state.cropRect.y = newCy - state.cropRect.h / 2;
 
                 // Inverse View Scale to keep visual size constant
                 // New Crop Size (Truth) = Start * Factor

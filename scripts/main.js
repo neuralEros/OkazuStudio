@@ -17,9 +17,13 @@
             if (legend) {
                 legend.style.opacity = '1';
                 if (hintTimer) clearTimeout(hintTimer);
-                hintTimer = setTimeout(() => {
-                    legend.style.opacity = '0';
-                }, 3000);
+
+                // Only auto-hide standard legend. Crop legend stays persistent.
+                if (!state.isCropping) {
+                    hintTimer = setTimeout(() => {
+                        legend.style.opacity = '0';
+                    }, 3000);
+                }
             }
         }
 
@@ -3093,16 +3097,19 @@
                 for (const job of jobs) {
                     // Config for this job
                     let targetW, targetH, currentResTag;
+                    const originalRotation = state.cropRotation; // Capture
 
                     if (job.type === 'save') {
                         targetW = projW;
                         targetH = projH;
                         state.cropRect = projRect;
+                        state.cropRotation = 0; // Disable rotation for save to preserve raw pixels
                         currentResTag = 'full';
                     } else {
                         targetW = stdW;
                         targetH = stdH;
                         state.cropRect = userCropRect;
+                        // state.cropRotation remains active for baked exports
                         currentResTag = stdResTag;
                     }
 
@@ -3162,9 +3169,10 @@
                     // Render
                     renderToContext(expCtx, targetW, targetH, options);
 
-                    // Restore User Crop IMMEDIATELY after render, so metadata (assembled next) is correct
+                    // Restore User Crop & Rotation IMMEDIATELY after render, so metadata (assembled next) is correct
                     if (job.type === 'save') {
                         state.cropRect = userCropRect;
+                        state.cropRotation = originalRotation;
                     }
 
                     // Steganography Stamping (PNG Only)

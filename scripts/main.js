@@ -1479,6 +1479,7 @@
             showHints();
             updateWorkspaceLabel();
             updateVisibilityToggles();
+            updateAllAdjustmentUI();
             updateUI();
         }
 

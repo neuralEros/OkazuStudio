@@ -1200,7 +1200,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 updateCursorStyle();
                 const now = Date.now();
                 if (now - state.lastSpaceUp < 250) {
-                    if (state.isCropping) state.cropRotation = 0;
+                    if (state.isCropping && state.cropRotation !== 0) {
+                        state.cropRotation = 0;
+                        render();
+                    }
                     resetView();
                 }
             }

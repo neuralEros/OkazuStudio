@@ -742,14 +742,22 @@
 
         async function loadLayerWithSmartSlotting(source, name) {
              bakeRotation();
+             const sourceType = (source instanceof Blob) ? 'File' : 'URL';
+             Logger.info(`[SmartLoad] Init '${name}'. SourceType: ${sourceType}. Kakushi: ${!!window.kakushi}, Watermark: ${!!window.Watermark}`);
+
              log(`Loading ${name}...`, "info");
              try {
                  const img = await loadImageSource(source);
+                 Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
+
                  const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
                  const maskData = watermarkMask ? watermarkMask.data : null;
 
                  // Steganography Detection (Active Interception)
+                 Logger.info("[SmartLoad] Attempting Standard Peek...");
                  let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
+                 Logger.info(`[SmartLoad] Standard Peek Result: ${isStego}`);
+
                  let cleanImg = img;
 
                  // Fallback: Check for Watermark Interference
@@ -768,12 +776,19 @@
                          // Update source to the clean version
                          cleanImg = await loadImageSource(tempCanvas.toDataURL());
                          log("Detected and removed watermark.", "info");
+                         Logger.info("[SmartLoad] Detected and removed watermark (Peek success after blind removal).");
                      }
                  }
 
                  if (isStego) {
                      try {
                          const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
+
+                         if (result.headerFound && !result.secret) {
+                             log("Detected save file, but data is corrupt/incompatible.", "error");
+                             // Fall through to load as standard image
+                         }
+
                          if (result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
@@ -2515,6 +2530,7 @@
         function loadImageSource(source) {
             return new Promise((resolve, reject) => {
                 if (source instanceof Blob) {
+                    if (window.Logger) Logger.info(`[LoadImageSource] Loading Blob: ${source.type}, ${source.size} bytes`);
                     const url = URL.createObjectURL(source);
                     const img = new Image();
                     img.onload = () => {

@@ -35,8 +35,29 @@
     const GLYPH_SIZE = 5;
     const SPACING = 2; // base spacing
 
-    function drawText(ctx, text, x, y, scale) {
-        let curX = x;
+    // Helper: Manual 2D Rotation
+    // Rotates point (x,y) around (cx, cy) by angle (radians)
+    function rotatePoint(x, y, cx, cy, sin, cos) {
+        // Translate to origin
+        const dx = x - cx;
+        const dy = y - cy;
+
+        // Rotate
+        const rx = dx * cos - dy * sin;
+        const ry = dx * sin + dy * cos;
+
+        // Translate back and round to nearest integer for deterministic pixel grid
+        return {
+            x: Math.round(rx + cx),
+            y: Math.round(ry + cy)
+        };
+    }
+
+    function drawTextRotated(ctx, text, startX, startY, scale, cx, cy, sin, cos) {
+        let curX = startX;
+        // Optimization: Pre-calculate scaled size
+        const scaledSize = scale; // 1x1 block scaled
+
         for (let i = 0; i < text.length; i++) {
             const char = text[i].toUpperCase();
             const glyph = FONT[char] || FONT[' '];
@@ -44,12 +65,23 @@
             for (let row = 0; row < GLYPH_SIZE; row++) {
                 for (let col = 0; col < GLYPH_SIZE; col++) {
                     if (glyph[row * GLYPH_SIZE + col]) {
-                        ctx.fillRect(
-                            curX + (col * scale),
-                            y + (row * scale),
-                            scale,
-                            scale
-                        );
+                        // Original unrotated coordinates (top-left of the pixel block)
+                        const px = curX + (col * scale);
+                        const py = startY + (row * scale);
+
+                        // Rotate the position of this block
+                        const p = rotatePoint(px, py, cx, cy, sin, cos);
+
+                        // Draw the block at the rotated position
+                        // Note: We are drawing axis-aligned rectangles at rotated coordinates.
+                        // This approximates rotation for small blocks (like pixels) without anti-aliasing.
+                        // Since 'scale' might be > 1, we are technically rotating the GRID, but drawing squares.
+                        // For a pure pixel-art rotation, we should rotate the center of the block.
+                        // Ideally, we'd rotate all 4 corners and fill, but that re-introduces anti-aliasing via canvas fill.
+                        // To remain deterministic, we must stick to integer rects.
+                        // Valid strategy: Rotate the top-left corner, draw an axis-aligned rect.
+                        // This introduces a "staircase" effect which is fine for a mask/watermark style.
+                        ctx.fillRect(p.x, p.y, scaledSize, scaledSize);
                     }
                 }
             }
@@ -59,22 +91,15 @@
 
     function buildMaskCanvas(width, height) {
         // 1. Setup Scaled Buffer
-        // We draw to a temporary canvas matching the target dimensions
-        // so we can apply global binarization (thresholding) at the end.
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = width;
         tempCanvas.height = height;
         const tCtx = tempCanvas.getContext('2d');
 
         // 2. Configuration
-        // Scale: Reduced by 60% from previous 4% -> 1.6% of image height
-        // Glyph is 5 units high.
-        // targetPx = height * 0.016
-        // scale = targetPx / 5
         const scale = Math.max(1, Math.floor((height * 0.016) / 5));
 
         // Text Config
-        // "FILE ・ DO" and "ALTER ・ " (spaced bullets)
         const text = "OKAZUSTUDIO SAVE FILE ・ DO NOT ALTER ・ ";
 
         const charWidth = (GLYPH_SIZE * scale);
@@ -82,36 +107,29 @@
         const singleCharAdvance = charWidth + spaceWidth;
         const totalTextWidth = text.length * singleCharAdvance;
         const textHeight = GLYPH_SIZE * scale;
-        const lineSpacing = textHeight * 4; // Double the spacing (gap increases from 1xHeight to 3xHeight)
+        const lineSpacing = textHeight * 4;
 
         // Rotation: ~20 degrees
         const angle = 20 * Math.PI / 180;
+        const sin = Math.sin(angle);
+        const cos = Math.cos(angle);
+        const cx = width / 2;
+        const cy = height / 2;
 
-        // 3. Draw Rotated & Tiled Text
+        // 3. Draw Rotated & Tiled Text Manually
         tCtx.fillStyle = '#FFFFFF';
-        tCtx.save();
 
-        // Rotate around center
-        tCtx.translate(width / 2, height / 2);
-        tCtx.rotate(angle);
-
-        // Determine bounds to cover after rotation
+        // Determine bounds to cover
         const diag = Math.sqrt(width*width + height*height);
-        const rangeX = diag * 1.2; // slight buffer
+        const rangeX = diag * 1.2;
         const rangeY = diag * 1.2;
 
         let rowIndex = 0;
-        // Draw from top to bottom
+        // Draw from top to bottom (simulated rotated grid)
         for (let y = -rangeY; y < rangeY; y += lineSpacing) {
-            // Determine X Start Position
-            // We calculate a base start position that is far to the left (-rangeX)
-            // but aligned to the text grid to ensure continuity.
-
-            // Base grid alignment (snap to totalTextWidth)
             let x = Math.floor(-rangeX / totalTextWidth) * totalTextWidth;
 
-            // Offset Odd Rows (Brick Pattern)
-            // Shift by half width
+            // Offset Odd Rows
             if (rowIndex % 2 !== 0) {
                 const brickOffset = (totalTextWidth / 2) * 2.5;
                 x -= brickOffset;
@@ -119,16 +137,15 @@
 
             // Fill the line
             while (x < rangeX) {
-                drawText(tCtx, text, x, y, scale);
+                // Manually rotate each glyph block
+                drawTextRotated(tCtx, text, x, y, scale, cx, cy, sin, cos);
                 x += totalTextWidth;
             }
             rowIndex++;
         }
 
-        tCtx.restore();
-
-        // 4. Binarize (Threshold) to ensure Reversibility
-        // Remove anti-aliasing artifacts from rotation
+        // 4. Binarize (Threshold)
+        // Even with integer coordinates, we ensure strict binary alpha just in case
         const imageData = tCtx.getImageData(0, 0, width, height);
         const data = imageData.data;
         for (let i = 0; i < data.length; i += 4) {

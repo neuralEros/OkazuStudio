@@ -2521,7 +2521,7 @@
             syncBrushUIToActive();
             const hardness = Math.round(100 - (state.feather / HARDNESS_MAX * 100));
             Logger.info(`Brush mode switched: ${mode}`, {
-                sizePercent: Number(state.brushPercent.toFixed(1)),
+                sizePercent: Number((state.brushSize * 100).toFixed(1)),
                 hardnessPercent: hardness,
                 featherMode: state.featherMode
             });

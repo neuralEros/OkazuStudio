@@ -243,14 +243,36 @@ const kakushi = (() => {
         const encoder = new TextEncoder();
         const input = encoder.encode(str);
         const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
-        return new Uint8Array(await new Response(stream).arrayBuffer());
+        return readStream(stream);
     }
 
     async function decompressString(compressedBytes) {
         const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-        const decompressed = await new Response(stream).arrayBuffer();
+        const decompressed = await readStream(stream);
         const decoder = new TextDecoder();
         return decoder.decode(decompressed);
+    }
+
+    async function readStream(stream) {
+        const reader = stream.getReader();
+        const chunks = [];
+        let totalLength = 0;
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            totalLength += value.length;
+        }
+
+        const combined = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of chunks) {
+            combined.set(chunk, offset);
+            offset += chunk.length;
+        }
+
+        return combined;
     }
 
     return {

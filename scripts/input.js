@@ -1039,7 +1039,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
             const delta = -Math.sign(e.deltaY) * 0.2;
-            setBrushPercent(state.brushPercent + delta);
+            setBrushPercent(state.brushSize + delta);
             return;
         }
         const zoomSpeed = 0.1;
@@ -1206,7 +1206,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             if (e.key === '[' || e.key === ']') {
                 const step = e.repeat ? 0.4 : 0.2;
                 const delta = e.key === '[' ? -step : step;
-                setBrushPercent(state.brushPercent + delta);
+                setBrushPercent(state.brushSize + delta);
             }
             if (!e.repeat && !state.isCropping && !e.ctrlKey && !e.metaKey) {
                 if (e.key === '1') setBrushMode('erase');

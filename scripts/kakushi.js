@@ -2,6 +2,18 @@ const kakushi = (() => {
     const MAGIC = new Uint8Array([0x4f, 0x4b, 0x5a, 0x31]); // "OKZ1"
     const HEADER_BYTES = 8; // 4 bytes Magic + 4 bytes Length
 
+    function log(msg) {
+        if (window.Logger && window.Logger.info) {
+            window.Logger.info(`[Kakushi] ${msg}`);
+        } else {
+            console.log(`[Kakushi] ${msg}`);
+        }
+    }
+
+    function toHex(uint8arr) {
+        return Array.from(uint8arr).map(b => '0x' + b.toString(16).toUpperCase().padStart(2, '0')).join(' ');
+    }
+
     /**
      * Checks if the image contains the Kakushi signature.
      * Scans the image for the first contiguous block of opaque pixels to find the header.
@@ -12,16 +24,26 @@ const kakushi = (() => {
         try {
             const w = source.naturalWidth || source.width;
             const h = source.naturalHeight || source.height;
+            log(`Peek scanning image: ${w}x${h}`);
+
             const ctx = getContextForReading(source, w, h);
-            if (!ctx) return false;
+            if (!ctx) {
+                log("Peek failed: Could not get context");
+                return false;
+            }
 
             const imageData = ctx.getImageData(0, 0, w, h);
             const mask = normalizeMask(options, imageData.data.length);
             const headerBytes = extractBytes(imageData.data, HEADER_BYTES, mask);
 
-            return hasMagic(headerBytes);
+            log(`Peek read header bytes: ${toHex(headerBytes)}`);
+            const found = hasMagic(headerBytes);
+            log(`Peek result: ${found ? 'FOUND at offset 0' : 'NOT FOUND'}`);
+
+            return found;
         } catch (e) {
             console.error("Kakushi peek failed:", e);
+            log(`Peek error: ${e.message}`);
             return false;
         }
     }
@@ -34,7 +56,9 @@ const kakushi = (() => {
      * @returns {Promise<HTMLCanvasElement>} The laced canvas.
      */
     async function seal(source, secret, options = {}) {
+        log(`Seal started. Payload length: ${secret.length} chars`);
         const compressed = await compressString(secret);
+        log(`Compressed payload: ${compressed.length} bytes`);
 
         const header = new Uint8Array(HEADER_BYTES);
         header.set(MAGIC, 0);
@@ -66,13 +90,16 @@ const kakushi = (() => {
 
         const bitsNeeded = payload.length * 8;
         const pixelsNeeded = Math.ceil(bitsNeeded / 3);
+        log(`Capacity check: Need ${pixelsNeeded} pixels, have ${opaquePixels} opaque pixels.`);
 
         if (pixelsNeeded > opaquePixels) {
+            log(`Seal failed: Payload too large (Need ${pixelsNeeded}, Have ${opaquePixels})`);
             throw new Error(`Payload too large: need ${pixelsNeeded} opaque pixels, have ${opaquePixels}`);
         }
 
         embedBytes(data, payload, mask);
         ctx.putImageData(imageData, 0, 0);
+        log("Seal complete: Payload embedded.");
 
         return canvas;
     }
@@ -83,6 +110,7 @@ const kakushi = (() => {
      * @returns {Promise<{ cleanImage: HTMLCanvasElement, secret: string|null, headerFound: boolean, error: string|null }>}
      */
     async function reveal(source, options = {}) {
+        log("Reveal started.");
         const canvas = document.createElement('canvas');
         const w = source.naturalWidth || source.width;
         const h = source.naturalHeight || source.height;
@@ -99,13 +127,17 @@ const kakushi = (() => {
         const headerBytes = extractBytes(data, HEADER_BYTES, mask);
 
         if (!hasMagic(headerBytes)) {
+            log(`Reveal: Header NOT found. First bytes: ${toHex(headerBytes)}`);
             return { cleanImage: canvas, secret: null, headerFound: false, error: null };
         }
+        log("Reveal: Header found at offset 0.");
 
         const view = new DataView(headerBytes.buffer);
         const payloadLength = view.getUint32(4, false);
+        log(`Reveal: Payload Length ${payloadLength} bytes.`);
 
         if (payloadLength === 0) {
+             log("Reveal: Empty payload.");
              sanitizeRegion(data, HEADER_BYTES * 8, mask);
              ctx.putImageData(imageData, 0, 0);
              return { cleanImage: canvas, secret: "", headerFound: true, error: null };
@@ -116,6 +148,8 @@ const kakushi = (() => {
 
         // Extract Full Payload
         const fullBytes = extractBytes(data, totalBytes, mask);
+        log(`Reveal: Extracted ${fullBytes.length} bytes.`);
+
         const compressedPayload = fullBytes.slice(HEADER_BYTES);
 
         sanitizeRegion(data, bitsNeeded, mask);
@@ -123,9 +157,14 @@ const kakushi = (() => {
 
         try {
             const secret = await decompressString(compressedPayload);
+            log(`Reveal: Decompression successful (${secret.length} chars).`);
             return { cleanImage: canvas, secret, headerFound: true, error: null };
         } catch (e) {
             console.error("Decompression failed:", e);
+            log(`Reveal error: Decompression failed - ${e.message}`);
+            // Log a sample of the compressed payload for debugging
+            const sample = toHex(compressedPayload.slice(0, 16));
+            log(`Reveal: Compressed payload sample (first 16 bytes): ${sample}`);
             return { cleanImage: canvas, secret: null, headerFound: true, error: e.message };
         }
     }

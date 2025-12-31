@@ -105,12 +105,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     function resetView() {
         if (!state.imgA && !state.imgB) return;
 
-        // Reset Rotation in Crop Mode
-        if (state.isCropping) {
-            state.cropRotation = 0;
-            render();
-        }
-
         const vpW = els.viewport.clientWidth;
         const vpH = els.viewport.clientHeight;
         const cW = els.mainCanvas.width;
@@ -1049,7 +1043,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.isSpacePressed = true;
                 updateCursorStyle();
                 const now = Date.now();
-                if (now - state.lastSpaceUp < 250) resetView();
+                if (now - state.lastSpaceUp < 250) {
+                    if (state.isCropping) state.cropRotation = 0;
+                    resetView();
+                }
             }
             if ((e.ctrlKey || e.metaKey) && !e.repeat && !state.isCropping) {
                 state.isCtrlPressed = true;

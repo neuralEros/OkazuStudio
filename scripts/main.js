@@ -1802,8 +1802,18 @@
             const dy = pDrawH / 2;
             const renderScale = pDrawW / sW;
 
+            // Apply CSS rotation for display, Context rotation for export
+            if (useCropRotation && !finalOutput && state.isCropping) {
+                els.previewCanvas.style.transform = `rotate(${state.cropRotation}deg)`;
+            } else {
+                els.previewCanvas.style.transform = '';
+            }
+
             const applyPreviewCropTransform = (ctx) => {
+                // If not final output (display), skip context rotation because we use CSS
                 if (!useCropRotation) return false;
+                if (!finalOutput && state.isCropping) return false;
+
                 ctx.save();
                 ctx.translate(dx, dy);
                 ctx.rotate(state.cropRotation * Math.PI / 180);
@@ -1924,8 +1934,18 @@
                 const dy = drawH / 2;
                 const renderScale = drawW / sW;
 
+                // Apply CSS rotation for display, Context rotation for export
+                if (useCropRotation && !finalOutput && state.isCropping) {
+                    els.mainCanvas.style.transform = `rotate(${state.cropRotation}deg)`;
+                } else {
+                    els.mainCanvas.style.transform = '';
+                }
+
                 const applyCropTransform = (c) => {
+                    // If not final output (display), skip context rotation because we use CSS
                     if (!useCropRotation) return false;
+                    if (!finalOutput && state.isCropping) return false;
+
                     c.save();
                     c.translate(dx, dy);
                     c.rotate(state.cropRotation * Math.PI / 180);

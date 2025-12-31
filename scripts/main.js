@@ -738,9 +738,31 @@
                  const img = await loadImageSource(source);
 
                  // Steganography Detection (Active Interception)
-                 if (window.kakushi && window.kakushi.peek(img)) {
+                 let isStego = window.kakushi && window.kakushi.peek(img);
+                 let cleanImg = img;
+
+                 // Fallback: Check for Watermark Interference
+                 if (!isStego && window.Watermark && window.kakushi) {
+                     const tempCanvas = document.createElement('canvas');
+                     tempCanvas.width = img.width;
+                     tempCanvas.height = img.height;
+                     const tCtx = tempCanvas.getContext('2d');
+                     tCtx.drawImage(img, 0, 0);
+
+                     // Attempt blind removal (XOR)
+                     window.Watermark.checkAndRemove(tempCanvas);
+
+                     if (window.kakushi.peek(tempCanvas)) {
+                         isStego = true;
+                         // Update source to the clean version
+                         cleanImg = await loadImageSource(tempCanvas.toDataURL());
+                         log("Detected and removed watermark.", "info");
+                     }
+                 }
+
+                 if (isStego) {
                      try {
-                         const result = await window.kakushi.reveal(img);
+                         const result = await window.kakushi.reveal(cleanImg);
                          if (result.secret) {
                              const payload = JSON.parse(result.secret);
                              const info = payload.info || {};
@@ -785,7 +807,7 @@
                                      resetMaskOnly();
 
                                      // Load Base (img is the decoded Image object)
-                                     assignLayer(img, 'A', "Base Layer");
+                                     assignLayer(cleanImg, 'A', "Base Layer");
 
                                      // Generate Censor Layer (Slot B)
                                      await generateCensorLayer();
@@ -842,7 +864,7 @@
                                      resetMaskOnly();
                                      resetAllAdjustments();
 
-                                     assignLayer(img, 'A', "Restored Project");
+                                     assignLayer(cleanImg, 'A', "Restored Project");
 
                                      if (payload.adjustments) {
                                          state.adjustments = payload.adjustments;
@@ -936,7 +958,7 @@
 
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                      return;
                  }
 
@@ -957,7 +979,7 @@
                          return;
                      }
 
-                     assignLayer(img, choice, name);
+                     assignLayer(cleanImg, choice, name);
                      return;
                  }
 
@@ -982,10 +1004,10 @@
                      if (window.dispatchAction) dispatchAction({ type: 'SWAP_LAYERS', payload: {} });
 
                      // Now Load New into A
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                  } else {
                      // B is loaded. A is empty. Load into A.
-                     assignLayer(img, 'A', name);
+                     assignLayer(cleanImg, 'A', name);
                  }
              } catch(e) {
                  log("Failed to load image: " + e.message);
@@ -3023,10 +3045,26 @@
                     if (format === 'image/png' && window.Stego && window.kakushi) {
                          try {
                              const payload = window.Stego.assemblePayload(state, window.ActionHistory, job.type);
+
+                             // Watermark Injection for Save Files
+                             if (job.type === 'save' && window.Watermark) {
+                                 payload.watermarked = true;
+                             }
+
                              if (payload) {
                                  const json = JSON.stringify(payload);
                                  finalCanvas = await window.kakushi.seal(exportCanvas, json);
                                  Logger.info(`[Stego] Stamped ${job.type} payload (${json.length} chars)`);
+
+                                 // Apply Visible Watermark (Reversible)
+                                 // We apply this AFTER sealing so the stego data is buried in the pixels,
+                                 // and the watermark inverts those pixels (MSB+LSB).
+                                 // Restoration requires reversing watermark -> then reading stego.
+                                 if (job.type === 'save' && window.Watermark) {
+                                     const wCtx = finalCanvas.getContext('2d');
+                                     window.Watermark.apply(wCtx, finalCanvas.width, finalCanvas.height);
+                                     Logger.info(`[Watermark] Applied reversible watermark to save file`);
+                                 }
                              }
                          } catch (err) {
                              Logger.error("[Stego] Failed to stamp image", err);

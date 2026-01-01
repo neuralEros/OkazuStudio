@@ -555,6 +555,35 @@
             }
         }
 
+        function rotatePoint(p, cx, cy, angleDeg) {
+            if (angleDeg === 0) return { ...p };
+            const rad = angleDeg * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const dx = p.x - cx;
+            const dy = p.y - cy;
+            return {
+                x: cx + (dx * cos - dy * sin),
+                y: cy + (dx * sin + dy * cos)
+            };
+        }
+
+        function truthToVisualPoint(p, rotation, fullW, fullH) {
+            if (rotation === 0) return { ...p };
+            if (rotation === 90) return { x: fullH - p.y, y: p.x };
+            if (rotation === 180) return { x: fullW - p.x, y: fullH - p.y };
+            if (rotation === 270) return { x: p.y, y: fullW - p.x };
+            return { ...p };
+        }
+
+        function visualToTruthPoint(p, rotation, fullW, fullH) {
+            if (rotation === 0) return { ...p };
+            if (rotation === 90) return { x: p.y, y: fullH - p.x };
+            if (rotation === 180) return { x: fullW - p.x, y: fullH - p.y };
+            if (rotation === 270) return { x: fullW - p.y, y: p.x };
+            return { ...p };
+        }
+
         function rebuildPreviewLayerForSlot(slot, allowFullResWork = true) {
             if (!allowFullResWork) return;
             if (state.settings.brushPreviewResolution === 'Full') return; // Skip preview buffer if Full
@@ -2324,8 +2353,9 @@
         function acceptCrop() {
             if (!state.isCropping) return;
             state.cropRectSnapshot = null;
+            trimCropRectToImageBounds();
             const finalRect = { ...state.cropRect };
-            toggleCropMode();
+            toggleCropMode({ applyAutoTrim: false });
             if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: finalRect } });
         }
 
@@ -2336,10 +2366,10 @@
             }
             state.cropRectSnapshot = null;
             state.cropDrag = null;
-            toggleCropMode();
+            toggleCropMode({ applyAutoTrim: false });
         }
 
-        function toggleCropMode() {
+        function toggleCropMode({ applyAutoTrim = true } = {}) {
             if (!canDraw()) return;
 
             // Remove clamping logic to allow cropRect to be outside bounds (e.g. for rotated composition)
@@ -2370,6 +2400,9 @@
                     cropLegend.style.opacity = '1';
                 }
             } else {
+                if (applyAutoTrim) {
+                    trimCropRectToImageBounds();
+                }
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
                 updateCanvasDimensions(true);
@@ -2388,6 +2421,93 @@
             resetView();
             render();
             updateUI(); // disable other tools
+        }
+
+        function trimCropRectToImageBounds() {
+            if (!state.cropRect) return;
+            const fullH = state.fullDims.h || 0;
+            const fullW = state.fullDims.w || 0;
+            if (!fullW || !fullH) return;
+
+            const cropRectPx = {
+                x: state.cropRect.x * fullH,
+                y: state.cropRect.y * fullH,
+                w: state.cropRect.w * fullH,
+                h: state.cropRect.h * fullH
+            };
+            const baseRotation = state.rotation;
+            const isBaseRotated = baseRotation % 180 !== 0;
+            const visualFullW = isBaseRotated ? fullH : fullW;
+            const visualFullH = isBaseRotated ? fullW : fullH;
+            const visualCx = visualFullW / 2;
+            const visualCy = visualFullH / 2;
+
+            const corners = [
+                { x: 0, y: 0 },
+                { x: fullW, y: 0 },
+                { x: fullW, y: fullH },
+                { x: 0, y: fullH }
+            ].map((corner) => {
+                const base = truthToVisualPoint(corner, baseRotation, fullW, fullH);
+                return rotatePoint(base, visualCx, visualCy, state.cropRotation);
+            });
+
+            let minX = corners[0].x;
+            let maxX = corners[0].x;
+            let minY = corners[0].y;
+            let maxY = corners[0].y;
+            for (let i = 1; i < corners.length; i++) {
+                minX = Math.min(minX, corners[i].x);
+                maxX = Math.max(maxX, corners[i].x);
+                minY = Math.min(minY, corners[i].y);
+                maxY = Math.max(maxY, corners[i].y);
+            }
+
+            const cropCx = cropRectPx.x + cropRectPx.w / 2;
+            const cropCy = cropRectPx.y + cropRectPx.h / 2;
+            const baseCenter = truthToVisualPoint({ x: cropCx, y: cropCy }, baseRotation, fullW, fullH);
+            const visualCenter = rotatePoint(baseCenter, visualCx, visualCy, state.cropRotation);
+
+            const visualW = isBaseRotated ? cropRectPx.h : cropRectPx.w;
+            const visualH = isBaseRotated ? cropRectPx.w : cropRectPx.h;
+            const visualRect = {
+                x: visualCenter.x - visualW / 2,
+                y: visualCenter.y - visualH / 2,
+                w: visualW,
+                h: visualH
+            };
+
+            const cropMinX = visualRect.x;
+            const cropMaxX = visualRect.x + visualRect.w;
+            const cropMinY = visualRect.y;
+            const cropMaxY = visualRect.y + visualRect.h;
+            const epsilon = 0.25;
+
+            let newMinX = cropMinX;
+            let newMaxX = cropMaxX;
+            let newMinY = cropMinY;
+            let newMaxY = cropMaxY;
+
+            if (cropMinX < minX - epsilon) newMinX = minX;
+            if (cropMaxX > maxX + epsilon) newMaxX = maxX;
+            if (cropMinY < minY - epsilon) newMinY = minY;
+            if (cropMaxY > maxY + epsilon) newMaxY = maxY;
+
+            const newW = Math.max(0.001, newMaxX - newMinX);
+            const newH = Math.max(0.001, newMaxY - newMinY);
+            const newVisualCenter = { x: newMinX + newW / 2, y: newMinY + newH / 2 };
+            const baseCenterOut = rotatePoint(newVisualCenter, visualCx, visualCy, -state.cropRotation);
+            const newTruthCenter = visualToTruthPoint(baseCenterOut, baseRotation, fullW, fullH);
+
+            const truthW = isBaseRotated ? newH : newW;
+            const truthH = isBaseRotated ? newW : newH;
+
+            state.cropRect = {
+                x: (newTruthCenter.x - truthW / 2) / fullH,
+                y: (newTruthCenter.y - truthH / 2) / fullH,
+                w: truthW / fullH,
+                h: truthH / fullH
+            };
         }
 
         function resizeMainCanvas(w, h) {

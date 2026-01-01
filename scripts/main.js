@@ -1343,6 +1343,8 @@
             initAdjustments();
             initDrawerSync();
 
+            window.addEventListener('resize', checkResolutionOverlap);
+
             // Drawer Logging
             if (els.adjDrawer) els.adjDrawer.addEventListener('mouseenter', () => Logger.info("Drawer Opened: Adjustments"));
             if (els.adjDrawer) els.adjDrawer.addEventListener('mouseleave', () => Logger.info("Drawer Closed: Adjustments"));

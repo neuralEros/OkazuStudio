@@ -2409,10 +2409,21 @@
                 maxY = Math.max(maxY, corners[i].y);
             }
 
-            const cropMinX = cropRectPx.x;
-            const cropMaxX = cropRectPx.x + cropRectPx.w;
-            const cropMinY = cropRectPx.y;
-            const cropMaxY = cropRectPx.y + cropRectPx.h;
+            const cropCx = cropRectPx.x + cropRectPx.w / 2;
+            const cropCy = cropRectPx.y + cropRectPx.h / 2;
+            const visualCenter = rotatePoint({ x: cropCx, y: cropCy }, imgCx, imgCy, state.cropRotation);
+
+            const visualRect = {
+                x: visualCenter.x - cropRectPx.w / 2,
+                y: visualCenter.y - cropRectPx.h / 2,
+                w: cropRectPx.w,
+                h: cropRectPx.h
+            };
+
+            const cropMinX = visualRect.x;
+            const cropMaxX = visualRect.x + visualRect.w;
+            const cropMinY = visualRect.y;
+            const cropMaxY = visualRect.y + visualRect.h;
             const epsilon = 0.25;
 
             let newMinX = cropMinX;
@@ -2427,9 +2438,12 @@
 
             const newW = Math.max(0.001, newMaxX - newMinX);
             const newH = Math.max(0.001, newMaxY - newMinY);
+            const newVisualCenter = { x: newMinX + newW / 2, y: newMinY + newH / 2 };
+            const newTruthCenter = rotatePoint(newVisualCenter, imgCx, imgCy, -state.cropRotation);
+
             state.cropRect = {
-                x: newMinX / fullH,
-                y: newMinY / fullH,
+                x: (newTruthCenter.x - newW / 2) / fullH,
+                y: (newTruthCenter.y - newH / 2) / fullH,
                 w: newW / fullH,
                 h: newH / fullH
             };

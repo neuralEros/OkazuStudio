@@ -78,6 +78,11 @@
         getLog() {
             return this.actions;
         }
+
+        clear() {
+            this.actions = [];
+            this.cursor = -1;
+        }
     }
 
     // --- Keyframe Manager ---
@@ -272,6 +277,13 @@
             }
 
             // Update UI State (Undo/Redo buttons)
+            if (this.updateUI) this.updateUI();
+        }
+
+        clear() {
+            this.history.clear();
+            this.keyframeManager.keyframes.clear();
+            this.keyframeManager.saveKeyframe(-1);
             if (this.updateUI) this.updateUI();
         }
 
@@ -470,6 +482,11 @@
 
                              this.state.cropRect = { x: propX, y: 0, w: propW, h: 1.0 };
                              this.state.rotation = 0;
+
+                             // Apply adjustments if present in payload (Smart Restore)
+                             if (payload.adjustments) {
+                                 this.state.adjustments = JSON.parse(JSON.stringify(payload.adjustments));
+                             }
                         } else if (type === 'MERGE_LAYERS') {
                              // Merge clears B
                              this.state.assetIdB = null;

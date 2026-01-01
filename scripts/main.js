@@ -838,17 +838,10 @@
                                      resetMaskOnly();
 
                                      // Load Base (img is the decoded Image object)
-                                     assignLayer(decodedImg, 'A', "Base Layer");
+                                     assignLayer(decodedImg, 'A', "Base Layer", { adjustments: payload.adjustments });
 
                                      // Generate Censor Layer (Slot B)
                                      await generateCensorLayer();
-
-                                     // Apply Metadata
-                                     if (payload.adjustments) {
-                                         state.adjustments = payload.adjustments;
-                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
-                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
-                                     }
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
@@ -897,13 +890,7 @@
                                      resetMaskOnly();
                                      resetAllAdjustments();
 
-                                     assignLayer(decodedImg, 'A', "Restored Save");
-
-                                     if (payload.adjustments) {
-                                         state.adjustments = payload.adjustments;
-                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
-                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
-                                     }
+                                     assignLayer(decodedImg, 'A', "Restored Save", { adjustments: payload.adjustments });
 
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
@@ -2485,6 +2472,7 @@
         }
 
         function updateVisibilityToggles() {
+            if (typeof syncBrushUIToActive === 'function') syncBrushUIToActive();
             const maskHidden = !state.maskVisible;
             els.toggleMaskBtn.classList.toggle('bg-accent-dark', maskHidden);
             els.toggleMaskBtn.classList.toggle('border-accent-strong', maskHidden);
@@ -2559,7 +2547,7 @@
             });
         }
 
-        function assignLayer(img, slot, name) {
+        function assignLayer(img, slot, name, options = {}) {
              // Check if this is the first image being loaded (both slots previously empty)
              const wasEmpty = !state.imgA && !state.imgB;
 
@@ -2587,6 +2575,14 @@
                 updateLoadButton(els.btnB, truncate(name), "back");
                 els.btnB.classList.add('border-accent-strong', 'text-accent');
              }
+
+             // Apply initial adjustments if provided (e.g. from Save File) to ensure they are baked into history
+             if (options.adjustments) {
+                 state.adjustments = options.adjustments;
+                 if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                 if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+             }
+
              markAdjustmentsDirty();
              rebuildWorkingCopies();
 
@@ -2629,7 +2625,10 @@
              render();
              updateUI();
 
-             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload: { slot, name, width: img.width, height: img.height, assetId } });
+             const payload = { slot, name, width: img.width, height: img.height, assetId };
+             if (options.adjustments) payload.adjustments = options.adjustments;
+
+             if (window.dispatchAction) dispatchAction({ type: 'LOAD_IMAGE', payload });
         }
 
         function handleFileLoad(file, slot) {

@@ -214,7 +214,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: absP.x / fullH, y: absP.y / fullH };
     }
 
-    function enforceCropView(maintainScale = false) {
+    function enforceCropView(maintainScale = false, recenter = false) {
         if (!state.cropRect || !state.fullDims.w) return;
 
         // Calculate Visual Size of Crop Box
@@ -294,12 +294,14 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             cropCy = rotatedCenter.y;
         }
 
-        // Viewport Center
-        const vpCx = els.viewport.clientWidth / 2;
-        const vpCy = els.viewport.clientHeight / 2;
+        if (recenter) {
+            // Viewport Center
+            const vpCx = els.viewport.clientWidth / 2;
+            const vpCy = els.viewport.clientHeight / 2;
 
-        state.view.x = vpCx - cropCx * state.view.scale;
-        state.view.y = vpCy - cropCy * state.view.scale;
+            state.view.x = vpCx - cropCx * state.view.scale;
+            state.view.y = vpCy - cropCy * state.view.scale;
+        }
 
         updateViewTransform();
     }
@@ -308,7 +310,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (!state.imgA && !state.imgB) return;
 
         if (state.isCropping) {
-            enforceCropView(false);
+            enforceCropView(false, true);
             return;
         }
 
@@ -944,7 +946,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
             if (state.cropDrag.type === 'rotate') {
                 state.cropRotation = startRotation + (dxScreen * 0.5);
-                enforceCropView(true);
+                enforceCropView(true, false);
                 render();
             }
             else if (state.cropDrag.type === 'pan') {
@@ -972,7 +974,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const newTruth = visualToTruthRect(baseVisual, state.rotation, fullW, fullH);
                 state.cropRect = { x: newTruth.x / fullH, y: newTruth.y / fullH, w: newTruth.w / fullH, h: newTruth.h / fullH };
 
-                enforceCropView(true);
+                enforceCropView(true, false);
                 render();
             }
             else if (state.cropDrag.type === 'scale') {
@@ -1065,7 +1067,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.cropRect = { x: newTruth.x / fullH, y: newTruth.y / fullH, w: newTruth.w / fullH, h: newTruth.h / fullH };
 
                 // Auto-Fit (Recalculate Scale)
-                enforceCropView(false);
+                enforceCropView(false, false);
                 render();
                 forceCropHandleUpdate();
             }
@@ -1240,7 +1242,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             // Just update scale and re-enforce center
             const minScale = getCropMinScale();
             state.view.scale = Math.max(newScale, minScale);
-            enforceCropView(true);
+            enforceCropView(true, false);
         } else {
             // Standard Zoom (Mouse Position Anchored)
             const rect = els.viewport.getBoundingClientRect();

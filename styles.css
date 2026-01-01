@@ -509,7 +509,7 @@
 
         .bottom-toolbar {
             min-height: 36px;
-            width: 45%;
+            width: fit-content;
         }
         .bottom-toolbar-tab {
             font-size: 15px;

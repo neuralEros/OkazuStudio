@@ -83,6 +83,7 @@
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null,
             mode: 'master',
+            activeToolbarMode: 'master',
             cropRotation: 0
         };
 
@@ -117,9 +118,9 @@
             workspaceResolution: document.getElementById('workspace-resolution'),
             colorTuningDrawer: document.getElementById('drawer-tools'),
             verticalToolbox: document.getElementById('vertical-toolbox'),
-            modeMaster: document.getElementById('modeMaster'),
-            modeCensor: document.getElementById('modeCensor'),
-            modeComposite: document.getElementById('modeComposite')
+            toolbarMaster: document.getElementById('toolbar-master'),
+            toolbarCensor: document.getElementById('toolbar-censor'),
+            toolbarComposite: document.getElementById('toolbar-composite')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -128,33 +129,49 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
         let replayEngine = null;
+        let toolbarSwitchTimer = null;
+        const TOOLBAR_SWITCH_MS = 180;
+
+        function switchToolbar(mode) {
+            const toolbars = {
+                master: els.toolbarMaster,
+                censor: els.toolbarCensor,
+                composite: els.toolbarComposite
+            };
+            const current = toolbars[state.activeToolbarMode];
+            const next = toolbars[mode];
+            if (!next || current === next) return;
+            if (toolbarSwitchTimer) {
+                clearTimeout(toolbarSwitchTimer);
+                toolbarSwitchTimer = null;
+            }
+            if (current) {
+                current.classList.add('is-hidden');
+                current.setAttribute('aria-hidden', 'true');
+            }
+            toolbarSwitchTimer = setTimeout(() => {
+                next.classList.remove('is-hidden');
+                next.removeAttribute('aria-hidden');
+                state.activeToolbarMode = mode;
+                toolbarSwitchTimer = null;
+            }, TOOLBAR_SWITCH_MS);
+        }
 
         function setAppMode(mode) {
             if (!mode) return;
             state.mode = mode;
             document.body.classList.toggle('mode-non-master', mode !== 'master');
             setFeatherMode(mode === 'censor');
-            const modeButtons = [
-                { mode: 'master', el: els.modeMaster },
-                { mode: 'censor', el: els.modeCensor },
-                { mode: 'composite', el: els.modeComposite }
-            ];
-            modeButtons.forEach(({ mode: buttonMode, el }) => {
-                if (!el) return;
-                el.classList.toggle('active', buttonMode === mode);
+            switchToolbar(mode);
+            document.querySelectorAll('.mode-tab').forEach((el) => {
+                el.classList.toggle('active', el.dataset.mode === mode);
             });
         }
 
         function bindModeSwitcher() {
-            if (els.modeMaster) {
-                els.modeMaster.addEventListener('click', () => setAppMode('master'));
-            }
-            if (els.modeCensor) {
-                els.modeCensor.addEventListener('click', () => setAppMode('censor'));
-            }
-            if (els.modeComposite) {
-                els.modeComposite.addEventListener('click', () => setAppMode('composite'));
-            }
+            document.querySelectorAll('.mode-tab').forEach((el) => {
+                el.addEventListener('click', () => setAppMode(el.dataset.mode));
+            });
             setAppMode(state.mode);
         }
 

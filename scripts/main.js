@@ -26,6 +26,7 @@
                 }
             }
         }
+        window.checkResolutionOverlap = checkResolutionOverlap;
 
         const DEFAULT_BRUSH_SIZE = 0.1;
         const DEFAULT_FEATHER = 1;
@@ -113,7 +114,8 @@
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
             workspaceResolution: document.getElementById('workspace-resolution'),
-            colorTuningDrawer: document.getElementById('drawer-tools')
+            colorTuningDrawer: document.getElementById('drawer-tools'),
+            verticalToolbox: document.getElementById('vertical-toolbox')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -1670,6 +1672,30 @@
             updateUI();
         }
 
+        function checkResolutionOverlap() {
+            if (!els.workspaceResolution || els.workspaceResolution.style.display === 'none') return;
+
+            // Reset to check natural position overlap
+            els.workspaceResolution.style.transform = '';
+
+            const resRect = els.workspaceResolution.getBoundingClientRect();
+            if (!els.verticalToolbox) return;
+            const boxRect = els.verticalToolbox.getBoundingClientRect();
+
+            // Check vertical overlap
+            // Toolbox is fixed width on left. Resolution is on left.
+            const overlapsVertically = (boxRect.bottom > resRect.top) && (boxRect.top < resRect.bottom);
+
+            if (overlapsVertically) {
+                // Check horizontal overlap
+                const overlapsHorizontally = (boxRect.right > resRect.left);
+
+                if (overlapsHorizontally) {
+                    els.workspaceResolution.style.transform = `translateX(${boxRect.width}px)`;
+                }
+            }
+        }
+
         function updateWorkspaceLabel() {
             if (!els.workspaceResolution) return;
             if (!canDraw()) {
@@ -1679,6 +1705,7 @@
 
             els.workspaceResolution.textContent = `${els.mainCanvas.width}×${els.mainCanvas.height}`;
             els.workspaceResolution.style.display = '';
+            checkResolutionOverlap();
         }
 
         // --- Core Rendering & Helper ---

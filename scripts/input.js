@@ -1276,6 +1276,12 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function attachCropHandlers() {
         const handles = document.querySelectorAll('.crop-handle');
+        const startViewPan = (e) => {
+            state.isPanning = true;
+            state.lastPanX = e.clientX;
+            state.lastPanY = e.clientY;
+            updateCursorStyle();
+        };
 
         const getVisualStartRect = () => {
             const fullH = state.fullDims.h;
@@ -1337,13 +1343,26 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
         els.cropBox.addEventListener('pointerdown', (e) => {
             if (e.target !== els.cropBox) return;
+            if (state.isSpacePressed || e.button === 1) {
+                startViewPan(e);
+                return;
+            }
             initDrag(e, getDragType(e));
         });
 
         const dimmer = document.getElementById('backdrop-dimmer');
         if (dimmer) {
             dimmer.addEventListener('pointerdown', (e) => {
-                initDrag(e, getDragType(e));
+                if (state.isSpacePressed || e.button === 1) {
+                    startViewPan(e);
+                    return;
+                }
+                const dragType = getDragType(e);
+                if (dragType === 'pan') {
+                    startViewPan(e);
+                    return;
+                }
+                initDrag(e, dragType);
             });
         }
     }

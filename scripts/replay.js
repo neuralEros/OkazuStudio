@@ -289,6 +289,16 @@
             }
         }
 
+        clear() {
+            this.history.actions = [];
+            this.history.cursor = -1;
+            this.keyframeManager.keyframes.clear();
+            this.keyframeManager.saveKeyframe(-1);
+            if (typeof this.updateUI === 'function') {
+                this.updateUI();
+            }
+        }
+
         async replayTo(targetIndex) {
             const startTime = performance.now();
             const log = this.history.getLog();
@@ -671,6 +681,9 @@
                 case 'TOGGLE_MASK': this.state.maskVisible = payload.visible; break;
                 case 'TOGGLE_BACK': this.state.backVisible = payload.visible; break;
                 case 'TOGGLE_ADJUSTMENTS': this.state.adjustmentsVisible = payload.visible; break;
+                case 'RESTORE_ADJUSTMENTS':
+                    this.state.adjustments = JSON.parse(JSON.stringify(payload.adjustments || this.getCleanAdjustments()));
+                    break;
             }
         }
 

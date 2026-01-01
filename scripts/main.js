@@ -747,6 +747,20 @@
 
              log(`Loading ${name}...`, "info");
              try {
+                 const applyAndLogAction = (action) => {
+                     if (!replayEngine) return;
+                     replayEngine.applyAction(action.type, action.payload);
+                     replayEngine.logAction(action);
+                 };
+
+                 const logRestoreAdjustments = (adjustments) => {
+                     if (!replayEngine || !adjustments) return;
+                     replayEngine.logAction({
+                         type: 'RESTORE_ADJUSTMENTS',
+                         payload: { adjustments: JSON.parse(JSON.stringify(adjustments)) }
+                     });
+                 };
+
                  const img = await loadImageSource(source);
                  Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
 
@@ -810,7 +824,7 @@
                                      resetMaskOnly();
                                      if (payload.mask && Array.isArray(payload.mask)) {
                                          payload.mask.forEach(action => {
-                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                             applyAndLogAction(action);
                                          });
                                      }
                                      render();
@@ -848,6 +862,7 @@
                                          state.adjustments = payload.adjustments;
                                          if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
                                          if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                         logRestoreAdjustments(payload.adjustments);
                                      }
 
                                      if (payload.crop) {
@@ -865,7 +880,7 @@
                                          try {
                                              resetMaskOnly();
                                              payload.mask.forEach(action => {
-                                                 if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                                 applyAndLogAction(action);
                                              });
                                          } finally {
                                              els.loadingOverlay.classList.add('hidden');
@@ -903,6 +918,7 @@
                                          state.adjustments = payload.adjustments;
                                          if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
                                          if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                         logRestoreAdjustments(payload.adjustments);
                                      }
 
                                      if (payload.crop) {
@@ -918,7 +934,7 @@
                                          try {
                                              resetMaskOnly();
                                              payload.mask.forEach(action => {
-                                                 if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                                 applyAndLogAction(action);
                                              });
                                          } finally {
                                              els.loadingOverlay.classList.add('hidden');
@@ -957,6 +973,7 @@
                                          // Trigger LUT regeneration for Color Tuning
                                          if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
                                          if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                         logRestoreAdjustments(payload.adjustments);
                                      }
 
                                      // Apply Crop
@@ -970,7 +987,7 @@
                                      if (payload.mask && Array.isArray(payload.mask)) {
                                          resetMaskOnly();
                                          payload.mask.forEach(action => {
-                                             if (replayEngine) replayEngine.applyAction(action.type, action.payload);
+                                             applyAndLogAction(action);
                                          });
                                      }
 
@@ -2361,6 +2378,7 @@
                 'RESET_TUNING_BAND': 'Reset Band',
                 'RESET_TUNING_ALL': 'Reset All Tuning',
                 'SET_OPACITY': 'Opacity Change',
+                'RESTORE_ADJUSTMENTS': 'Restore Adjustments',
                 'TOGGLE_MASK': 'Toggle Mask',
                 'TOGGLE_BACK': 'Toggle Back Layer',
                 'TOGGLE_ADJUSTMENTS': 'Toggle Adjustments'
@@ -2482,6 +2500,7 @@
 
             updateWorkspaceLabel();
             updateVisibilityToggles();
+            syncBrushUIToActive();
         }
 
         function updateVisibilityToggles() {

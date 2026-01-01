@@ -1179,7 +1179,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (!canDraw()) return;
         e.preventDefault();
         if (e.ctrlKey || e.metaKey) {
-            const delta = -Math.sign(e.deltaY) * 0.2;
+            const delta = -Math.sign(e.deltaY) * 0.02;
             setBrushPercent(state.brushSize + delta);
             return;
         }
@@ -1383,7 +1383,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 startPreviewLoop();
             }
             if (e.key === '[' || e.key === ']') {
-                const step = e.repeat ? 0.4 : 0.2;
+                const step = e.repeat ? 0.04 : 0.02;
                 const delta = e.key === '[' ? -step : step;
                 setBrushPercent(state.brushSize + delta);
             }
@@ -1393,8 +1393,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 if (e.key === '3') setBrushMode('patch');
             }
             if ((e.ctrlKey || e.metaKey) && !state.isCropping) {
-                if (e.key === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-                else if (e.key === 'y') { e.preventDefault(); redo(); }
+                if (e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z') {
+                    e.preventDefault();
+                    e.shiftKey ? redo() : undo();
+                } else if (e.code === 'KeyY' || e.key === 'y' || e.key === 'Y') {
+                    e.preventDefault();
+                    redo();
+                }
             }
             if (state.isCropping) {
                 if (e.key === 'Enter') {

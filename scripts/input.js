@@ -749,54 +749,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             return;
         }
 
-        // Crop Mode Interaction (Priority over Standard Zoom)
-        if (state.isCropping) {
-            if (e.button === 0) {
-                // Determine drag type based on modifiers
-                // Matches logic in attachCropHandlers getDragType
-                let type = 'pan';
-                if (e.ctrlKey || e.metaKey) type = 'rotate';
-                else if (e.shiftKey) type = 'scale';
-
-                const getVisualStartRect = () => {
-                    const fullH = state.fullDims.h;
-                    const fullW = state.fullDims.w;
-                    const truthRectPx = {
-                        x: state.cropRect.x * fullH,
-                        y: state.cropRect.y * fullH,
-                        w: state.cropRect.w * fullH,
-                        h: state.cropRect.h * fullH
-                    };
-                    const baseVisual = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
-                    const isRotated = state.rotation % 180 !== 0;
-                    const visualFullW = isRotated ? fullH : fullW;
-                    const visualFullH = isRotated ? fullW : fullH;
-                    const cx = baseVisual.x + baseVisual.w / 2;
-                    const cy = baseVisual.y + baseVisual.h / 2;
-                    const canvasCx = visualFullW / 2;
-                    const canvasCy = visualFullH / 2;
-                    const newCenter = rotatePoint({x: cx, y: cy}, canvasCx, canvasCy, state.cropRotation);
-                    return {
-                        x: newCenter.x - baseVisual.w / 2,
-                        y: newCenter.y - baseVisual.h / 2,
-                        w: baseVisual.w,
-                        h: baseVisual.h
-                    };
-                };
-
-                state.cropDrag = {
-                    type: type,
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    startView: { ...state.view },
-                    startCropRect: { ...state.cropRect },
-                    startRotation: state.cropRotation,
-                    startVisualRect: getVisualStartRect(),
-                    originTruth: getCropPivot(e)
-                };
-            }
-            return;
-        }
+        // Crop Mode Interaction (handled by crop overlay elements)
+        if (state.isCropping) return;
 
         if (e.shiftKey && e.button === 0) {
             state.isZooming = true;
@@ -952,8 +906,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             else if (state.cropDrag.type === 'pan') {
                 // Pan Image = Move CropRect in Opposite Direction
                 // Delta in Canvas Pixels (Start Scale)
-                const dxCanvas = -dxScreen / startView.scale;
-                const dyCanvas = -dyScreen / startView.scale;
+                const dxCanvas = dxScreen / startView.scale;
+                const dyCanvas = dyScreen / startView.scale;
 
                 // Rotate Delta into Base Visual Space (inverse of Start Rotation)
                 const rotRad = startRotation * Math.PI / 180;
@@ -1238,11 +1192,19 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const newScale = Math.max(0.01, Math.min(50, state.view.scale * (1 + delta)));
 
         if (state.isCropping) {
-            // Crop Mode: Zoom = Scale Viewport around Center (Crop Box stays centered)
-            // Just update scale and re-enforce center
+            // Crop Mode: Zoom around cursor
+            const rect = els.viewport.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const canvasX = (mouseX - state.view.x) / state.view.scale;
+            const canvasY = (mouseY - state.view.y) / state.view.scale;
             const minScale = getCropMinScale();
-            state.view.scale = Math.max(newScale, minScale);
-            enforceCropView(true, false);
+            const nextScale = Math.max(newScale, minScale);
+
+            state.view.scale = nextScale;
+            state.view.x = mouseX - canvasX * nextScale;
+            state.view.y = mouseY - canvasY * nextScale;
+            updateViewTransform();
         } else {
             // Standard Zoom (Mouse Position Anchored)
             const rect = els.viewport.getBoundingClientRect();

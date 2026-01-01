@@ -750,7 +750,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
 
         // Crop Mode Interaction (handled by crop overlay elements)
-        if (state.isCropping) return;
+        if (state.isCropping) {
+            if (e.button === 0 && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+                const type = (e.ctrlKey || e.metaKey) ? 'rotate' : 'scale';
+                startCropDrag(e, type);
+            }
+            return;
+        }
 
         if (e.shiftKey && e.button === 0) {
             state.isZooming = true;
@@ -1274,6 +1280,51 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: tx, y: ty, w: tw, h: th };
     }
 
+    function getVisualStartRect() {
+        const fullH = state.fullDims.h;
+        const fullW = state.fullDims.w;
+        const truthRectPx = {
+            x: state.cropRect.x * fullH,
+            y: state.cropRect.y * fullH,
+            w: state.cropRect.w * fullH,
+            h: state.cropRect.h * fullH
+        };
+        // 1. Get Base Visual Rect (Standard Rotation)
+        const baseVisual = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
+
+        // 2. Apply Crop Rotation to Center
+        const isRotated = state.rotation % 180 !== 0;
+        const visualFullW = isRotated ? fullH : fullW;
+        const visualFullH = isRotated ? fullW : fullH;
+        const cx = baseVisual.x + baseVisual.w / 2;
+        const cy = baseVisual.y + baseVisual.h / 2;
+        const canvasCx = visualFullW / 2;
+        const canvasCy = visualFullH / 2;
+
+        const newCenter = rotatePoint({x: cx, y: cy}, canvasCx, canvasCy, state.cropRotation);
+
+        return {
+            x: newCenter.x - baseVisual.w / 2,
+            y: newCenter.y - baseVisual.h / 2,
+            w: baseVisual.w,
+            h: baseVisual.h
+        };
+    }
+
+    function startCropDrag(e, type, extra = {}) {
+        state.cropDrag = {
+            type,
+            startX: e.clientX,
+            startY: e.clientY,
+            startView: { ...state.view },
+            startCropRect: { ...state.cropRect },
+            startRotation: state.cropRotation,
+            startVisualRect: getVisualStartRect(),
+            originTruth: getCropPivot(e),
+            ...extra
+        };
+    }
+
     function attachCropHandlers() {
         const handles = document.querySelectorAll('.crop-handle');
         const startViewPan = (e) => {
@@ -1281,52 +1332,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             state.lastPanX = e.clientX;
             state.lastPanY = e.clientY;
             updateCursorStyle();
-        };
-
-        const getVisualStartRect = () => {
-            const fullH = state.fullDims.h;
-            const fullW = state.fullDims.w;
-            const truthRectPx = {
-                x: state.cropRect.x * fullH,
-                y: state.cropRect.y * fullH,
-                w: state.cropRect.w * fullH,
-                h: state.cropRect.h * fullH
-            };
-            // 1. Get Base Visual Rect (Standard Rotation)
-            const baseVisual = truthToVisualRect(truthRectPx, state.rotation, fullW, fullH);
-
-            // 2. Apply Crop Rotation to Center
-            const isRotated = state.rotation % 180 !== 0;
-            const visualFullW = isRotated ? fullH : fullW;
-            const visualFullH = isRotated ? fullW : fullH;
-            const cx = baseVisual.x + baseVisual.w / 2;
-            const cy = baseVisual.y + baseVisual.h / 2;
-            const canvasCx = visualFullW / 2;
-            const canvasCy = visualFullH / 2;
-
-            const newCenter = rotatePoint({x: cx, y: cy}, canvasCx, canvasCy, state.cropRotation);
-
-            return {
-                x: newCenter.x - baseVisual.w / 2,
-                y: newCenter.y - baseVisual.h / 2,
-                w: baseVisual.w,
-                h: baseVisual.h
-            };
-        };
-
-        const initDrag = (e, type, extra = {}) => {
-            e.stopPropagation();
-            state.cropDrag = {
-                type: type,
-                startX: e.clientX,
-                startY: e.clientY,
-                startView: { ...state.view },
-                startCropRect: { ...state.cropRect },
-                startRotation: state.cropRotation,
-                startVisualRect: getVisualStartRect(),
-                originTruth: getCropPivot(e),
-                ...extra
-            };
         };
 
         const getDragType = (e) => {
@@ -1337,7 +1342,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
         handles.forEach(h => {
             h.addEventListener('pointerdown', (e) => {
-                initDrag(e, 'handle', { h: h.dataset.handle });
+                e.stopPropagation();
+                startCropDrag(e, 'handle', { h: h.dataset.handle });
             });
         });
 
@@ -1347,7 +1353,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 startViewPan(e);
                 return;
             }
-            initDrag(e, getDragType(e));
+            e.stopPropagation();
+            startCropDrag(e, getDragType(e));
         });
 
         const dimmer = document.getElementById('backdrop-dimmer');
@@ -1362,7 +1369,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     startViewPan(e);
                     return;
                 }
-                initDrag(e, dragType);
+                e.stopPropagation();
+                startCropDrag(e, dragType);
             });
         }
     }

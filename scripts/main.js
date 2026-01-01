@@ -905,15 +905,17 @@
                                  }
 
                                  // Standard Project Save
-                                 const choice = await showModal(
-                                     "Load Save?",
-                                     "This is a Save file. Restore original workspace or load as image?",
-                                     [
-                                         { label: "Restore Save", value: 'project' },
-                                         { label: "Load Image", value: 'image' }
-                                     ],
-                                     true
-                                 );
+                                 const choice = hasImages
+                                     ? await showModal(
+                                         "Load Save?",
+                                         "This is a Save file. Restore original workspace or load as image?",
+                                         [
+                                             { label: "Restore Save", value: 'project' },
+                                             { label: "Load Image", value: 'image' }
+                                         ],
+                                         true
+                                     )
+                                     : 'project';
 
                                  if (choice === 'project') {
                                      // Clear Workspace

@@ -771,291 +771,299 @@
              els.btnB.classList.add('border-accent-strong', 'text-accent');
         }
 
-        async function loadLayerWithSmartSlotting(source, name) {
-             bakeRotation();
+        async function resolveStegoLoad(source, name) {
              const sourceType = (source instanceof Blob) ? 'File' : 'URL';
              Logger.info(`[SmartLoad] Init '${name}'. SourceType: ${sourceType}. Kakushi: ${!!window.kakushi}, Watermark: ${!!window.Watermark}`);
 
-             log(`Loading ${name}...`, "info");
-             try {
-                 const applyAndLogAction = (action) => {
-                     if (!replayEngine) return;
-                     replayEngine.applyAction(action.type, action.payload);
-                     replayEngine.logAction(action);
-                 };
+             const applyAndLogAction = (action) => {
+                 if (!replayEngine) return;
+                 replayEngine.applyAction(action.type, action.payload);
+                 replayEngine.logAction(action);
+             };
 
-                 const logRestoreAdjustments = (adjustments) => {
-                     if (!replayEngine || !adjustments) return;
-                     replayEngine.logAction({
-                         type: 'RESTORE_ADJUSTMENTS',
-                         payload: { adjustments: JSON.parse(JSON.stringify(adjustments)) }
-                     });
-                 };
+             const logRestoreAdjustments = (adjustments) => {
+                 if (!replayEngine || !adjustments) return;
+                 replayEngine.logAction({
+                     type: 'RESTORE_ADJUSTMENTS',
+                     payload: { adjustments: JSON.parse(JSON.stringify(adjustments)) }
+                 });
+             };
 
-                 const finalizeRestoreHistory = () => {
-                     if (!replayEngine) return;
-                     if (typeof replayEngine.saveKeyframeAtCursor === 'function') {
-                         replayEngine.saveKeyframeAtCursor();
-                     }
-                     if (typeof replayEngine.setUndoFloor === 'function') {
-                         replayEngine.setUndoFloor(replayEngine.history.cursor);
-                     }
-                 };
-
-                 const img = await loadImageSource(source);
-                 Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
-
-                 const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
-                 const maskData = watermarkMask ? watermarkMask.data : null;
-
-                 // Steganography Detection (Active Interception)
-                 Logger.info("[SmartLoad] Attempting Standard Peek...");
-                 let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
-                 Logger.info(`[SmartLoad] Standard Peek Result: ${isStego}`);
-
-                 let cleanImg = img;
-
-                 // Fallback: Check for Watermark Interference
-                 if (!isStego && window.Watermark && window.kakushi) {
-                     const tempCanvas = document.createElement('canvas');
-                     tempCanvas.width = img.width;
-                     tempCanvas.height = img.height;
-                     const tCtx = tempCanvas.getContext('2d');
-                     tCtx.drawImage(img, 0, 0);
-
-                     // Attempt blind removal (XOR)
-                     window.Watermark.checkAndRemove(tempCanvas);
-
-                     if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
-                         isStego = true;
-                         // Update source to the clean version
-                         cleanImg = await loadImageSource(tempCanvas.toDataURL());
-                         log("Detected and removed watermark.", "info");
-                         Logger.info("[SmartLoad] Detected and removed watermark (Peek success after blind removal).");
-                     }
+             const finalizeRestoreHistory = () => {
+                 if (!replayEngine) return;
+                 if (typeof replayEngine.saveKeyframeAtCursor === 'function') {
+                     replayEngine.saveKeyframeAtCursor();
                  }
+                 if (typeof replayEngine.setUndoFloor === 'function') {
+                     replayEngine.setUndoFloor(replayEngine.history.cursor);
+                 }
+             };
 
-                 if (isStego) {
-                     try {
-                         const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
+             const img = await loadImageSource(source);
+             Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
 
-                         if (result.headerFound && !result.secret) {
-                             log("Detected save file, but data is corrupt/incompatible.", "error");
-                             // Fall through to load as standard image
+             const watermarkMask = window.Watermark?.buildMask?.(img.width, img.height);
+             const maskData = watermarkMask ? watermarkMask.data : null;
+
+             // Steganography Detection (Active Interception)
+             Logger.info("[SmartLoad] Attempting Standard Peek...");
+             let isStego = window.kakushi && window.kakushi.peek(img, { mask: maskData });
+             Logger.info(`[SmartLoad] Standard Peek Result: ${isStego}`);
+
+             let cleanImg = img;
+
+             // Fallback: Check for Watermark Interference
+             if (!isStego && window.Watermark && window.kakushi) {
+                 const tempCanvas = document.createElement('canvas');
+                 tempCanvas.width = img.width;
+                 tempCanvas.height = img.height;
+                 const tCtx = tempCanvas.getContext('2d');
+                 tCtx.drawImage(img, 0, 0);
+
+                 // Attempt blind removal (XOR)
+                 window.Watermark.checkAndRemove(tempCanvas);
+
+                 if (window.kakushi.peek(tempCanvas, { mask: maskData })) {
+                     isStego = true;
+                     // Update source to the clean version
+                     cleanImg = await loadImageSource(tempCanvas.toDataURL());
+                     log("Detected and removed watermark.", "info");
+                     Logger.info("[SmartLoad] Detected and removed watermark (Peek success after blind removal).");
+                 }
+             }
+
+             if (isStego) {
+                 try {
+                     const result = await window.kakushi.reveal(cleanImg, { mask: maskData });
+
+                     if (result.headerFound && !result.secret) {
+                         log("Detected save file, but data is corrupt/incompatible.", "error");
+                         // Fall through to load as standard image
+                     }
+
+                     if (result.secret) {
+                         const payload = JSON.parse(result.secret);
+                         const info = payload.info || {};
+                         const packets = Object.keys(payload).filter(k => k !== 'info');
+                         const hasImages = state.imgA || state.imgB;
+                         let decodedImg = result.cleanImage;
+
+                         if (payload.watermarked && window.Watermark) {
+                             window.Watermark.checkAndRemove(decodedImg);
                          }
 
-                         if (result.secret) {
-                             const payload = JSON.parse(result.secret);
-                             const info = payload.info || {};
-                             const packets = Object.keys(payload).filter(k => k !== 'info');
-                             const hasImages = state.imgA || state.imgB;
-                             let decodedImg = result.cleanImage;
+                         Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
 
-                             if (payload.watermarked && window.Watermark) {
-                                 window.Watermark.checkAndRemove(decodedImg);
-                             }
-
-                             Logger.info(`[Stego] Detected v${info.version} payload: ${info.type}. Packets: ${packets.join(', ')}`);
-
-                             // Case 1: Mask Export
-                             if (info.type === 'mask') {
-                                 // Check if we have images loaded to apply mask TO
-                                 if (hasImages) {
-                                     log("Importing Mask...", "info");
-                                     resetMaskOnly();
-                                     if (payload.mask && Array.isArray(payload.mask)) {
-                                         payload.mask.forEach(action => {
-                                             applyAndLogAction(action);
-                                         });
-                                     }
-                                     render();
-                                     return; // Stop loading the image itself
+                         // Case 1: Mask Export
+                         if (info.type === 'mask') {
+                             // Check if we have images loaded to apply mask TO
+                             if (hasImages) {
+                                 log("Importing Mask...", "info");
+                                 resetMaskOnly();
+                                 if (payload.mask && Array.isArray(payload.mask)) {
+                                     payload.mask.forEach(action => {
+                                         applyAndLogAction(action);
+                                     });
                                  }
+                                 render();
+                                 return { handled: true };
                              }
-                             // Case 2: Save (Project Restore)
-                             else if (info.type === 'save') {
-                                 // Check for Censor Project Flag
-                                 if (payload.censor) {
-                                     const confirm = await showModal(
-                                         "Restore Censor Project?",
-                                         "This image is a saved Censor Project. Restoring it will clear your current workspace.",
-                                         [{ label: "Restore Project", value: true }],
-                                         true
-                                     );
-                                     if (!confirm) return; // Abort (or fall through to load as image?)
-
-                                     log("Restoring Censor Project...", "info");
-
-                                     // Manual Clear
-                                     state.imgA = null; state.imgB = null;
-                                     state.history = [];
-                                     if (replayEngine && replayEngine.clear) replayEngine.clear();
-                                     resetMaskOnly();
-
-                                     // Load Base (img is the decoded Image object)
-                                     assignLayer(decodedImg, 'A', "Base Layer");
-
-                                     // Generate Censor Layer (Slot B)
-                                     await generateCensorLayer();
-
-                                     // Apply Metadata
-                                     if (payload.adjustments) {
-                                         state.adjustments = payload.adjustments;
-                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
-                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
-                                         logRestoreAdjustments(payload.adjustments);
-                                     }
-
-                                     if (payload.crop) {
-                                         state.cropRect = payload.crop;
-                                         state.cropRotation = payload.crop.rotation || 0;
-                                         updateCanvasDimensions(true); // Preserve view (don't reset crop)
-                                         state.isCropping = false;
-                                     }
-
-                                     if (payload.mask && Array.isArray(payload.mask)) {
-                                         els.loadingOverlay.classList.remove('hidden');
-                                         // Force paint
-                                         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-                                         try {
-                                             resetMaskOnly();
-                                             payload.mask.forEach(action => {
-                                                 applyAndLogAction(action);
-                                             });
-                                         } finally {
-                                             els.loadingOverlay.classList.add('hidden');
-                                         }
-                                     }
-
-                                     rebuildWorkingCopies(true);
-                                     render();
-                                     resetView();
-                                     finalizeRestoreHistory();
-                                     return; // Stop loading image (we handled it)
-                                 }
-
-                                 // Standard Project Save
-                                 const choice = hasImages
-                                     ? await showModal(
-                                         "Load Save?",
-                                         "This is a Save file. Restore original workspace or load as image?",
-                                         [
-                                             { label: "Restore Save", value: 'project' },
-                                             { label: "Load Image", value: 'image' }
-                                         ],
-                                         true
-                                     )
-                                     : 'project';
-
-                                 if (choice === 'project') {
-                                     // Clear Workspace
-                                     state.imgA = null; state.imgB = null;
-                                     state.history = [];
-                                     if (replayEngine && replayEngine.clear) replayEngine.clear();
-                                     resetMaskOnly();
-                                     resetAllAdjustments();
-
-                                     assignLayer(decodedImg, 'A', "Restored Save");
-
-                                     if (payload.adjustments) {
-                                         state.adjustments = payload.adjustments;
-                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
-                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
-                                         logRestoreAdjustments(payload.adjustments);
-                                     }
-
-                                     if (payload.crop) {
-                                         state.cropRect = payload.crop;
-                                         state.cropRotation = payload.crop.rotation || 0;
-                                         updateCanvasDimensions(true); // Preserve view
-                                         state.isCropping = false;
-                                     }
-
-                                     if (payload.mask && Array.isArray(payload.mask)) {
-                                         els.loadingOverlay.classList.remove('hidden');
-                                         await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-                                         try {
-                                             resetMaskOnly();
-                                             payload.mask.forEach(action => {
-                                                 applyAndLogAction(action);
-                                             });
-                                         } finally {
-                                             els.loadingOverlay.classList.add('hidden');
-                                         }
-                                     }
-
-                                     rebuildWorkingCopies(true);
-                                     render();
-                                     resetView();
-                                     finalizeRestoreHistory();
-                                     return;
-                                 }
-
-                                 if (choice === null) return;
-                                 // else fall through to load as image
-                             }
-                             // Case 3: Merged / Front / Back Export
-                             // Only prompt if we already have images loaded (to apply settings TO)
-                             else if (['merged', 'front', 'back'].includes(info.type) && hasImages) {
-                                 const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;
-                                 const choice = await showModal(
-                                     "Load Metadata?",
-                                     message,
-                                     [
-                                         { label: "Load Settings", value: 'settings' },
-                                         { label: "Load Original Image", value: 'original' }
-                                     ],
+                         }
+                         // Case 2: Save (Project Restore)
+                         else if (info.type === 'save') {
+                             // Check for Censor Project Flag
+                             if (payload.censor) {
+                                 const confirm = await showModal(
+                                     "Restore Censor Project?",
+                                     "This image is a saved Censor Project. Restoring it will clear your current workspace.",
+                                     [{ label: "Restore Project", value: true }],
                                      true
                                  );
+                                 if (!confirm) return { handled: true };
 
-                                 if (choice === 'settings') {
-                                     log("Applying settings...", "info");
+                                 log("Restoring Censor Project...", "info");
 
-                                     // Apply Adjustments
-                                     if (payload.adjustments) {
-                                         state.adjustments = payload.adjustments;
-                                         // Trigger LUT regeneration for Color Tuning
-                                         if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
-                                         if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
-                                         logRestoreAdjustments(payload.adjustments);
-                                     }
+                                 // Manual Clear
+                                 state.imgA = null; state.imgB = null;
+                                 state.history = [];
+                                 if (replayEngine && replayEngine.clear) replayEngine.clear();
+                                 resetMaskOnly();
 
-                                     // Apply Crop
-                                     if (payload.crop) {
-                                         state.cropRect = payload.crop;
-                                         state.cropRotation = payload.crop.rotation || 0;
-                                         updateCanvasDimensions(); // Apply crop dims
-                                     }
+                                 // Load Base (img is the decoded Image object)
+                                 assignLayer(decodedImg, 'A', "Base Layer");
 
-                                     // Apply Mask (if present in merged)
-                                     if (payload.mask && Array.isArray(payload.mask)) {
+                                 // Generate Censor Layer (Slot B)
+                                 await generateCensorLayer();
+
+                                 // Apply Metadata
+                                 if (payload.adjustments) {
+                                     state.adjustments = payload.adjustments;
+                                     if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                     if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     logRestoreAdjustments(payload.adjustments);
+                                 }
+
+                                 if (payload.crop) {
+                                     state.cropRect = payload.crop;
+                                     state.cropRotation = payload.crop.rotation || 0;
+                                     updateCanvasDimensions(true); // Preserve view (don't reset crop)
+                                     state.isCropping = false;
+                                 }
+
+                                 if (payload.mask && Array.isArray(payload.mask)) {
+                                     els.loadingOverlay.classList.remove('hidden');
+                                     // Force paint
+                                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                                     try {
                                          resetMaskOnly();
                                          payload.mask.forEach(action => {
                                              applyAndLogAction(action);
                                          });
+                                     } finally {
+                                         els.loadingOverlay.classList.add('hidden');
                                      }
-
-                                     rebuildWorkingCopies(true);
-                                     render();
-                                     resetView();
-                                     return; // Stop loading image
                                  }
 
-                                 if (choice === null) {
-                                     log("Load cancelled", "info");
-                                     return; // Abort
-                                 }
-
-                                 // If 'original', fall through to normal load
+                                 rebuildWorkingCopies(true);
+                                 render();
+                                 resetView();
+                                 finalizeRestoreHistory();
+                                 return { handled: true };
                              }
 
-                             cleanImg = decodedImg;
+                             // Standard Project Save
+                             const choice = hasImages
+                                 ? await showModal(
+                                     "Load Save?",
+                                     "This is a Save file. Restore original workspace or load as image?",
+                                     [
+                                         { label: "Restore Save", value: 'project' },
+                                         { label: "Load Image", value: 'image' }
+                                     ],
+                                     true
+                                 )
+                                 : 'project';
+
+                             if (choice === 'project') {
+                                 // Clear Workspace
+                                 state.imgA = null; state.imgB = null;
+                                 state.history = [];
+                                 if (replayEngine && replayEngine.clear) replayEngine.clear();
+                                 resetMaskOnly();
+                                 resetAllAdjustments();
+
+                                 assignLayer(decodedImg, 'A', "Restored Save");
+
+                                 if (payload.adjustments) {
+                                     state.adjustments = payload.adjustments;
+                                     if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                     if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     logRestoreAdjustments(payload.adjustments);
+                                 }
+
+                                 if (payload.crop) {
+                                     state.cropRect = payload.crop;
+                                     state.cropRotation = payload.crop.rotation || 0;
+                                     updateCanvasDimensions(true); // Preserve view
+                                     state.isCropping = false;
+                                 }
+
+                                 if (payload.mask && Array.isArray(payload.mask)) {
+                                     els.loadingOverlay.classList.remove('hidden');
+                                     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+                                     try {
+                                         resetMaskOnly();
+                                         payload.mask.forEach(action => {
+                                             applyAndLogAction(action);
+                                         });
+                                     } finally {
+                                         els.loadingOverlay.classList.add('hidden');
+                                     }
+                                 }
+
+                                 rebuildWorkingCopies(true);
+                                 render();
+                                 resetView();
+                                 finalizeRestoreHistory();
+                                 return { handled: true };
+                             }
+
+                             if (choice === null) return { handled: true };
+                             // else fall through to load as image
                          }
-                     } catch (e) {
-                         Logger.error("[Stego] Failed to process payload", e);
+                         // Case 3: Merged / Front / Back Export
+                         // Only prompt if we already have images loaded (to apply settings TO)
+                         else if (['merged', 'front', 'back'].includes(info.type) && hasImages) {
+                             const message = `This image contains OkazuStudio metadata (${packets.join(', ')}).`;
+                             const choice = await showModal(
+                                 "Load Metadata?",
+                                 message,
+                                 [
+                                     { label: "Load Settings", value: 'settings' },
+                                     { label: "Load Original Image", value: 'original' }
+                                 ],
+                                 true
+                             );
+
+                             if (choice === 'settings') {
+                                 log("Applying settings...", "info");
+
+                                 // Apply Adjustments
+                                 if (payload.adjustments) {
+                                     state.adjustments = payload.adjustments;
+                                     // Trigger LUT regeneration for Color Tuning
+                                     if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                                     if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                                     logRestoreAdjustments(payload.adjustments);
+                                 }
+
+                                 // Apply Crop
+                                 if (payload.crop) {
+                                     state.cropRect = payload.crop;
+                                     state.cropRotation = payload.crop.rotation || 0;
+                                     updateCanvasDimensions(); // Apply crop dims
+                                 }
+
+                                 // Apply Mask (if present in merged)
+                                 if (payload.mask && Array.isArray(payload.mask)) {
+                                     resetMaskOnly();
+                                     payload.mask.forEach(action => {
+                                         applyAndLogAction(action);
+                                     });
+                                 }
+
+                                 rebuildWorkingCopies(true);
+                                 render();
+                                 resetView();
+                                 return { handled: true };
+                             }
+
+                             if (choice === null) {
+                                 log("Load cancelled", "info");
+                                 return { handled: true };
+                             }
+
+                             // If 'original', fall through to normal load
+                         }
+
+                         cleanImg = decodedImg;
                      }
+                 } catch (e) {
+                     Logger.error("[Stego] Failed to process payload", e);
                  }
+             }
+
+             return { handled: false, image: cleanImg };
+        }
+
+        async function loadLayerWithSmartSlotting(source, name) {
+             bakeRotation();
+             log(`Loading ${name}...`, "info");
+             try {
+                 const result = await resolveStegoLoad(source, name);
+                 if (result.handled) return;
+                 const cleanImg = result.image;
 
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
@@ -2823,8 +2831,11 @@
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
 
-            return loadImageSource(file)
-                .then(img => assignLayer(img, slot, file.name))
+            return resolveStegoLoad(file, file.name)
+                .then(result => {
+                    if (result.handled) return;
+                    assignLayer(result.image, slot, file.name);
+                })
                 .catch(e => {
                     log("Failed to load image: " + e.message);
                     Logger.error("Image load failed", e);

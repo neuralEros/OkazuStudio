@@ -2415,19 +2415,21 @@
             const cropMaxY = cropRectPx.y + cropRectPx.h;
             const epsilon = 0.25;
 
-            const containsRotated =
-                cropMinX <= minX + epsilon &&
-                cropMaxX >= maxX - epsilon &&
-                cropMinY <= minY + epsilon &&
-                cropMaxY >= maxY - epsilon;
+            let newMinX = cropMinX;
+            let newMaxX = cropMaxX;
+            let newMinY = cropMinY;
+            let newMaxY = cropMaxY;
 
-            if (!containsRotated) return;
+            if (cropMinX < minX - epsilon) newMinX = minX;
+            if (cropMaxX > maxX + epsilon) newMaxX = maxX;
+            if (cropMinY < minY - epsilon) newMinY = minY;
+            if (cropMaxY > maxY + epsilon) newMaxY = maxY;
 
-            const newW = Math.max(0.001, maxX - minX);
-            const newH = Math.max(0.001, maxY - minY);
+            const newW = Math.max(0.001, newMaxX - newMinX);
+            const newH = Math.max(0.001, newMaxY - newMinY);
             state.cropRect = {
-                x: minX / fullH,
-                y: minY / fullH,
+                x: newMinX / fullH,
+                y: newMinY / fullH,
                 w: newW / fullH,
                 h: newH / fullH
             };

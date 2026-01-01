@@ -566,6 +566,22 @@
             };
         }
 
+        function truthToVisualPoint(p, rotation, fullW, fullH) {
+            if (rotation === 0) return { ...p };
+            if (rotation === 90) return { x: fullH - p.y, y: p.x };
+            if (rotation === 180) return { x: fullW - p.x, y: fullH - p.y };
+            if (rotation === 270) return { x: p.y, y: fullW - p.x };
+            return { ...p };
+        }
+
+        function visualToTruthPoint(p, rotation, fullW, fullH) {
+            if (rotation === 0) return { ...p };
+            if (rotation === 90) return { x: p.y, y: fullH - p.x };
+            if (rotation === 180) return { x: fullW - p.x, y: fullH - p.y };
+            if (rotation === 270) return { x: fullW - p.y, y: p.x };
+            return { ...p };
+        }
+
         function rebuildPreviewLayerForSlot(slot, allowFullResWork = true) {
             if (!allowFullResWork) return;
             if (state.settings.brushPreviewResolution === 'Full') return; // Skip preview buffer if Full
@@ -2388,15 +2404,22 @@
                 w: state.cropRect.w * fullH,
                 h: state.cropRect.h * fullH
             };
-            const imgCx = fullW / 2;
-            const imgCy = fullH / 2;
+            const baseRotation = state.rotation;
+            const isBaseRotated = baseRotation % 180 !== 0;
+            const visualFullW = isBaseRotated ? fullH : fullW;
+            const visualFullH = isBaseRotated ? fullW : fullH;
+            const visualCx = visualFullW / 2;
+            const visualCy = visualFullH / 2;
 
             const corners = [
                 { x: 0, y: 0 },
                 { x: fullW, y: 0 },
                 { x: fullW, y: fullH },
                 { x: 0, y: fullH }
-            ].map((corner) => rotatePoint(corner, imgCx, imgCy, state.cropRotation));
+            ].map((corner) => {
+                const base = truthToVisualPoint(corner, baseRotation, fullW, fullH);
+                return rotatePoint(base, visualCx, visualCy, state.cropRotation);
+            });
 
             let minX = corners[0].x;
             let maxX = corners[0].x;
@@ -2411,13 +2434,16 @@
 
             const cropCx = cropRectPx.x + cropRectPx.w / 2;
             const cropCy = cropRectPx.y + cropRectPx.h / 2;
-            const visualCenter = rotatePoint({ x: cropCx, y: cropCy }, imgCx, imgCy, state.cropRotation);
+            const baseCenter = truthToVisualPoint({ x: cropCx, y: cropCy }, baseRotation, fullW, fullH);
+            const visualCenter = rotatePoint(baseCenter, visualCx, visualCy, state.cropRotation);
 
+            const visualW = isBaseRotated ? cropRectPx.h : cropRectPx.w;
+            const visualH = isBaseRotated ? cropRectPx.w : cropRectPx.h;
             const visualRect = {
-                x: visualCenter.x - cropRectPx.w / 2,
-                y: visualCenter.y - cropRectPx.h / 2,
-                w: cropRectPx.w,
-                h: cropRectPx.h
+                x: visualCenter.x - visualW / 2,
+                y: visualCenter.y - visualH / 2,
+                w: visualW,
+                h: visualH
             };
 
             const cropMinX = visualRect.x;
@@ -2439,13 +2465,17 @@
             const newW = Math.max(0.001, newMaxX - newMinX);
             const newH = Math.max(0.001, newMaxY - newMinY);
             const newVisualCenter = { x: newMinX + newW / 2, y: newMinY + newH / 2 };
-            const newTruthCenter = rotatePoint(newVisualCenter, imgCx, imgCy, -state.cropRotation);
+            const baseCenterOut = rotatePoint(newVisualCenter, visualCx, visualCy, -state.cropRotation);
+            const newTruthCenter = visualToTruthPoint(baseCenterOut, baseRotation, fullW, fullH);
+
+            const truthW = isBaseRotated ? newH : newW;
+            const truthH = isBaseRotated ? newW : newH;
 
             state.cropRect = {
-                x: (newTruthCenter.x - newW / 2) / fullH,
-                y: (newTruthCenter.y - newH / 2) / fullH,
-                w: newW / fullH,
-                h: newH / fullH
+                x: (newTruthCenter.x - truthW / 2) / fullH,
+                y: (newTruthCenter.y - truthH / 2) / fullH,
+                w: truthW / fullH,
+                h: truthH / fullH
             };
         }
 

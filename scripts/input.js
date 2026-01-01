@@ -937,6 +937,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const factor = Math.exp(-dyScreen * zoomSpeed);
                 const minScale = getCropMinScale();
                 const nextScale = Math.max(startView.scale * factor, minScale);
+                const scaleRatio = startView.scale / nextScale;
                 const anchorX = state.cropDrag.startVisualRect.x + state.cropDrag.startVisualRect.w / 2;
                 const anchorY = state.cropDrag.startVisualRect.y + state.cropDrag.startVisualRect.h / 2;
                 const screenX = startView.x + anchorX * startView.scale;
@@ -945,6 +946,26 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 state.view.x = screenX - anchorX * nextScale;
                 state.view.y = screenY - anchorY * nextScale;
                 updateViewTransform();
+                const newVisualRect = {
+                    x: anchorX - (state.cropDrag.startVisualRect.w * scaleRatio) / 2,
+                    y: anchorY - (state.cropDrag.startVisualRect.h * scaleRatio) / 2,
+                    w: state.cropDrag.startVisualRect.w * scaleRatio,
+                    h: state.cropDrag.startVisualRect.h * scaleRatio
+                };
+                const baseC = rotatePoint({x: anchorX, y: anchorY}, canvasCx, canvasCy, -startRotation);
+                const newBaseVisual = {
+                    x: baseC.x - newVisualRect.w / 2,
+                    y: baseC.y - newVisualRect.h / 2,
+                    w: newVisualRect.w,
+                    h: newVisualRect.h
+                };
+                const newTruth = visualToTruthRect(newBaseVisual, state.rotation, fullW, fullH);
+                state.cropRect = {
+                    x: newTruth.x / fullH,
+                    y: newTruth.y / fullH,
+                    w: newTruth.w / fullH,
+                    h: newTruth.h / fullH
+                };
                 render();
             }
             else if (state.cropDrag.type === 'handle') {

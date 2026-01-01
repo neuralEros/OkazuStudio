@@ -508,8 +508,41 @@
         }
 
         .bottom-toolbar {
-            min-height: 56px;
+            min-height: 36px;
             width: 60%;
+        }
+
+        .toolbar-mode-switcher {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            padding: 4px 18px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        }
+
+        .mode-tab {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            color: #cbd5f5;
+            text-transform: uppercase;
+            transition: color 0.2s ease, transform 0.2s ease;
+        }
+
+        .mode-tab:hover {
+            color: #f8fafc;
+        }
+
+        .mode-tab:active {
+            transform: translateY(1px);
+        }
+
+        .mode-separator {
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 14px;
         }
 
     

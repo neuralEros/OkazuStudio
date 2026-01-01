@@ -900,11 +900,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
             if (state.cropDrag.type === 'rotate') {
                 state.cropRotation = startRotation + (dxScreen * 0.5);
-                enforceCropView(true, false);
                 render();
             }
             else if (state.cropDrag.type === 'pan') {
-                // Pan Image = Move CropRect in Opposite Direction
+                // Pan Crop Rect with cursor
                 // Delta in Canvas Pixels (Start Scale)
                 const dxCanvas = dxScreen / startView.scale;
                 const dyCanvas = dyScreen / startView.scale;
@@ -928,7 +927,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const newTruth = visualToTruthRect(baseVisual, state.rotation, fullW, fullH);
                 state.cropRect = { x: newTruth.x / fullH, y: newTruth.y / fullH, w: newTruth.w / fullH, h: newTruth.h / fullH };
 
-                enforceCropView(true, false);
                 render();
             }
             else if (state.cropDrag.type === 'scale') {
@@ -959,25 +957,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 // Apply new W/H centered at New Center
                 state.cropRect.x = newCx - state.cropRect.w / 2;
                 state.cropRect.y = newCy - state.cropRect.h / 2;
-
-                // Inverse View Scale to keep visual size constant
-                state.view.scale = startView.scale / factor;
-                const minScale = getCropMinScale();
-                state.view.scale = Math.max(state.view.scale, minScale);
-
-                // Anchor view to the user's click point, even outside crop bounds.
-                const rect = els.viewport.getBoundingClientRect();
-                const mouseX = state.cropDrag.startX - rect.left;
-                const mouseY = state.cropDrag.startY - rect.top;
-
-                const pivotPx = { x: pivot.x * fullH, y: pivot.y * fullH };
-                const pivotVisual = truthToVisualCoords(pivotPx, state.rotation, fullW, fullH);
-                const rotatedPivot = rotatePoint(pivotVisual, canvasCx, canvasCy, startRotation);
-
-                state.view.x = mouseX - rotatedPivot.x * state.view.scale;
-                state.view.y = mouseY - rotatedPivot.y * state.view.scale;
-
-                updateViewTransform();
                 render();
             }
             else if (state.cropDrag.type === 'handle') {
@@ -1020,8 +999,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 const newTruth = visualToTruthRect(newBaseVisual, state.rotation, fullW, fullH);
                 state.cropRect = { x: newTruth.x / fullH, y: newTruth.y / fullH, w: newTruth.w / fullH, h: newTruth.h / fullH };
 
-                // Auto-Fit (Recalculate Scale)
-                enforceCropView(false, false);
                 render();
                 forceCropHandleUpdate();
             }

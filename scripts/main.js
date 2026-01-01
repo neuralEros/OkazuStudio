@@ -2388,15 +2388,15 @@
                 w: state.cropRect.w * fullH,
                 h: state.cropRect.h * fullH
             };
-            const cx = cropRectPx.x + cropRectPx.w / 2;
-            const cy = cropRectPx.y + cropRectPx.h / 2;
+            const imgCx = fullW / 2;
+            const imgCy = fullH / 2;
 
             const corners = [
                 { x: 0, y: 0 },
                 { x: fullW, y: 0 },
                 { x: fullW, y: fullH },
                 { x: 0, y: fullH }
-            ].map((corner) => rotatePoint(corner, cx, cy, state.cropRotation));
+            ].map((corner) => rotatePoint(corner, imgCx, imgCy, state.cropRotation));
 
             let minX = corners[0].x;
             let maxX = corners[0].x;

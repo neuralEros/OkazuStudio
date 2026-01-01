@@ -349,15 +349,6 @@
         </button>
     </div>
 
-    <!-- Bottom Toolbar -->
-    <div id="bottom-toolbar" class="bottom-toolbar absolute bottom-0 left-1/2 -translate-x-1/2 bg-panel border-x border-t border-panel rounded-t-lg px-6 py-1 flex items-center justify-center gap-0 z-40 shadow-xl">
-        <button class="bottom-toolbar-tab active" type="button">Master</button>
-        <span class="bottom-toolbar-divider" aria-hidden="true">|</span>
-        <button class="bottom-toolbar-tab" type="button">Censor</button>
-        <span class="bottom-toolbar-divider" aria-hidden="true">|</span>
-        <button class="bottom-toolbar-tab" type="button">Composite</button>
-    </div>
-
     <!-- Top Toolbar -->
     <div class="h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 shrink-0 overflow-visible relative" style="cursor: default;">
         <button id="newBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
@@ -426,6 +417,14 @@
                 <span id="opacityVal">80%</span>
             </div>
             <input type="range" autocomplete="off" id="opacitySlider" min="0" max="100" value="80" class="w-full">
+        </div>
+        <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+        <div class="mode-switcher flex items-center shrink-0">
+            <button class="mode-tab active" type="button">Master</button>
+            <span class="mode-divider" aria-hidden="true">|</span>
+            <button class="mode-tab" type="button">Censor</button>
+            <span class="mode-divider" aria-hidden="true">|</span>
+            <button class="mode-tab" type="button">Composite</button>
         </div>
         <div class="ml-auto flex items-center gap-2">
             <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">

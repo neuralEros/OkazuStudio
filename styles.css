@@ -507,33 +507,31 @@
             pointer-events: none;
         }
 
-        .bottom-toolbar {
-            min-height: 29px;
-            width: fit-content;
+        .mode-switcher {
+            letter-spacing: 0.14em;
         }
-        .bottom-toolbar-tab {
-            font-size: 15px;
-            letter-spacing: 0.12em;
+        .mode-tab {
+            font-size: 12px;
             text-transform: uppercase;
             font-weight: 600;
             color: var(--accent-soft);
-            padding: 6px 12px;
+            padding: 4px 6px;
             border-radius: 6px;
             transition: color 0.2s ease, background-color 0.2s ease;
         }
-        .bottom-toolbar-tab:hover {
+        .mode-tab:hover {
             color: #ffffff;
             background-color: rgba(255, 255, 255, 0.06);
         }
-        .bottom-toolbar-tab.active {
+        .mode-tab.active {
             color: var(--accent);
             text-shadow: 0 0 10px rgba(255, 140, 64, 0.35);
         }
-        .bottom-toolbar-divider {
+        .mode-divider {
             color: #4b5563;
-            font-size: 14px;
+            font-size: 12px;
             line-height: 1;
-            margin: 0 24px;
+            margin: 0 18px;
         }
 
     

@@ -874,6 +874,8 @@
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
                                          state.cropRotation = payload.crop.rotation || 0;
+                                         // Dispatch action to ensure history is correct for future exports
+                                         if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: { ...state.cropRect, rotation: state.cropRotation } } });
                                          updateCanvasDimensions(true); // Preserve view (don't reset crop)
                                          state.isCropping = false;
                                      }
@@ -896,6 +898,8 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
+                                     // Ensure we have a solid keyframe at the restore point
+                                     if (replayEngine && replayEngine.keyframeManager) replayEngine.keyframeManager.saveKeyframe(replayEngine.history.cursor);
                                      lockUndoFloor();
                                      return; // Stop loading image (we handled it)
                                  }
@@ -931,6 +935,8 @@
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
                                          state.cropRotation = payload.crop.rotation || 0;
+                                         // Dispatch action to ensure history is correct for future exports
+                                         if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: { ...state.cropRect, rotation: state.cropRotation } } });
                                          updateCanvasDimensions(true); // Preserve view
                                          state.isCropping = false;
                                      }
@@ -951,6 +957,8 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
+                                     // Ensure we have a solid keyframe at the restore point
+                                     if (replayEngine && replayEngine.keyframeManager) replayEngine.keyframeManager.saveKeyframe(replayEngine.history.cursor);
                                      lockUndoFloor();
                                      return;
                                  }
@@ -988,6 +996,8 @@
                                      if (payload.crop) {
                                          state.cropRect = payload.crop;
                                          state.cropRotation = payload.crop.rotation || 0;
+                                         // Dispatch action to ensure history is correct for future exports
+                                         if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: { ...state.cropRect, rotation: state.cropRotation } } });
                                          updateCanvasDimensions(); // Apply crop dims
                                      }
 

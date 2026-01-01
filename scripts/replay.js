@@ -100,6 +100,7 @@
                 cropRect: this.state.cropRect ? { ...this.state.cropRect } : null,
                 fullDims: { ...this.state.fullDims },
                 rotation: this.state.rotation,
+                cropRotation: this.state.cropRotation,
                 brushSettings: JSON.parse(JSON.stringify(this.state.brushSettings)),
                 opacity: this.state.opacity,
                 isAFront: this.state.isAFront,
@@ -172,6 +173,7 @@
             this.state.cropRect = snapshot.cropRect ? { ...snapshot.cropRect } : null;
             this.state.fullDims = { ...snapshot.fullDims };
             this.state.rotation = snapshot.rotation;
+            if (snapshot.cropRotation !== undefined) this.state.cropRotation = snapshot.cropRotation;
             this.state.brushSettings = JSON.parse(JSON.stringify(snapshot.brushSettings));
             this.state.opacity = snapshot.opacity;
             this.state.isAFront = snapshot.isAFront;
@@ -625,7 +627,12 @@
                     break;
 
                 case 'CROP':
-                    if (payload.rect) this.state.cropRect = { ...payload.rect };
+                    if (payload.rect) {
+                        this.state.cropRect = { ...payload.rect };
+                        if (payload.rect.rotation !== undefined) {
+                            this.state.cropRotation = payload.rect.rotation;
+                        }
+                    }
                     break;
 
                 case 'ROTATE_VIEW':

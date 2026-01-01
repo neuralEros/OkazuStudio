@@ -90,6 +90,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return Math.min(requiredScale, 0.25);
     }
 
+    function getCropShadowSize() {
+        const vpW = els.viewport.clientWidth;
+        const vpH = els.viewport.clientHeight;
+        const maxDim = Math.max(vpW, vpH);
+        return (maxDim / state.view.scale) + 200;
+    }
+
     function getCropPivotScreen(pivotTruth, rotationOverride) {
         const { fullH, visualW, visualH } = getVisualFullDims();
         const pivotPx = { x: pivotTruth.x * fullH, y: pivotTruth.y * fullH };
@@ -108,6 +115,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (!els.cropBox) return;
         const invScale = 1 / state.view.scale;
         els.cropBox.style.setProperty('--inv-scale', invScale);
+        els.cropBox.style.setProperty('--crop-shadow-size', `${getCropShadowSize()}px`);
 
         // Redundant explicit update for maximum security per user request
         const handles = document.querySelectorAll('.crop-handle');

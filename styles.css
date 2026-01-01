@@ -240,7 +240,7 @@
         #crop-box {
             position: absolute;
             /* Massive box shadow to dim the image area outside crop */
-            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 0 var(--crop-shadow-size, 9999px) rgba(0, 0, 0, 0.8);
             border: calc(1px * var(--inv-scale, 1)) dashed rgba(255, 255, 255, 0.4);
             pointer-events: auto; /* Catch clicks on the box for moving */
             cursor: move;

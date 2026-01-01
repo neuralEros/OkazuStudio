@@ -58,6 +58,51 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { minX, maxX, minY, maxY, w: maxX - minX, h: maxY - minY };
     }
 
+    function truthToVisualCoords(tx, ty) {
+        const fullW = state.fullDims.w || 1;
+        const fullH = state.fullDims.h || 1;
+        const rot = state.rotation;
+        if (rot === 0) return { x: tx, y: ty };
+        if (rot === 90) return { x: fullH - ty, y: tx };
+        if (rot === 180) return { x: fullW - tx, y: fullH - ty };
+        if (rot === 270) return { x: ty, y: fullW - tx };
+        return { x: tx, y: ty };
+    }
+
+    function getVisualFullDims() {
+        const fullW = state.fullDims.w || 1;
+        const fullH = state.fullDims.h || 1;
+        const isRotated = state.rotation % 180 !== 0;
+        return {
+            fullW,
+            fullH,
+            visualW: isRotated ? fullH : fullW,
+            visualH: isRotated ? fullW : fullH
+        };
+    }
+
+    function getCropMinScale() {
+        const { visualW, visualH } = getVisualFullDims();
+        const vpW = els.viewport.clientWidth;
+        const vpH = els.viewport.clientHeight;
+        const bounds = state.cropRotation ? getRotatedAABB(visualW, visualH, state.cropRotation) : { w: visualW, h: visualH };
+        return Math.max(vpW / bounds.w, vpH / bounds.h);
+    }
+
+    function getCropPivotScreen(pivotTruth, rotationOverride) {
+        const { fullH, visualW, visualH } = getVisualFullDims();
+        const pivotPx = { x: pivotTruth.x * fullH, y: pivotTruth.y * fullH };
+        const baseVisual = truthToVisualCoords(pivotPx.x, pivotPx.y);
+        const canvasCx = visualW / 2;
+        const canvasCy = visualH / 2;
+        const angle = rotationOverride !== undefined ? rotationOverride : state.cropRotation;
+        const rotated = rotatePoint(baseVisual, canvasCx, canvasCy, angle);
+        return {
+            x: state.view.x + rotated.x * state.view.scale,
+            y: state.view.y + rotated.y * state.view.scale
+        };
+    }
+
     function forceCropHandleUpdate() {
         if (!els.cropBox) return;
         const invScale = 1 / state.view.scale;
@@ -202,6 +247,11 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             const scaleW = availW / visCropW;
             const scaleH = availH / visCropH;
             state.view.scale = Math.min(scaleW, scaleH);
+        }
+
+        if (state.isCropping) {
+            const minScale = getCropMinScale();
+            state.view.scale = Math.max(state.view.scale, minScale);
         }
 
         // Center Position
@@ -745,8 +795,12 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     startCropRect: { ...state.cropRect },
                     startRotation: state.cropRotation,
                     startVisualRect: getVisualStartRect(),
-                    originTruth: getCropPivot(e) // Capture Pivot Point
+                    originTruth: getCropPivot(e),
+                    pivotScreen: null
                 };
+                if (type === 'rotate' && state.cropDrag.originTruth) {
+                    state.cropDrag.pivotScreen = getCropPivotScreen(state.cropDrag.originTruth, state.cropRotation);
+                }
             }
             return;
         }
@@ -899,7 +953,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
             if (state.cropDrag.type === 'rotate') {
                 state.cropRotation = startRotation + (dxScreen * 0.5);
-                enforceCropView(true);
+                if (state.cropDrag.originTruth) {
+                    const pivotScreen = state.cropDrag.pivotScreen || getCropPivotScreen(state.cropDrag.originTruth, startRotation);
+                    const newPivotScreen = getCropPivotScreen(state.cropDrag.originTruth, state.cropRotation);
+                    state.view.x += pivotScreen.x - newPivotScreen.x;
+                    state.view.y += pivotScreen.y - newPivotScreen.y;
+                    updateViewTransform();
+                } else {
+                    enforceCropView(true);
+                }
                 render();
             }
             else if (state.cropDrag.type === 'pan') {
@@ -961,6 +1023,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
                 // Inverse View Scale to keep visual size constant
                 state.view.scale = startView.scale / factor;
+                const minScale = getCropMinScale();
+                state.view.scale = Math.max(state.view.scale, minScale);
 
                 // Anchor view to the user's click point, even outside crop bounds.
                 const rect = els.viewport.getBoundingClientRect();
@@ -1191,7 +1255,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (state.isCropping) {
             // Crop Mode: Zoom = Scale Viewport around Center (Crop Box stays centered)
             // Just update scale and re-enforce center
-            state.view.scale = newScale;
+            const minScale = getCropMinScale();
+            state.view.scale = Math.max(newScale, minScale);
             enforceCropView(true);
         } else {
             // Standard Zoom (Mouse Position Anchored)

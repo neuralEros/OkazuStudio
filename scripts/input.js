@@ -935,18 +935,15 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 // Drag UP = Zoom In.
                 const zoomSpeed = 0.005;
                 const factor = Math.exp(-dyScreen * zoomSpeed);
-
-                const rect = els.viewport.getBoundingClientRect();
-                const mouseX = state.cropDrag.startX - rect.left;
-                const mouseY = state.cropDrag.startY - rect.top;
-                const anchorX = (mouseX - startView.x) / startView.scale;
-                const anchorY = (mouseY - startView.y) / startView.scale;
-
                 const minScale = getCropMinScale();
                 const nextScale = Math.max(startView.scale * factor, minScale);
+                const anchorX = state.cropDrag.startVisualRect.x + state.cropDrag.startVisualRect.w / 2;
+                const anchorY = state.cropDrag.startVisualRect.y + state.cropDrag.startVisualRect.h / 2;
+                const screenX = startView.x + anchorX * startView.scale;
+                const screenY = startView.y + anchorY * startView.scale;
                 state.view.scale = nextScale;
-                state.view.x = mouseX - anchorX * nextScale;
-                state.view.y = mouseY - anchorY * nextScale;
+                state.view.x = screenX - anchorX * nextScale;
+                state.view.y = screenY - anchorY * nextScale;
                 updateViewTransform();
                 render();
             }

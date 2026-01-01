@@ -86,7 +86,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const vpW = els.viewport.clientWidth;
         const vpH = els.viewport.clientHeight;
         const bounds = state.cropRotation ? getRotatedAABB(visualW, visualH, state.cropRotation) : { w: visualW, h: visualH };
-        return Math.max(vpW / bounds.w, vpH / bounds.h);
+        const requiredScale = Math.max(vpW / bounds.w, vpH / bounds.h);
+        return Math.min(requiredScale, 0.25);
     }
 
     function getCropPivotScreen(pivotTruth, rotationOverride) {

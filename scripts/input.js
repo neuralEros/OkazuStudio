@@ -930,33 +930,24 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                 render();
             }
             else if (state.cropDrag.type === 'scale') {
-                // Zoom Content (Shift+Drag)
+                // Zoom View (Shift+Drag)
                 // Factor driven by Vertical Delta
-                // Drag UP = Zoom In (Crop Shrinks).
+                // Drag UP = Zoom In.
                 const zoomSpeed = 0.005;
                 const factor = Math.exp(-dyScreen * zoomSpeed);
 
-                state.cropRect.w = startRect.w * factor;
-                state.cropRect.h = startRect.h * factor;
+                const rect = els.viewport.getBoundingClientRect();
+                const mouseX = state.cropDrag.startX - rect.left;
+                const mouseY = state.cropDrag.startY - rect.top;
+                const anchorX = (mouseX - startView.x) / startView.scale;
+                const anchorY = (mouseY - startView.y) / startView.scale;
 
-                // Pivot around User Click Position (originTruth)
-                const pivot = state.cropDrag.originTruth || {
-                    x: startRect.x + startRect.w / 2,
-                    y: startRect.y + startRect.h / 2
-                };
-
-                // Start Center in Truth
-                const startCx = startRect.x + startRect.w / 2;
-                const startCy = startRect.y + startRect.h / 2;
-
-                // New Center logic:
-                // NewCenter = Pivot + (StartCenter - Pivot) * factor
-                const newCx = pivot.x + (startCx - pivot.x) * factor;
-                const newCy = pivot.y + (startCy - pivot.y) * factor;
-
-                // Apply new W/H centered at New Center
-                state.cropRect.x = newCx - state.cropRect.w / 2;
-                state.cropRect.y = newCy - state.cropRect.h / 2;
+                const minScale = getCropMinScale();
+                const nextScale = Math.max(startView.scale * factor, minScale);
+                state.view.scale = nextScale;
+                state.view.x = mouseX - anchorX * nextScale;
+                state.view.y = mouseY - anchorY * nextScale;
+                updateViewTransform();
                 render();
             }
             else if (state.cropDrag.type === 'handle') {

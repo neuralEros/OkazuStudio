@@ -553,6 +553,19 @@
             }
         }
 
+        function rotatePoint(p, cx, cy, angleDeg) {
+            if (angleDeg === 0) return { ...p };
+            const rad = angleDeg * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const dx = p.x - cx;
+            const dy = p.y - cy;
+            return {
+                x: cx + (dx * cos - dy * sin),
+                y: cy + (dx * sin + dy * cos)
+            };
+        }
+
         function rebuildPreviewLayerForSlot(slot, allowFullResWork = true) {
             if (!allowFullResWork) return;
             if (state.settings.brushPreviewResolution === 'Full') return; // Skip preview buffer if Full
@@ -2293,8 +2306,9 @@
         function acceptCrop() {
             if (!state.isCropping) return;
             state.cropRectSnapshot = null;
+            trimCropRectToImageBounds();
             const finalRect = { ...state.cropRect };
-            toggleCropMode();
+            toggleCropMode({ applyAutoTrim: false });
             if (window.dispatchAction) dispatchAction({ type: 'CROP', payload: { rect: finalRect } });
         }
 
@@ -2305,10 +2319,10 @@
             }
             state.cropRectSnapshot = null;
             state.cropDrag = null;
-            toggleCropMode();
+            toggleCropMode({ applyAutoTrim: false });
         }
 
-        function toggleCropMode() {
+        function toggleCropMode({ applyAutoTrim = true } = {}) {
             if (!canDraw()) return;
 
             // Remove clamping logic to allow cropRect to be outside bounds (e.g. for rotated composition)
@@ -2339,6 +2353,9 @@
                     cropLegend.style.opacity = '1';
                 }
             } else {
+                if (applyAutoTrim) {
+                    trimCropRectToImageBounds();
+                }
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
                 updateCanvasDimensions(true);
@@ -2357,6 +2374,63 @@
             resetView();
             render();
             updateUI(); // disable other tools
+        }
+
+        function trimCropRectToImageBounds() {
+            if (!state.cropRect) return;
+            const fullH = state.fullDims.h || 0;
+            const fullW = state.fullDims.w || 0;
+            if (!fullW || !fullH) return;
+
+            const cropRectPx = {
+                x: state.cropRect.x * fullH,
+                y: state.cropRect.y * fullH,
+                w: state.cropRect.w * fullH,
+                h: state.cropRect.h * fullH
+            };
+            const cx = cropRectPx.x + cropRectPx.w / 2;
+            const cy = cropRectPx.y + cropRectPx.h / 2;
+
+            const corners = [
+                { x: 0, y: 0 },
+                { x: fullW, y: 0 },
+                { x: fullW, y: fullH },
+                { x: 0, y: fullH }
+            ].map((corner) => rotatePoint(corner, cx, cy, state.cropRotation));
+
+            let minX = corners[0].x;
+            let maxX = corners[0].x;
+            let minY = corners[0].y;
+            let maxY = corners[0].y;
+            for (let i = 1; i < corners.length; i++) {
+                minX = Math.min(minX, corners[i].x);
+                maxX = Math.max(maxX, corners[i].x);
+                minY = Math.min(minY, corners[i].y);
+                maxY = Math.max(maxY, corners[i].y);
+            }
+
+            const cropMinX = cropRectPx.x;
+            const cropMaxX = cropRectPx.x + cropRectPx.w;
+            const cropMinY = cropRectPx.y;
+            const cropMaxY = cropRectPx.y + cropRectPx.h;
+            const epsilon = 0.25;
+
+            const containsRotated =
+                cropMinX <= minX + epsilon &&
+                cropMaxX >= maxX - epsilon &&
+                cropMinY <= minY + epsilon &&
+                cropMaxY >= maxY - epsilon;
+
+            if (!containsRotated) return;
+
+            const newW = Math.max(0.001, maxX - minX);
+            const newH = Math.max(0.001, maxY - minY);
+            state.cropRect = {
+                x: minX / fullH,
+                y: minY / fullH,
+                w: newW / fullH,
+                h: newH / fullH
+            };
         }
 
         function resizeMainCanvas(w, h) {

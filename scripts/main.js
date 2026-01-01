@@ -82,6 +82,7 @@
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null,
+            mode: 'master',
             cropRotation: 0
         };
 
@@ -115,7 +116,10 @@
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
             workspaceResolution: document.getElementById('workspace-resolution'),
             colorTuningDrawer: document.getElementById('drawer-tools'),
-            verticalToolbox: document.getElementById('vertical-toolbox')
+            verticalToolbox: document.getElementById('vertical-toolbox'),
+            modeMaster: document.getElementById('modeMaster'),
+            modeCensor: document.getElementById('modeCensor'),
+            modeComposite: document.getElementById('modeComposite')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -124,6 +128,34 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
         let replayEngine = null;
+
+        function setAppMode(mode) {
+            if (!mode) return;
+            state.mode = mode;
+            document.body.classList.toggle('mode-non-master', mode !== 'master');
+            const modeButtons = [
+                { mode: 'master', el: els.modeMaster },
+                { mode: 'censor', el: els.modeCensor },
+                { mode: 'composite', el: els.modeComposite }
+            ];
+            modeButtons.forEach(({ mode: buttonMode, el }) => {
+                if (!el) return;
+                el.classList.toggle('active', buttonMode === mode);
+            });
+        }
+
+        function bindModeSwitcher() {
+            if (els.modeMaster) {
+                els.modeMaster.addEventListener('click', () => setAppMode('master'));
+            }
+            if (els.modeCensor) {
+                els.modeCensor.addEventListener('click', () => setAppMode('censor'));
+            }
+            if (els.modeComposite) {
+                els.modeComposite.addEventListener('click', () => setAppMode('composite'));
+            }
+            setAppMode(state.mode);
+        }
 
         function scheduleHeavyTask(taskFn) {
             if (!els.loadingOverlay) return taskFn();
@@ -1404,6 +1436,7 @@
 
             initAdjustments();
             initDrawerSync();
+            bindModeSwitcher();
             showPreAlphaNoticeIfNeeded();
 
             window.addEventListener('resize', checkResolutionOverlap);

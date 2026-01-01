@@ -99,7 +99,7 @@
             opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
             brushSizeVal: document.getElementById('brushSizeVal'), feather: document.getElementById('feather'),
             featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
-            featherModeBtn: document.getElementById('featherModeBtn'), eraseMode: document.getElementById('eraseMode'),
+            eraseMode: document.getElementById('eraseMode'),
             repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
@@ -133,6 +133,7 @@
             if (!mode) return;
             state.mode = mode;
             document.body.classList.toggle('mode-non-master', mode !== 'master');
+            setFeatherMode(mode === 'censor');
             const modeButtons = [
                 { mode: 'master', el: els.modeMaster },
                 { mode: 'censor', el: els.modeCensor },
@@ -1685,9 +1686,6 @@
             els.feather.addEventListener('input', (e) => {
                 setFeatherFromSlider(e.target.value);
             });
-            els.featherModeBtn.addEventListener('click', () => {
-                setFeatherMode(!state.featherMode);
-            });
             els.eraseMode.addEventListener('click', () => setMode('erase'));
             els.repairMode.addEventListener('click', () => setMode('repair'));
             els.patchMode.addEventListener('click', () => setMode('patch'));
@@ -2705,13 +2703,11 @@
                  els.brushSize.disabled = true;
                  els.censorBtn.disabled = true;
                  els.mergeBtn.disabled = true;
-                 els.featherModeBtn.disabled = true;
             } else {
                  els.eraseMode.disabled = false;
                  els.repairMode.disabled = false;
                  els.patchMode.disabled = false;
                  els.brushSize.disabled = false;
-                 els.featherModeBtn.disabled = false;
             }
 
             const swapEnabled = state.imgA || state.imgB;

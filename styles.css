@@ -507,6 +507,11 @@
             pointer-events: none;
         }
 
+        .bottom-toolbar {
+            min-height: 56px;
+            width: 60%;
+        }
+
     
 
 /* Loading Spinner */

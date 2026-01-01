@@ -507,6 +507,30 @@
             pointer-events: none;
         }
 
+        .bottom-toolbar {
+            min-height: 36px;
+            width: 60%;
+        }
+        .bottom-toolbar-tab {
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #cbd5f5;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+        .bottom-toolbar-tab:hover {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+        .bottom-toolbar-divider {
+            color: #4b5563;
+            font-size: 14px;
+            line-height: 1;
+        }
+
     
 
 /* Loading Spinner */

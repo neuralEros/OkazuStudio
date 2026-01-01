@@ -540,6 +540,23 @@
             margin: 0 18px;
         }
 
+        .top-toolbar-stack {
+            height: 48px;
+        }
+        .top-toolbar-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            transition: transform 180ms ease, opacity 180ms ease;
+            will-change: transform, opacity;
+        }
+        .top-toolbar-bar.is-hidden {
+            transform: translateY(-100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
         #vertical-toolbox {
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }

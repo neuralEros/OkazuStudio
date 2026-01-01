@@ -349,89 +349,264 @@
         </button>
     </div>
 
-    <!-- Top Toolbar -->
-    <div class="h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 shrink-0 overflow-visible relative" style="cursor: default;">
-        <button id="newBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
-            <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
-            <span>New</span>
-        </button>
-        <div class="flex flex-row gap-2 shrink-0">
-            <!-- Front Group -->
-            <div class="flex gap-1">
-                <input type="file" id="fileA" accept="image/*" class="hidden">
-                <button onclick="document.getElementById('fileA').click()" id="btnA" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
-                    Load
-                    <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">front</span>
-                </button>
-                <button id="btnTrashA" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
-                     <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
-                </button>
-            </div>
-            <!-- Swap Button -->
-            <button id="swapBtn" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap">
-                <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
+    <!-- Top Toolbar Stack -->
+    <div id="top-toolbar-stack" class="top-toolbar-stack relative shrink-0">
+        <!-- Master Toolbar -->
+        <div id="toolbar-master" class="top-toolbar-bar h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 overflow-visible relative" style="cursor: default;">
+            <button id="newBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
+                <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
+                <span>New</span>
             </button>
-            <!-- Back Group -->
-            <div class="flex gap-1">
-                <input type="file" id="fileB" accept="image/*" class="hidden">
-                <button onclick="document.getElementById('fileB').click()" id="btnB" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
-                    Load
-                    <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">back</span>
-                </button>
-                <button id="btnTrashB" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
-                     <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
-                </button>
-            </div>
-        </div>
-        <div class="w-px h-6 bg-panel-divider shrink-0"></div>
-        <div class="flex items-center gap-4 shrink-0">
-            <div class="flex bg-panel-strong rounded p-0.5">
-                <button id="eraseMode" class="tool-btn active px-2 py-0.5 rounded text-xs font-medium">Erase</button>
-                <button id="repairMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Repair</button>
-                <button id="patchMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Patch</button>
-            </div>
-            <div class="flex flex-col gap-0.5 w-24">
-                <div class="flex justify-between text-xs text-gray-400">
-                    <span>Size (%)</span>
-                    <span id="brushSizeVal">10</span>
+            <div class="flex flex-row gap-2 shrink-0">
+                <!-- Front Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileA" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileA').click()" id="btnA" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">front</span>
+                    </button>
+                    <button id="btnTrashA" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
                 </div>
-                <input type="range" autocomplete="off" id="brushSize" min="0" max="1000" step="1" value="329" class="w-full">
+                <!-- Swap Button -->
+                <button id="swapBtn" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
+                </button>
+                <!-- Back Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileB" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileB').click()" id="btnB" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">back</span>
+                    </button>
+                    <button id="btnTrashB" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
+                </div>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex items-center gap-4 shrink-0">
+                <div class="flex bg-panel-strong rounded p-0.5">
+                    <button id="eraseMode" class="tool-btn active px-2 py-0.5 rounded text-xs font-medium">Erase</button>
+                    <button id="repairMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Repair</button>
+                    <button id="patchMode" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Patch</button>
+                </div>
                 <div class="flex flex-col gap-0.5 w-24">
                     <div class="flex justify-between text-xs text-gray-400">
-                        <span id="featherLabel">Hardness</span>
-                        <span id="featherVal">95%</span>
+                        <span>Size (%)</span>
+                        <span id="brushSizeVal">10</span>
                     </div>
-                    <input type="range" autocomplete="off" id="feather" min="0" max="20" value="1" class="w-full">
+                    <input type="range" autocomplete="off" id="brushSize" min="0" max="1000" step="1" value="329" class="w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex flex-col gap-0.5 w-24">
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span id="featherLabel">Hardness</span>
+                            <span id="featherVal">95%</span>
+                        </div>
+                        <input type="range" autocomplete="off" id="feather" min="0" max="20" value="1" class="w-full">
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="w-px h-6 bg-panel-divider shrink-0"></div>
-        <div class="flex flex-col gap-0.5 w-24 shrink-0">
-            <div class="flex justify-between text-xs text-gray-400">
-                <span>Opacity</span>
-                <span id="opacityVal">80%</span>
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex flex-col gap-0.5 w-24 shrink-0">
+                <div class="flex justify-between text-xs text-gray-400">
+                    <span>Opacity</span>
+                    <span id="opacityVal">80%</span>
+                </div>
+                <input type="range" autocomplete="off" id="opacitySlider" min="0" max="100" value="80" class="w-full">
             </div>
-            <input type="range" autocomplete="off" id="opacitySlider" min="0" max="100" value="80" class="w-full">
-        </div>
-        <div class="flex-1 flex items-center justify-center">
-            <div class="mode-switcher flex items-center">
-                <button id="modeMaster" class="mode-tab active" type="button">Master</button>
-                <span class="mode-divider" aria-hidden="true">|</span>
-                <button id="modeCensor" class="mode-tab" type="button">Censor</button>
-                <span class="mode-divider" aria-hidden="true">|</span>
-                <button id="modeComposite" class="mode-tab" type="button">Composite</button>
+            <div class="flex-1 flex items-center justify-center">
+                <div class="mode-switcher flex items-center">
+                    <button class="mode-tab active" type="button" data-mode="master">Master</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="censor">Censor</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="composite">Composite</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
+                     <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
+                </button>
+                <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export">
+                    <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
+                    <span>Export</span>
+                </button>
             </div>
         </div>
-        <div class="flex items-center gap-2">
-            <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
-                 <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
+
+        <!-- Censor Toolbar -->
+        <div id="toolbar-censor" class="top-toolbar-bar is-hidden h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 overflow-visible relative" style="cursor: default;" aria-hidden="true">
+            <button id="newBtn-censor" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
+                <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
+                <span>New</span>
             </button>
-            <button id="saveBtn" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export">
-                <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
-                <span>Export</span>
+            <div class="flex flex-row gap-2 shrink-0">
+                <!-- Front Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileA-censor" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileA-censor').click()" id="btnA-censor" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">front</span>
+                    </button>
+                    <button id="btnTrashA-censor" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
+                </div>
+                <!-- Swap Button -->
+                <button id="swapBtn-censor" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
+                </button>
+                <!-- Back Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileB-censor" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileB-censor').click()" id="btnB-censor" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">back</span>
+                    </button>
+                    <button id="btnTrashB-censor" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex items-center gap-4 shrink-0">
+                <div class="flex bg-panel-strong rounded p-0.5">
+                    <button id="eraseMode-censor" class="tool-btn active px-2 py-0.5 rounded text-xs font-medium">Erase</button>
+                    <button id="repairMode-censor" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Repair</button>
+                    <button id="patchMode-censor" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Patch</button>
+                </div>
+                <div class="flex flex-col gap-0.5 w-24">
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Size (%)</span>
+                        <span id="brushSizeVal-censor">10</span>
+                    </div>
+                    <input type="range" autocomplete="off" id="brushSize-censor" min="0" max="1000" step="1" value="329" class="w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex flex-col gap-0.5 w-24">
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span id="featherLabel-censor">Hardness</span>
+                            <span id="featherVal-censor">95%</span>
+                        </div>
+                        <input type="range" autocomplete="off" id="feather-censor" min="0" max="20" value="1" class="w-full">
+                    </div>
+                </div>
+            </div>
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex flex-col gap-0.5 w-24 shrink-0">
+                <div class="flex justify-between text-xs text-gray-400">
+                    <span>Opacity</span>
+                    <span id="opacityVal-censor">80%</span>
+                </div>
+                <input type="range" autocomplete="off" id="opacitySlider-censor" min="0" max="100" value="80" class="w-full">
+            </div>
+            <div class="flex-1 flex items-center justify-center">
+                <div class="mode-switcher flex items-center">
+                    <button class="mode-tab active" type="button" data-mode="master">Master</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="censor">Censor</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="composite">Composite</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="settingsBtn-censor" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
+                     <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
+                </button>
+                <button id="saveBtn-censor" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export">
+                    <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
+                    <span>Export</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Composite Toolbar -->
+        <div id="toolbar-composite" class="top-toolbar-bar is-hidden h-12 bg-panel border-b border-panel flex items-center gap-4 px-4 z-50 overflow-visible relative" style="cursor: default;" aria-hidden="true">
+            <button id="newBtn-composite" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="New">
+                <img src="icons/new.svg" alt="New" class="w-4 h-4" draggable="false">
+                <span>New</span>
             </button>
+            <div class="flex flex-row gap-2 shrink-0">
+                <!-- Front Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileA-composite" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileA-composite').click()" id="btnA-composite" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">front</span>
+                    </button>
+                    <button id="btnTrashA-composite" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
+                </div>
+                <!-- Swap Button -->
+                <button id="swapBtn-composite" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center hover-accent" title="Swap">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M273-160 80-353l193-193 42 42-121 121h316v60H194l121 121-42 42Zm414-254-42-42 121-121H450v-60h316L645-758l42-42 193 193-193 193Z"/></svg>
+                </button>
+                <!-- Back Group -->
+                <div class="flex gap-1">
+                    <input type="file" id="fileB-composite" accept="image/*" class="hidden">
+                    <button onclick="document.getElementById('fileB-composite').click()" id="btnB-composite" class="relative tool-btn px-2 py-1 text-xs font-bold rounded border border-panel panel-btn w-24 leading-tight">
+                        Load
+                        <span class="absolute bottom-[-11px] left-0 right-0 text-center text-[8px] text-gray-600 font-normal leading-none pointer-events-none">back</span>
+                    </button>
+                    <button id="btnTrashB-composite" class="tool-btn py-1 rounded border border-panel panel-btn aspect-square flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" height="14" viewBox="0 -960 960 960" width="14" fill="currentColor"><path d="M261-120q-24.75 0-42.37-17.63Q201-155.25 201-180v-570h-41v-60h188v-30h264v30h188v60h-41v570q0 24-18 42t-42 18H261Zm438-630H261v570h438v-570ZM367-266h60v-399h-60v399Zm166 0h60v-399h-60v399ZM261-750v570-570Z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex items-center gap-4 shrink-0">
+                <div class="flex bg-panel-strong rounded p-0.5">
+                    <button id="eraseMode-composite" class="tool-btn active px-2 py-0.5 rounded text-xs font-medium">Erase</button>
+                    <button id="repairMode-composite" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Repair</button>
+                    <button id="patchMode-composite" class="tool-btn px-2 py-0.5 rounded text-xs font-medium">Patch</button>
+                </div>
+                <div class="flex flex-col gap-0.5 w-24">
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Size (%)</span>
+                        <span id="brushSizeVal-composite">10</span>
+                    </div>
+                    <input type="range" autocomplete="off" id="brushSize-composite" min="0" max="1000" step="1" value="329" class="w-full">
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex flex-col gap-0.5 w-24">
+                        <div class="flex justify-between text-xs text-gray-400">
+                            <span id="featherLabel-composite">Hardness</span>
+                            <span id="featherVal-composite">95%</span>
+                        </div>
+                        <input type="range" autocomplete="off" id="feather-composite" min="0" max="20" value="1" class="w-full">
+                    </div>
+                </div>
+            </div>
+            <div class="w-px h-6 bg-panel-divider shrink-0"></div>
+            <div class="flex flex-col gap-0.5 w-24 shrink-0">
+                <div class="flex justify-between text-xs text-gray-400">
+                    <span>Opacity</span>
+                    <span id="opacityVal-composite">80%</span>
+                </div>
+                <input type="range" autocomplete="off" id="opacitySlider-composite" min="0" max="100" value="80" class="w-full">
+            </div>
+            <div class="flex-1 flex items-center justify-center">
+                <div class="mode-switcher flex items-center">
+                    <button class="mode-tab active" type="button" data-mode="master">Master</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="censor">Censor</button>
+                    <span class="mode-divider" aria-hidden="true">|</span>
+                    <button class="mode-tab" type="button" data-mode="composite">Composite</button>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="settingsBtn-composite" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
+                     <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
+                </button>
+                <button id="saveBtn-composite" class="tool-btn flex items-center gap-2 text-white px-3 py-1.5 rounded shadow text-xs font-medium accent-action" title="Export">
+                    <img src="icons/export.svg" alt="Export" class="w-4 h-4" draggable="false">
+                    <span>Export</span>
+                </button>
+            </div>
         </div>
     </div>
 

@@ -97,20 +97,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return (maxDim / state.view.scale) + 200;
     }
 
-    function getCropPivotScreen(pivotTruth, rotationOverride) {
-        const { fullH, visualW, visualH } = getVisualFullDims();
-        const pivotPx = { x: pivotTruth.x * fullH, y: pivotTruth.y * fullH };
-        const baseVisual = truthToVisualCoords(pivotPx.x, pivotPx.y);
-        const canvasCx = visualW / 2;
-        const canvasCy = visualH / 2;
-        const angle = rotationOverride !== undefined ? rotationOverride : state.cropRotation;
-        const rotated = rotatePoint(baseVisual, canvasCx, canvasCy, angle);
-        return {
-            x: state.view.x + rotated.x * state.view.scale,
-            y: state.view.y + rotated.y * state.view.scale
-        };
-    }
-
     function forceCropHandleUpdate() {
         if (!els.cropBox) return;
         const invScale = 1 / state.view.scale;
@@ -804,12 +790,8 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
                     startCropRect: { ...state.cropRect },
                     startRotation: state.cropRotation,
                     startVisualRect: getVisualStartRect(),
-                    originTruth: getCropPivot(e),
-                    pivotScreen: null
+                    originTruth: getCropPivot(e)
                 };
-                if (type === 'rotate' && state.cropDrag.originTruth) {
-                    state.cropDrag.pivotScreen = getCropPivotScreen(state.cropDrag.originTruth, state.cropRotation);
-                }
             }
             return;
         }
@@ -962,15 +944,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
             if (state.cropDrag.type === 'rotate') {
                 state.cropRotation = startRotation + (dxScreen * 0.5);
-                if (state.cropDrag.originTruth) {
-                    const pivotScreen = state.cropDrag.pivotScreen || getCropPivotScreen(state.cropDrag.originTruth, startRotation);
-                    const newPivotScreen = getCropPivotScreen(state.cropDrag.originTruth, state.cropRotation);
-                    state.view.x += pivotScreen.x - newPivotScreen.x;
-                    state.view.y += pivotScreen.y - newPivotScreen.y;
-                    updateViewTransform();
-                } else {
-                    enforceCropView(true);
-                }
+                enforceCropView(true);
                 render();
             }
             else if (state.cropDrag.type === 'pan') {

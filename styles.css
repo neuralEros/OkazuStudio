@@ -509,14 +509,14 @@
 
         .bottom-toolbar {
             min-height: 36px;
-            width: 60%;
+            width: 45%;
         }
         .bottom-toolbar-tab {
-            font-size: 14px;
-            letter-spacing: 0.08em;
+            font-size: 15px;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             font-weight: 600;
-            color: #cbd5f5;
+            color: var(--accent-soft);
             padding: 6px 12px;
             border-radius: 6px;
             transition: color 0.2s ease, background-color 0.2s ease;
@@ -525,10 +525,15 @@
             color: #ffffff;
             background-color: rgba(255, 255, 255, 0.06);
         }
+        .bottom-toolbar-tab.active {
+            color: var(--accent);
+            text-shadow: 0 0 10px rgba(255, 140, 64, 0.35);
+        }
         .bottom-toolbar-divider {
             color: #4b5563;
             font-size: 14px;
             line-height: 1;
+            margin: 0 8px;
         }
 
     

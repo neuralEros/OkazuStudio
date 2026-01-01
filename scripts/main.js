@@ -761,6 +761,12 @@
                      });
                  };
 
+                 const lockUndoFloor = () => {
+                     if (replayEngine && typeof replayEngine.setUndoFloor === 'function') {
+                         replayEngine.setUndoFloor(replayEngine.history.cursor);
+                     }
+                 };
+
                  const img = await loadImageSource(source);
                  Logger.info(`[SmartLoad] Image Loaded. Dims: ${img.width}x${img.height} (Natural: ${img.naturalWidth}x${img.naturalHeight})`);
 
@@ -890,6 +896,7 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
+                                     lockUndoFloor();
                                      return; // Stop loading image (we handled it)
                                  }
 
@@ -944,6 +951,7 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
+                                     lockUndoFloor();
                                      return;
                                  }
 
@@ -2404,6 +2412,9 @@
                 } else {
                     break;
                 }
+            }
+            if (replayEngine && Number.isInteger(replayEngine.undoFloor)) {
+                minCursor = Math.max(minCursor, replayEngine.undoFloor);
             }
 
             const canUndo = cursor > minCursor && !state.isCropping;

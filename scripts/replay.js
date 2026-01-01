@@ -249,6 +249,7 @@
 
             this.history = new ActionHistoryLog();
             this.keyframeManager = new KeyframeManager(state, maskCtx, maskCanvas);
+            this.undoFloor = -1;
 
             // Expose globally for legacy access if needed
             window.ActionHistory = this.history;
@@ -276,7 +277,7 @@
         }
 
         undo() {
-            if (this.history.cursor >= 0) {
+            if (this.history.cursor >= 0 && this.history.cursor > this.undoFloor) {
                 this.history.cursor--;
                 this.replayTo(this.history.cursor);
             }
@@ -294,6 +295,14 @@
             this.history.cursor = -1;
             this.keyframeManager.keyframes.clear();
             this.keyframeManager.saveKeyframe(-1);
+            this.undoFloor = -1;
+            if (typeof this.updateUI === 'function') {
+                this.updateUI();
+            }
+        }
+
+        setUndoFloor(index) {
+            this.undoFloor = Math.max(-1, index);
             if (typeof this.updateUI === 'function') {
                 this.updateUI();
             }

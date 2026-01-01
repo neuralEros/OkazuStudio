@@ -2339,6 +2339,104 @@
                     cropLegend.style.opacity = '1';
                 }
             } else {
+                // Compressible Margins Logic: Shrink crop to fit rotated image if fully contained
+                if (state.cropRect && state.fullDims.w > 0 && state.fullDims.h > 0) {
+                    try {
+                        const fullH = state.fullDims.h;
+                        const fullW = state.fullDims.w;
+                        const rad = state.cropRotation * Math.PI / 180;
+
+                        // Current Crop Box (Truth Space)
+                        const cx = state.cropRect.x * fullH;
+                        const cy = state.cropRect.y * fullH;
+                        const cw = state.cropRect.w * fullH;
+                        const ch = state.cropRect.h * fullH;
+                        const center = { x: cx + cw/2, y: cy + ch/2 };
+
+                        // Image Corners (Truth Space)
+                        const corners = [
+                            {x: 0, y: 0},
+                            {x: fullW, y: 0},
+                            {x: fullW, y: fullH},
+                            {x: 0, y: fullH}
+                        ];
+
+                        // Transform Image Corners to Visual Space (relative to Crop Center)
+                        const cos = Math.cos(rad);
+                        const sin = Math.sin(rad);
+                        // Rotation direction matches render() logic (User sees box static, image rotated by rad)
+                        const visCorners = corners.map(p => {
+                            const dx = p.x - center.x;
+                            const dy = p.y - center.y;
+                            return {
+                                x: dx * cos - dy * sin,
+                                y: dx * sin + dy * cos
+                            };
+                        });
+
+                        // Get Image Bounding Box (Visual Space)
+                        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                        visCorners.forEach(p => {
+                            if (p.x < minX) minX = p.x;
+                            if (p.x > maxX) maxX = p.x;
+                            if (p.y < minY) minY = p.y;
+                            if (p.y > maxY) maxY = p.y;
+                        });
+
+                        // Current Crop Box (Visual Space, centered at 0,0)
+                        const cropMinX = -cw/2;
+                        const cropMaxX = cw/2;
+                        const cropMinY = -ch/2;
+                        const cropMaxY = ch/2;
+
+                        // Intersect: If Image BB is smaller than Crop Box, we shrink.
+                        // We do NOT expand if image is cropped (intersection logic handles this implicitly if we strictly clamp)
+                        const newMinX = Math.max(cropMinX, minX);
+                        const newMaxX = Math.min(cropMaxX, maxX);
+                        const newMinY = Math.max(cropMinY, minY);
+                        const newMaxY = Math.min(cropMaxY, maxY);
+
+                        // If valid shrink
+                        if (newMaxX > newMinX && newMaxY > newMinY) {
+                            // Check if significantly different (epsilon 1px)
+                            if (Math.abs(newMinX - cropMinX) > 1 || Math.abs(newMaxX - cropMaxX) > 1 ||
+                                Math.abs(newMinY - cropMinY) > 1 || Math.abs(newMaxY - cropMaxY) > 1) {
+
+                                const newW = newMaxX - newMinX;
+                                const newH = newMaxY - newMinY;
+                                const newCenterX = (newMinX + newMaxX) / 2;
+                                const newCenterY = (newMinY + newMaxY) / 2;
+
+                                // Map New Center back to Truth Space
+                                // Inverse Rotation (-rad) + Old Center
+                                // cos(-a)=cos(a), sin(-a)=-sin(a)
+                                const rotX = newCenterX * cos - newCenterY * -sin;
+                                const rotY = newCenterX * -sin + newCenterY * cos;
+
+                                const finalCenterX = center.x + rotX;
+                                const finalCenterY = center.y + rotY;
+
+                                const finalRectPx = {
+                                    x: finalCenterX - newW/2,
+                                    y: finalCenterY - newH/2,
+                                    w: newW,
+                                    h: newH
+                                };
+
+                                state.cropRect = {
+                                    x: finalRectPx.x / fullH,
+                                    y: finalRectPx.y / fullH,
+                                    w: finalRectPx.w / fullH,
+                                    h: finalRectPx.h / fullH
+                                };
+                                Logger.info(`Auto-shrunk crop margins. New Rect: ${state.cropRect.w.toFixed(4)}x${state.cropRect.h.toFixed(4)}`);
+                            }
+                        }
+                    } catch(e) {
+                        Logger.error("Failed to auto-shrink crop", e);
+                    }
+                }
+
                 state.cropRectSnapshot = null;
                 els.cropBtn.classList.remove('active', 'text-yellow-400');
                 updateCanvasDimensions(true);

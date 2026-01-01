@@ -308,6 +308,13 @@
             }
         }
 
+        saveKeyframeAtCursor() {
+            const index = this.history.cursor;
+            if (index >= -1) {
+                this.keyframeManager.saveKeyframe(index);
+            }
+        }
+
         async replayTo(targetIndex) {
             const startTime = performance.now();
             const log = this.history.getLog();

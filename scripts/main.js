@@ -761,8 +761,12 @@
                      });
                  };
 
-                 const lockUndoFloor = () => {
-                     if (replayEngine && typeof replayEngine.setUndoFloor === 'function') {
+                 const finalizeRestoreHistory = () => {
+                     if (!replayEngine) return;
+                     if (typeof replayEngine.saveKeyframeAtCursor === 'function') {
+                         replayEngine.saveKeyframeAtCursor();
+                     }
+                     if (typeof replayEngine.setUndoFloor === 'function') {
                          replayEngine.setUndoFloor(replayEngine.history.cursor);
                      }
                  };
@@ -896,7 +900,7 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
-                                     lockUndoFloor();
+                                     finalizeRestoreHistory();
                                      return; // Stop loading image (we handled it)
                                  }
 
@@ -951,7 +955,7 @@
                                      rebuildWorkingCopies(true);
                                      render();
                                      resetView();
-                                     lockUndoFloor();
+                                     finalizeRestoreHistory();
                                      return;
                                  }
 

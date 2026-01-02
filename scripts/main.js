@@ -82,6 +82,7 @@
             settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null,
+            mode: 'master',
             cropRotation: 0
         };
 
@@ -98,7 +99,7 @@
             opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
             brushSizeVal: document.getElementById('brushSizeVal'), feather: document.getElementById('feather'),
             featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
-            featherModeBtn: document.getElementById('featherModeBtn'), eraseMode: document.getElementById('eraseMode'),
+            eraseMode: document.getElementById('eraseMode'),
             repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
             saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
@@ -115,7 +116,10 @@
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
             workspaceResolution: document.getElementById('workspace-resolution'),
             colorTuningDrawer: document.getElementById('drawer-tools'),
-            verticalToolbox: document.getElementById('vertical-toolbox')
+            verticalToolbox: document.getElementById('vertical-toolbox'),
+            modeMaster: document.getElementById('modeMaster'),
+            modeCensor: document.getElementById('modeCensor'),
+            modeComposite: document.getElementById('modeComposite')
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -124,6 +128,35 @@
         const frontLayerCanvas = document.createElement('canvas');
         const frontLayerCtx = frontLayerCanvas.getContext('2d');
         let replayEngine = null;
+
+        function setAppMode(mode) {
+            if (!mode) return;
+            state.mode = mode;
+            document.body.classList.toggle('mode-non-master', mode !== 'master');
+            setFeatherMode(mode === 'censor');
+            const modeButtons = [
+                { mode: 'master', el: els.modeMaster },
+                { mode: 'censor', el: els.modeCensor },
+                { mode: 'composite', el: els.modeComposite }
+            ];
+            modeButtons.forEach(({ mode: buttonMode, el }) => {
+                if (!el) return;
+                el.classList.toggle('active', buttonMode === mode);
+            });
+        }
+
+        function bindModeSwitcher() {
+            if (els.modeMaster) {
+                els.modeMaster.addEventListener('click', () => setAppMode('master'));
+            }
+            if (els.modeCensor) {
+                els.modeCensor.addEventListener('click', () => setAppMode('censor'));
+            }
+            if (els.modeComposite) {
+                els.modeComposite.addEventListener('click', () => setAppMode('composite'));
+            }
+            setAppMode(state.mode);
+        }
 
         function scheduleHeavyTask(taskFn) {
             if (!els.loadingOverlay) return taskFn();
@@ -1379,6 +1412,7 @@
 
             initAdjustments();
             initDrawerSync();
+            bindModeSwitcher();
 
             window.addEventListener('resize', checkResolutionOverlap);
 
@@ -1625,9 +1659,6 @@
             });
             els.feather.addEventListener('input', (e) => {
                 setFeatherFromSlider(e.target.value);
-            });
-            els.featherModeBtn.addEventListener('click', () => {
-                setFeatherMode(!state.featherMode);
             });
             els.eraseMode.addEventListener('click', () => setMode('erase'));
             els.repairMode.addEventListener('click', () => setMode('repair'));
@@ -2646,13 +2677,11 @@
                  els.brushSize.disabled = true;
                  els.censorBtn.disabled = true;
                  els.mergeBtn.disabled = true;
-                 els.featherModeBtn.disabled = true;
             } else {
                  els.eraseMode.disabled = false;
                  els.repairMode.disabled = false;
                  els.patchMode.disabled = false;
                  els.brushSize.disabled = false;
-                 els.featherModeBtn.disabled = false;
             }
 
             const swapEnabled = state.imgA || state.imgB;

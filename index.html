@@ -405,9 +405,6 @@
                     </div>
                     <input type="range" autocomplete="off" id="feather" min="0" max="20" value="1" class="w-full">
                 </div>
-                <button id="featherModeBtn" class="feather-toggle" title="Feather">
-                    <img src="icons/hardnormal.svg" alt="Hardness Mode" class="w-4 h-4" draggable="false">
-                </button>
             </div>
         </div>
         <div class="w-px h-6 bg-panel-divider shrink-0"></div>
@@ -418,7 +415,16 @@
             </div>
             <input type="range" autocomplete="off" id="opacitySlider" min="0" max="100" value="80" class="w-full">
         </div>
-        <div class="ml-auto flex items-center gap-2">
+        <div class="flex-1 flex items-center justify-center">
+            <div class="mode-switcher flex items-center">
+                <button id="modeMaster" class="mode-tab active" type="button">Master</button>
+                <span class="mode-divider" aria-hidden="true">|</span>
+                <button id="modeCensor" class="mode-tab" type="button">Censor</button>
+                <span class="mode-divider" aria-hidden="true">|</span>
+                <button id="modeComposite" class="mode-tab" type="button">Composite</button>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
             <button id="settingsBtn" class="tool-btn flex items-center justify-center w-8 h-8 rounded text-gray-400 hover:text-white" title="Settings">
                  <img src="icons/settings.svg" alt="Settings" class="w-5 h-5" draggable="false">
             </button>

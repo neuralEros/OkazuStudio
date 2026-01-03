@@ -9,124 +9,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     let saveSnapshot = () => {};
     let updateWorkingCopies = () => {};
 
-    const BAND_CENTERS = {
-        red: 0,
-        orange: 30,
-        yellow: 60,
-        green: 120,
-        aqua: 180,
-        blue: 240,
-        purple: 280,
-        magenta: 315
-    };
-
-    // Precompute a smooth falloff weight for a given hue relative to a target center
-    function getBandWeight(hue, centerHue) {
-        let diff = Math.abs(hue - centerHue);
-        if (diff > 180) diff = 360 - diff;
-
-        let width = 45;
-        if (centerHue === 30 || centerHue === 60) width = 25; // Narrower for Orange/Yellow
-
-        if (diff >= width) return 0;
-
-        // Cubic smoothstep for nice falloff
-        const t = diff / width;
-        const weight = 1 - t;
-        return weight * weight * (3 - 2 * weight);
-    }
-
-    function getLuminanceWeight(lum, band) {
-        // lum is 0.0 - 1.0
-        // Darks: Peak at 0, falloff to 0.5
-        // Mids: Peak at 0.5, falloff to 0 and 1
-        // Lights: Peak at 1, falloff to 0.5
-
-        if (band === 'darks') {
-            if (lum >= 0.5) return 0;
-            const t = lum / 0.5; // 0->0, 0.5->1
-            const w = 1 - t;
-            return w * w * (3 - 2 * w);
-        } else if (band === 'lights') {
-            if (lum <= 0.5) return 0;
-            const t = (lum - 0.5) / 0.5; // 0.5->0, 1.0->1
-            const w = t;
-            return w * w * (3 - 2 * w);
-        } else if (band === 'mids') {
-            // Peak at 0.5
-            const diff = Math.abs(lum - 0.5); // 0 -> 0.5, 0.5 -> 0, 1 -> 0.5
-            if (diff >= 0.5) return 0;
-            const t = diff / 0.5;
-            const w = 1 - t;
-            return w * w * (3 - 2 * w);
-        }
-        return 0;
-    }
-
     function updateColorTuningLUT() {
-        const tuning = state.adjustments.colorTuning;
-        hueCorrectionLUT = new Array(360);
-        luminanceCorrectionLUT = new Array(256);
-        let anyActive = false;
-
-        // Check if anything is active first to possibly skip logic
-        for (let band in tuning) {
-            const t = tuning[band];
-            if (t.hue !== 0 || t.saturation !== 0 || t.vibrance !== 0 || t.luminance !== 0 || t.shadows !== 0 || t.highlights !== 0) {
-                anyActive = true;
-                break;
-            }
-        }
-        hasActiveColorTuning = anyActive;
-        if (!anyActive) return;
-
-        // Build Hue LUT
-        for (let h = 0; h < 360; h++) {
-            let totalWeight = 0;
-            let dHue = 0, dSat = 0, dVib = 0, dLum = 0, dShadows = 0, dHighlights = 0;
-
-            for (let bandName in BAND_CENTERS) {
-                const w = getBandWeight(h, BAND_CENTERS[bandName]);
-                if (w > 0) {
-                    const t = tuning[bandName];
-                    dHue += t.hue * w;
-                    dSat += t.saturation * w;
-                    dVib += t.vibrance * w;
-                    dLum += t.luminance * w;
-                    dShadows += t.shadows * w;
-                    dHighlights += t.highlights * w;
-                    totalWeight += w;
-                }
-            }
-
-            hueCorrectionLUT[h] = { hue: dHue, sat: dSat, vib: dVib, lum: dLum, shad: dShadows, high: dHighlights };
-        }
-
-        // Build Luminance LUT
-        for (let i = 0; i < 256; i++) {
-            const lumVal = i / 255;
-            let dHue = 0, dSat = 0, dVib = 0, dLum = 0, dShadows = 0, dHighlights = 0;
-
-            ['darks', 'mids', 'lights'].forEach(band => {
-                const w = getLuminanceWeight(lumVal, band);
-                if (w > 0) {
-                    const t = tuning[band];
-                    if (t) {
-                         dHue += t.hue * w;
-                         dSat += t.saturation * w;
-                         dVib += t.vibrance * w;
-                         dLum += t.luminance * w;
-                         // Ignore shadows/highlights for luminance bands, but process them for color bands
-                         if (!['lights', 'mids', 'darks'].includes(band)) {
-                             dShadows += t.shadows * w;
-                             dHighlights += t.highlights * w;
-                         }
-                    }
-                }
-            });
-
-            luminanceCorrectionLUT[i] = { hue: dHue, sat: dSat, vib: dVib, lum: dLum, shad: dShadows, high: dHighlights };
-        }
+        const { hueLUT, luminanceLUT, hasActive } = window.AdjustmentsCore.buildColorTuningLUTs(state.adjustments.colorTuning);
+        hueCorrectionLUT = hueLUT;
+        luminanceCorrectionLUT = luminanceLUT;
+        hasActiveColorTuning = hasActive;
     }
 
     function applySelectiveColor(imageData) {
@@ -282,23 +169,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     function updateMasterLUT() {
         const g = state.adjustments.gamma;
         const l = state.adjustments.levels;
-        const hash = `${g}-${l.black}-${l.mid}-${l.white}`;
+        const { lut, hash } = window.AdjustmentsCore.buildMasterLUT({ gamma: g, levels: l });
         if (hash === currentLUTHash) return;
-        const invGamma = 1 / g;
-        const invMid = 1 / l.mid;
-        const blackNorm = l.black / 255;
-        const whiteNorm = l.white / 255;
-        const range = whiteNorm - blackNorm;
-        for (let i = 0; i < 256; i++) {
-            let n = i / 255;
-            if (range <= 0.001) n = (n > blackNorm) ? 1.0 : 0.0;
-            else n = (n - blackNorm) / range;
-            if (n < 0) n = 0; if (n > 1) n = 1;
-            n = Math.pow(n, invMid);
-            n = Math.pow(n, invGamma);
-            if (n < 0) n = 0; if (n > 1) n = 1;
-            masterLUT[i] = n * 255;
-        }
+        masterLUT = lut;
         currentLUTHash = hash;
     }
 

@@ -204,6 +204,39 @@
             });
         }
 
+        const preAlphaCookieName = 'okazu_prealpha_notice_ack';
+
+        function getCookieValue(name) {
+            const cookies = document.cookie ? document.cookie.split('; ') : [];
+            for (const cookie of cookies) {
+                const [key, ...valueParts] = cookie.split('=');
+                if (key === name) {
+                    return decodeURIComponent(valueParts.join('='));
+                }
+            }
+            return null;
+        }
+
+        function setCookieValue(name, value, maxAgeDays) {
+            const maxAge = Math.max(1, Math.floor(maxAgeDays || 1)) * 86400;
+            document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${maxAge}; path=/; samesite=lax`;
+        }
+
+        function showPreAlphaNoticeIfNeeded() {
+            if (getCookieValue(preAlphaCookieName)) {
+                return;
+            }
+
+            showModal(
+                'Pre-Alpha Notice',
+                'This is a development pre-alpha version. No guarantee is given of future save compatibility at this time.',
+                [{ label: 'I Understand', value: true }],
+                false
+            ).then(() => {
+                setCookieValue(preAlphaCookieName, '1', 3650);
+            });
+        }
+
         const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
 
         if (window.createReplayEngine) {
@@ -1384,6 +1417,7 @@
 
             initAdjustments();
             initDrawerSync();
+            showPreAlphaNoticeIfNeeded();
             bindModeSwitcher();
 
             window.addEventListener('resize', checkResolutionOverlap);

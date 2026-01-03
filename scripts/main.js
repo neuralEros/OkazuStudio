@@ -83,7 +83,8 @@
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null,
             mode: 'master',
-            cropRotation: 0
+            cropRotation: 0,
+            hasShownSaveMergeWarning: false
         };
 
         const els = {
@@ -101,7 +102,7 @@
             featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
             eraseMode: document.getElementById('eraseMode'),
             repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
-            saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
+            saveBtn: document.getElementById('saveBtn'), exportBtn: document.getElementById('exportBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
             toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
@@ -1678,7 +1679,8 @@
                 if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
             });
 
-            els.saveBtn.addEventListener('click', saveImage);
+            els.saveBtn.addEventListener('click', handleSaveClick);
+            els.exportBtn.addEventListener('click', () => saveImage());
             els.mergeBtn.addEventListener('click', mergeDown);
             els.censorBtn.addEventListener('click', applyCensor);
 
@@ -3404,7 +3406,25 @@
             });
         }
 
-        async function saveImage() {
+        async function handleSaveClick() {
+            if (!state.imgA && !state.imgB) return;
+            const hasTwoLayers = Boolean(state.imgA && state.imgB);
+            const isCensorProject = state.nameB === "Censored Layer";
+
+            if (hasTwoLayers && !isCensorProject && !state.hasShownSaveMergeWarning) {
+                state.hasShownSaveMergeWarning = true;
+                await showModal(
+                    "Save merges layers",
+                    "Your save file will merge the current layers into a single image. Masks and adjustments remain recoverable in the save metadata.",
+                    [{ label: "Understood", value: true }],
+                    false
+                );
+            }
+
+            saveImage({ save: true });
+        }
+
+        async function saveImage(layerOverride = null) {
             if (!state.imgA && !state.imgB) return;
             bakeRotation();
             Logger.info("Exporting image...");
@@ -3413,7 +3433,7 @@
             const format = state.settings.exportFormat || 'image/png'; // 'image/jpeg', 'image/png', 'image/webp'
             const quality = (state.settings.exportQuality || 98) / 100;
             const heightCap = state.settings.exportHeightCap || 'Full';
-            const layers = state.settings.exportLayers || { merged: true };
+            const layers = layerOverride || state.settings.exportLayers || { merged: true };
 
             const pad = (n) => n.toString().padStart(2, '0');
             const now = new Date();

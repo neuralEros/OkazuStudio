@@ -880,6 +880,7 @@
                          const info = payload.info || {};
                          const packets = Object.keys(payload).filter(k => k !== 'info');
                          const hasImages = state.imgA || state.imgB;
+                         let deferSlotChoice = false;
                          let decodedImg = result.cleanImage;
 
                          if (payload.watermarked && window.Watermark) {
@@ -1024,6 +1025,9 @@
                              }
 
                              if (choice === null) return { handled: true };
+                             if (choice === 'image' && hasImages) {
+                                 deferSlotChoice = true;
+                             }
                              // else fall through to load as image
                          }
                          // Case 3: Merged / Front / Back Export
@@ -1082,13 +1086,14 @@
                          }
 
                          cleanImg = decodedImg;
+                         return { handled: false, image: cleanImg, deferSlotChoice };
                      }
                  } catch (e) {
                      Logger.error("[Stego] Failed to process payload", e);
                  }
              }
 
-             return { handled: false, image: cleanImg };
+             return { handled: false, image: cleanImg, deferSlotChoice: false };
         }
 
         async function loadLayerWithSmartSlotting(source, name) {
@@ -1098,6 +1103,9 @@
                  const result = await resolveStegoLoad(source, name);
                  if (result.handled) return;
                  const cleanImg = result.image;
+                 if (result.deferSlotChoice) {
+                     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                 }
 
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
@@ -3414,10 +3422,10 @@
             if (hasTwoLayers && !isCensorProject && !state.hasShownSaveMergeWarning) {
                 state.hasShownSaveMergeWarning = true;
                 await showModal(
-                    "Save merges layers",
-                    "Your save file will merge the current layers into a single image. Masks and adjustments remain recoverable in the save metadata.",
-                    [{ label: "Understood", value: true }],
-                    false
+                    "Warning",
+                    "The currently-selected save format does not support multiple image layers. Your current image layers will be merged in the save. Proceed?",
+                    [{ label: "proceed", value: true }],
+                    true
                 );
             }
 

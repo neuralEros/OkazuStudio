@@ -17,6 +17,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         exportFormat: 'image/png', // 'image/jpeg', 'image/png', 'image/webp'
         exportQuality: 98,
         exportHeightCap: 4320, // 'Full' or number
+        saveFormat: 'png', // 'png' or 'okz'
         exportLayers: {
             merged: true,
             save: false, // Save Project
@@ -339,7 +340,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- File Format -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 mb-2">File Format</label>
+                                        <div class="flex justify-between items-center mb-2">
+                                            <label class="block text-xs font-bold text-gray-400">File Format</label>
+                                        </div>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1 mb-4">
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/jpeg">JPG</button>
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/png">PNG</button>
@@ -367,6 +370,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                         </div>
                                     </div>
 
+                                    <!-- Save Format -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Save Project Format</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="save-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="png">PNG (Stego)</button>
+                                            <button class="save-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="okz">OKZ (Archive)</button>
+                                        </div>
+                                    </div>
+
                                     <!-- Layer Exports -->
                                     <div class="mb-6">
                                         <label class="block text-xs font-bold text-gray-400 mb-2">Layer Exports</label>
@@ -386,6 +398,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                     <label class="block text-xs font-bold text-gray-400 mb-2">Session Logs</label>
                                     <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap break-all select-text focus:outline-none mb-4" tabindex="0"></div>
                                     <div class="flex justify-end gap-2 shrink-0">
+                                        <button id="run-tests-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-white hover:bg-panel-800 transition-colors">Run Tests</button>
                                         <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
                                         <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
                                     </div>
@@ -535,6 +548,34 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             });
         }
         setupExportCapSwitch('.export-cap-btn', 'exportHeightCap');
+
+        // Save Format
+        function setupSaveFmtSwitch() {
+            const selector = '.save-fmt-btn';
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.settings.saveFormat = btn.dataset.val;
+                    updateSaveFmtButtons();
+                    saveSettings();
+                });
+            });
+            updateSaveFmtButtons();
+        }
+
+        function updateSaveFmtButtons() {
+            const current = state.settings.saveFormat || 'png';
+            document.querySelectorAll('.save-fmt-btn').forEach(btn => {
+                if (btn.dataset.val === current) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+        }
+        setupSaveFmtSwitch();
 
         // Layer Exports
         const exportLayerButtons = document.querySelectorAll('.export-layer-btn');
@@ -725,6 +766,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // --- DEBUG TAB ---
         const logViewer = document.getElementById('debug-log-viewer');
         // Removed refresh btn
+        const runTestsBtn = document.getElementById('run-tests-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
@@ -844,6 +886,30 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 refreshLogs();
             }
         });
+
+        if (runTestsBtn) {
+            const setRunTestsEnabled = (enabled) => {
+                runTestsBtn.disabled = !enabled;
+                runTestsBtn.classList.toggle('opacity-50', !enabled);
+                runTestsBtn.classList.toggle('cursor-not-allowed', !enabled);
+            };
+
+            runTestsBtn.addEventListener('click', async () => {
+                if (!window.TestHarness || !window.TestHarness.runAll) {
+                    if (window.Logger && window.Logger.warn) {
+                        window.Logger.warn('[TEST] Test harness not available.');
+                    }
+                    return;
+                }
+
+                setRunTestsEnabled(false);
+                try {
+                    await window.TestHarness.runAll();
+                } finally {
+                    setRunTestsEnabled(true);
+                }
+            });
+        }
 
         copyLogsBtn.addEventListener('click', () => {
             // Use window.Logger.getLogs() directly to get the full raw text

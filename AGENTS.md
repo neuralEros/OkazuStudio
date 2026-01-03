@@ -9,9 +9,15 @@
 ## High-level architecture
 - **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
 - **scripts/undo.js** encapsulates history/undo helpers while `scripts/main.js` wires them to state, rendering, and UI controls.
+- **scripts/state.js** provides a browser-only factory for fresh default state objects used by `scripts/main.js` and future tests.
 - **scripts/adjustments.js** holds LUT/color adjustment logic and UI wiring, with `scripts/main.js` delegating slider handling and image filtering to it.
 - **scripts/input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `scripts/main.js` consuming the exported hooks.
+- **scripts/test-harness.js** provides a lightweight in-app test registry, assertion helpers, and a Debug tab “Run Tests” trigger that logs results to Logger.
+- **scripts/geometry.js** provides reusable, DOM-free geometry helpers shared by input and future tooling.
 - **scripts/kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.
+- **Determinism hooks**: `AssetManager` and `ReplayEngine` accept optional time/ID providers (constructor options or setter helpers) to make deterministic browser testing possible without altering runtime behavior.
+- **Core namespaces**: `scripts/geometry.js`, `scripts/state.js`, and `scripts/adjustments-core.js` expose browser-only global helpers on `window.Geometry`, `window.StateFactory`, and `window.AdjustmentsCore`.
+- **scripts/test-utils.js** provides deterministic canvas/ImageData generators for offline browser-only tests.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings (including per-mode hardness + fixed-feather px values and the global feather mode toggle), adjustment values, history, cropping data, the active top-level mode (master/censor/composite) that drives UI visibility, plus session-only flags like the save-merge warning. `els` caches DOM references for fast event wiring.
 - **Brush presets**: `state.brushSettings` keeps per-mode brush size/hardness (erase defaults to 10% size, repair defaults to 5% with shared hardness) so swapping modes restores each brush's last settings.
 - **Canvas stack**: main display canvas (`#mainCanvas`) sits inside a transformable wrapper (`#canvas-wrapper`) controlled by the viewport for pan/zoom. A `#previewCanvas` overlays the main canvas to display low-resolution composites during high-performance interactions (drawing). Offscreen canvases include `maskCanvas` (brush strokes), `frontLayerCanvas` (front image after mask), and preview canvases for throttled adjustment previews.

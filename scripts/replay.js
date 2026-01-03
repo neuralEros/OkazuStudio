@@ -3,15 +3,38 @@
 
 (function() {
 
-    // --- Action History ---
-    function generateId() {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-    }
+    const defaultNow = () => Date.now();
+    const defaultId = (nowFn) => `${nowFn().toString(36)}${Math.random().toString(36).substr(2, 5)}`;
 
     class ActionHistoryLog {
-        constructor() {
+        constructor(options = {}) {
             this.actions = [];
             this.cursor = -1;
+            this.nowFn = typeof options.nowFn === 'function' ? options.nowFn : defaultNow;
+            if (typeof options.idGenerator === 'function') {
+                this.idGenerator = options.idGenerator;
+            } else {
+                const defaultGen = () => defaultId(this.nowFn);
+                defaultGen.usesDefaultNow = true;
+                this.idGenerator = defaultGen;
+            }
+        }
+
+        setTimeProvider(fn) {
+            this.nowFn = typeof fn === 'function' ? fn : defaultNow;
+            if (this.idGenerator && this.idGenerator.usesDefaultNow) {
+                this.setIdGenerator(null);
+            }
+        }
+
+        setIdGenerator(fn) {
+            if (typeof fn === 'function') {
+                this.idGenerator = fn;
+            } else {
+                const defaultGen = () => defaultId(this.nowFn);
+                defaultGen.usesDefaultNow = true;
+                this.idGenerator = defaultGen;
+            }
         }
 
         logAction(action) {
@@ -21,8 +44,8 @@
             }
 
             const entry = {
-                id: generateId(),
-                timestamp: Date.now(),
+                id: this.idGenerator(),
+                timestamp: this.nowFn(),
                 type: action.type,
                 payload: action.payload // Payload should be immutable-ish
             };
@@ -82,16 +105,21 @@
 
     // --- Keyframe Manager ---
     class KeyframeManager {
-        constructor(state, maskCtx, maskCanvas) {
+        constructor(state, maskCtx, maskCanvas, options = {}) {
             this.state = state;
             this.maskCtx = maskCtx;
             this.maskCanvas = maskCanvas;
             this.keyframes = new Map(); // index -> snapshot
+            this.nowFn = typeof options.nowFn === 'function' ? options.nowFn : defaultNow;
+        }
+
+        setTimeProvider(fn) {
+            this.nowFn = typeof fn === 'function' ? fn : defaultNow;
         }
 
         createSnapshot() {
             return {
-                timestamp: Date.now(),
+                timestamp: this.nowFn(),
                 // Mask Pixel Data
                 maskData: this.maskCtx.getImageData(0, 0, this.maskCanvas.width, this.maskCanvas.height),
 
@@ -239,7 +267,7 @@
 
     // --- Replay Engine ---
     class ReplayEngine {
-        constructor(state, maskCtx, maskCanvas, renderFn, updateUIFn, rebuildWorkingCopiesFn) {
+        constructor(state, maskCtx, maskCanvas, renderFn, updateUIFn, rebuildWorkingCopiesFn, options = {}) {
             this.state = state;
             this.maskCtx = maskCtx;
             this.maskCanvas = maskCanvas;
@@ -247,8 +275,8 @@
             this.updateUI = updateUIFn;
             this.rebuildWorkingCopies = rebuildWorkingCopiesFn;
 
-            this.history = new ActionHistoryLog();
-            this.keyframeManager = new KeyframeManager(state, maskCtx, maskCanvas);
+            this.history = new ActionHistoryLog(options);
+            this.keyframeManager = new KeyframeManager(state, maskCtx, maskCanvas, options);
             this.undoFloor = -1;
 
             // Expose globally for legacy access if needed
@@ -256,6 +284,15 @@
 
             // Initialize base keyframe
             this.keyframeManager.saveKeyframe(-1);
+        }
+
+        setTimeProvider(fn) {
+            this.history.setTimeProvider(fn);
+            this.keyframeManager.setTimeProvider(fn);
+        }
+
+        setIdGenerator(fn) {
+            this.history.setIdGenerator(fn);
         }
 
         // Main Entry Point for New Actions
@@ -777,8 +814,8 @@
     }
 
     // --- Factory ---
-    window.createReplayEngine = function(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies) {
-        return new ReplayEngine(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies);
+    window.createReplayEngine = function(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies, options) {
+        return new ReplayEngine(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies, options);
     };
 
     // Global Dispatch shim is now handled in main.js via delegation,

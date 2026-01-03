@@ -9,6 +9,7 @@
 ## High-level architecture
 - **index.html** hosts all UI markup, styling (Tailwind CDN + custom CSS), and JavaScript logic—no build step.
 - **scripts/undo.js** encapsulates history/undo helpers while `scripts/main.js` wires them to state, rendering, and UI controls.
+- **scripts/state.js** provides a browser-only factory for fresh default state objects used by `scripts/main.js` and future tests.
 - **scripts/adjustments.js** holds LUT/color adjustment logic and UI wiring, with `scripts/main.js` delegating slider handling and image filtering to it.
 - **scripts/input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `scripts/main.js` consuming the exported hooks.
 - **scripts/kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.

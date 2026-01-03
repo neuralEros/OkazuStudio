@@ -12,6 +12,7 @@
         };
 
         let hintTimer = null;
+        const modalState = { hideTimer: null, token: 0 };
         function showHints() {
             const legend = state.isCropping ? document.getElementById('crop-hint-legend') : document.getElementById('hint-legend');
             if (legend) {
@@ -180,6 +181,8 @@
 
         function showModal(title, message, choices, cancellable = true) {
             return new Promise((resolve) => {
+                modalState.token += 1;
+                const modalToken = modalState.token;
                 const overlay = document.getElementById('modal-overlay');
                 const titleEl = document.getElementById('modal-title');
                 const closeBtn = document.getElementById('modal-close');
@@ -189,6 +192,11 @@
                 titleEl.textContent = title || "Confirm";
                 msg.textContent = message;
                 choiceContainer.innerHTML = '';
+
+                if (modalState.hideTimer) {
+                    clearTimeout(modalState.hideTimer);
+                    modalState.hideTimer = null;
+                }
 
                 // Reset state
                 overlay.classList.remove('hidden');
@@ -200,8 +208,13 @@
                 const cleanup = () => {
                      overlay.classList.add('opacity-0');
                      overlay.classList.remove('visible');
-                     setTimeout(() => {
+                     if (modalState.hideTimer) {
+                         clearTimeout(modalState.hideTimer);
+                     }
+                     modalState.hideTimer = setTimeout(() => {
+                         if (modalState.token !== modalToken) return;
                          overlay.classList.add('hidden');
+                         modalState.hideTimer = null;
                      }, 200);
                 };
 

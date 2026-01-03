@@ -17,6 +17,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         exportFormat: 'image/png', // 'image/jpeg', 'image/png', 'image/webp'
         exportQuality: 98,
         exportHeightCap: 4320, // 'Full' or number
+        saveFormat: 'png', // 'png' or 'okz'
         exportLayers: {
             merged: true,
             save: false, // Save Project
@@ -339,7 +340,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
                                     <!-- File Format -->
                                     <div class="mb-6">
-                                        <label class="block text-xs font-bold text-gray-400 mb-2">File Format</label>
+                                        <div class="flex justify-between items-center mb-2">
+                                            <label class="block text-xs font-bold text-gray-400">File Format</label>
+                                        </div>
                                         <div class="flex rounded bg-panel-strong p-1 gap-1 mb-4">
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/jpeg">JPG</button>
                                             <button class="export-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="image/png">PNG</button>
@@ -364,6 +367,15 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="2160">2160p (4K)</button>
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="4320">4320p (8K)</button>
                                             <button class="export-cap-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="Full">Full</button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Save Format -->
+                                    <div class="mb-6">
+                                        <label class="block text-xs font-bold text-gray-400 mb-2">Save Project Format</label>
+                                        <div class="flex rounded bg-panel-strong p-1 gap-1">
+                                            <button class="save-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="png">PNG (Stego)</button>
+                                            <button class="save-fmt-btn flex-1 py-1.5 text-xs font-bold rounded text-gray-400 hover:text-white hover:bg-panel-800 transition-colors" data-val="okz">OKZ (Archive)</button>
                                         </div>
                                     </div>
 
@@ -536,6 +548,34 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             });
         }
         setupExportCapSwitch('.export-cap-btn', 'exportHeightCap');
+
+        // Save Format
+        function setupSaveFmtSwitch() {
+            const selector = '.save-fmt-btn';
+            const buttons = document.querySelectorAll(selector);
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.settings.saveFormat = btn.dataset.val;
+                    updateSaveFmtButtons();
+                    saveSettings();
+                });
+            });
+            updateSaveFmtButtons();
+        }
+
+        function updateSaveFmtButtons() {
+            const current = state.settings.saveFormat || 'png';
+            document.querySelectorAll('.save-fmt-btn').forEach(btn => {
+                if (btn.dataset.val === current) {
+                    btn.classList.add('bg-accent');
+                    btn.classList.remove('text-gray-400', 'hover:bg-panel-800');
+                } else {
+                    btn.classList.remove('bg-accent');
+                    btn.classList.add('text-gray-400', 'hover:bg-panel-800');
+                }
+            });
+        }
+        setupSaveFmtSwitch();
 
         // Layer Exports
         const exportLayerButtons = document.querySelectorAll('.export-layer-btn');

@@ -2883,6 +2883,16 @@
             log(`Loading ${file.name}...`, "info");
             Logger.info(`Loading file into Slot ${slot}: ${file.name} (${file.size} bytes)`);
 
+            // OKZ Handling
+            if (file.name.endsWith('.okz') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+                if (window.loadOkz) {
+                    return window.loadOkz(file);
+                } else {
+                    console.error("OKZ loader not available");
+                    // Fallthrough to standard image loading which will fail but safe
+                }
+            }
+
             return resolveStegoLoad(file, file.name)
                 .then(result => {
                     if (result.handled) return;
@@ -3431,8 +3441,9 @@
             if (!state.imgA && !state.imgB) return;
             const hasTwoLayers = Boolean(state.imgA && state.imgB);
             const isCensorProject = state.nameB === "Censored Layer";
+        const isOkz = state.settings.saveFormat === 'okz';
 
-            if (hasTwoLayers && !isCensorProject && !state.hasShownSaveMergeWarning) {
+        if (!isOkz && hasTwoLayers && !isCensorProject && !state.hasShownSaveMergeWarning) {
                 state.hasShownSaveMergeWarning = true;
                 await showModal(
                     "Warning",
@@ -3531,6 +3542,12 @@
             scheduleHeavyTask(async () => {
              try {
                 for (const job of jobs) {
+                // OKZ Check
+                if (job.type === 'save' && state.settings.saveFormat === 'okz') {
+                    await saveAsOkz(timeString);
+                    continue;
+                }
+
                     // Config for this job
                     let targetW, targetH, currentResTag;
                     const originalRotation = state.cropRotation; // Capture
@@ -3680,6 +3697,163 @@
              }
             });
         }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function saveAsOkz(timeStringOverride) {
+            if (!window.JSZip) {
+                console.error("JSZip not loaded");
+                return;
+            }
+
+            const zip = new JSZip();
+
+            // Metadata
+            const payload = Stego.assemblePayload(state, replayEngine.history, 'save');
+            zip.file("metadata.json", JSON.stringify(payload, null, 2));
+
+            // Images
+            // Helper to get blob from image source
+            const getBlob = async (img) => {
+                // If img.src is blob URL, fetch it.
+                // If img is canvas, toBlob.
+                // Assuming img is HTMLImageElement.
+                if (img.src && img.src.startsWith('blob:')) {
+                    const resp = await fetch(img.src);
+                    return await resp.blob();
+                } else if (img.src && img.src.startsWith('data:')) {
+                    const resp = await fetch(img.src);
+                    return await resp.blob();
+                } else if (img instanceof HTMLCanvasElement) {
+                    return new Promise(r => img.toBlob(r));
+                }
+                // Fallback: draw to canvas and extract
+                const c = document.createElement('canvas');
+                c.width = img.width;
+                c.height = img.height;
+                c.getContext('2d').drawImage(img, 0, 0);
+                return new Promise(r => c.toBlob(r));
+            };
+
+            if (state.imgA) {
+                try {
+                    const blobA = await getBlob(state.imgA);
+                    zip.file("front.png", blobA);
+                } catch (e) { console.error("Failed to add front.png", e); }
+            }
+
+            if (state.imgB) {
+                try {
+                    const blobB = await getBlob(state.imgB);
+                    zip.file("back.png", blobB);
+                } catch (e) { console.error("Failed to add back.png", e); }
+            }
+
+            // Generate
+            const content = await zip.generateAsync({type:"blob"});
+
+            // Filename
+            const baseName = state.nameA ? state.nameA.replace(/\.[^/.]+$/, "") : "project";
+            const ts = timeStringOverride || new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `${ts}_save.okz`;
+
+            triggerDownload(content, filename);
+        }
+
+        window.loadOkz = async function(file) {
+            if (!window.JSZip) {
+                console.error("JSZip not loaded");
+                return;
+            }
+
+            try {
+                const zip = await new JSZip().loadAsync(file);
+
+                // Metadata
+                let metadata = {};
+                if (zip.file("metadata.json")) {
+                    const text = await zip.file("metadata.json").async("string");
+                    metadata = JSON.parse(text);
+                }
+
+                // Images
+                let blobA = null;
+                let blobB = null;
+
+                if (zip.file("front.png")) {
+                    blobA = await zip.file("front.png").async("blob");
+                }
+                if (zip.file("back.png")) {
+                    blobB = await zip.file("back.png").async("blob");
+                }
+
+                resetWorkspace();
+
+                // Respect Censor Logic
+                if (metadata.censor && blobA) {
+                    // Censor Flow: Load Base -> Generate B
+                    const imgA = await loadImageSource(blobA);
+                    assignLayer(imgA, 'A', 'Base Layer');
+
+                    await generateCensorLayer();
+                } else {
+                    // Standard Flow
+                    if (blobA) {
+                        const imgA = await loadImageSource(blobA);
+                        assignLayer(imgA, 'A', 'front.png');
+                    }
+                    if (blobB) {
+                        const imgB = await loadImageSource(blobB);
+                        assignLayer(imgB, 'B', 'back.png');
+                    }
+                }
+
+                // Apply Metadata
+                if (metadata.mask && Array.isArray(metadata.mask)) {
+                    if (replayEngine && replayEngine.restoreMask) {
+                        replayEngine.restoreMask(metadata.mask);
+                    } else {
+                        // Fallback manual replay if restoreMask helper missing
+                        resetMaskOnly();
+                        metadata.mask.forEach(action => {
+                            if (replayEngine) {
+                                replayEngine.applyAction(action.type, action.payload);
+                                replayEngine.logAction(action);
+                            }
+                        });
+                    }
+                }
+
+                if (metadata.adjustments) {
+                    state.adjustments = { ...state.adjustments, ...metadata.adjustments };
+                    if (typeof recalculateColorTuning === 'function') recalculateColorTuning();
+                    if (typeof updateAllAdjustmentUI === 'function') updateAllAdjustmentUI();
+                }
+
+                if (metadata.crop) {
+                    state.cropRect = metadata.crop;
+                    state.isCropping = false;
+                    if (metadata.crop.rotation) state.cropRotation = metadata.crop.rotation;
+                }
+
+                rebuildWorkingCopies(true);
+                resetView();
+                render();
+
+            } catch (e) {
+                console.error("Failed to load OKZ", e);
+                alert("Failed to load .okz file: " + e.message);
+            }
+        };
 
         async function resetWorkspace() {
             const confirm = await showModal("New Edit", "This will clear your canvas and edits. Are you sure?", [

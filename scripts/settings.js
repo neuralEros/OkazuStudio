@@ -214,6 +214,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     const saveDebounced = debounce(saveSettings, 1000);
 
     // UI Construction
+    let openSettingsFn = null;
+    let closeSettingsFn = null;
+
     function initSettingsUI() {
         const modalHtml = `
             <div id="settings-overlay" class="hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-200 opacity-0">
@@ -418,8 +421,18 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         const modal = document.getElementById('settings-modal');
         const btn = document.getElementById('settingsBtn');
 
+        if (!overlay || !modal) {
+            console.error('[Settings] Missing settings overlay/modal nodes.');
+            return;
+        }
+
         // Wiring
-        btn.addEventListener('click', openSettings);
+        if (btn) {
+            btn.addEventListener('click', openSettings);
+            btn.dataset.settingsBound = 'true';
+        } else {
+            console.error('[Settings] Missing settings button (#settingsBtn).');
+        }
         document.getElementById('settings-close').addEventListener('click', closeSettings);
         overlay.addEventListener('click', (e) => {
             if (e.target === overlay) closeSettings();
@@ -962,6 +975,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 modal.style.transform = 'translate(-50%, -150%)';
             }, 300); // Match duration
         }
+
+        openSettingsFn = openSettings;
+        closeSettingsFn = closeSettings;
     }
 
     // Autosave on unload
@@ -974,6 +990,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     initSettingsUI();
 
     return {
-        // Expose if needed
+        openSettings: () => openSettingsFn && openSettingsFn(),
+        closeSettings: () => closeSettingsFn && closeSettingsFn()
     };
 }

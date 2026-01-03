@@ -367,6 +367,15 @@
             /* z-index set inline to manage stacking order */
             pointer-events: none; /* Allow clicking through empty space */
         }
+        #drawer-adj {
+            top: clamp(160px, 28vh, 320px);
+        }
+        #drawer-tools {
+            top: clamp(360px, 54vh, 520px);
+        }
+        #drawer-layers {
+            top: clamp(560px, 80vh, 720px);
+        }
         .side-drawer > * {
             pointer-events: auto; /* Re-enable pointer events for lip and content */
         }

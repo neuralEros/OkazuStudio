@@ -67,6 +67,7 @@
             adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
             cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
             workspaceResolution: document.getElementById('workspace-resolution'),
+            settingsBtn: document.getElementById('settingsBtn'),
             colorTuningDrawer: document.getElementById('drawer-tools'),
             verticalToolbox: document.getElementById('vertical-toolbox'),
             modeMaster: document.getElementById('modeMaster'),
@@ -238,6 +239,12 @@
         }
 
         const settingsSystem = createSettingsSystem({ state, els, render, scheduleHeavyTask });
+        if (els.settingsBtn && settingsSystem && settingsSystem.openSettings) {
+            if (!els.settingsBtn.dataset.settingsBound) {
+                els.settingsBtn.addEventListener('click', settingsSystem.openSettings);
+                els.settingsBtn.dataset.settingsBound = 'true';
+            }
+        }
 
         if (window.createReplayEngine) {
             replayEngine = window.createReplayEngine(state, maskCtx, maskCanvas, render, updateUI, updateWorkingCopiesAfterAdjustments);

@@ -13,6 +13,7 @@
 - **scripts/adjustments.js** holds LUT/color adjustment logic and UI wiring, with `scripts/main.js` delegating slider handling and image filtering to it.
 - **scripts/input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `scripts/main.js` consuming the exported hooks.
 - **scripts/kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.
+- **Core namespaces**: `scripts/geometry.js`, `scripts/state.js`, and `scripts/adjustments-core.js` expose browser-only global helpers on `window.Geometry`, `window.StateFactory`, and `window.AdjustmentsCore`.
 - **scripts/test-utils.js** provides deterministic canvas/ImageData generators for offline browser-only tests.
 - **State & elements**: a central `state` object tracks images, view transforms, brush/mask settings (including per-mode hardness + fixed-feather px values and the global feather mode toggle), adjustment values, history, cropping data, the active top-level mode (master/censor/composite) that drives UI visibility, plus session-only flags like the save-merge warning. `els` caches DOM references for fast event wiring.
 - **Brush presets**: `state.brushSettings` keeps per-mode brush size/hardness (erase defaults to 10% size, repair defaults to 5% with shared hardness) so swapping modes restores each brush's last settings.

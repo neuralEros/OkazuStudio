@@ -83,7 +83,8 @@
             pendingAdjustmentCommit: false, drawerCloseTimer: null,
             activeDrawerTab: null,
             mode: 'master',
-            cropRotation: 0
+            cropRotation: 0,
+            hasShownSaveMergeWarning: false
         };
 
         const els = {
@@ -101,7 +102,7 @@
             featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
             eraseMode: document.getElementById('eraseMode'),
             repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
-            saveBtn: document.getElementById('saveBtn'), dragOverlay: document.getElementById('drag-overlay'),
+            saveBtn: document.getElementById('saveBtn'), exportBtn: document.getElementById('exportBtn'), dragOverlay: document.getElementById('drag-overlay'),
             toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
             toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
             toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
@@ -879,6 +880,7 @@
                          const info = payload.info || {};
                          const packets = Object.keys(payload).filter(k => k !== 'info');
                          const hasImages = state.imgA || state.imgB;
+                         let deferSlotChoice = false;
                          let decodedImg = result.cleanImage;
 
                          if (payload.watermarked && window.Watermark) {
@@ -1023,6 +1025,9 @@
                              }
 
                              if (choice === null) return { handled: true };
+                             if (choice === 'image' && hasImages) {
+                                 deferSlotChoice = true;
+                             }
                              // else fall through to load as image
                          }
                          // Case 3: Merged / Front / Back Export
@@ -1081,13 +1086,14 @@
                          }
 
                          cleanImg = decodedImg;
+                         return { handled: false, image: cleanImg, deferSlotChoice };
                      }
                  } catch (e) {
                      Logger.error("[Stego] Failed to process payload", e);
                  }
              }
 
-             return { handled: false, image: cleanImg };
+             return { handled: false, image: cleanImg, deferSlotChoice: false };
         }
 
         async function loadLayerWithSmartSlotting(source, name) {
@@ -1097,6 +1103,9 @@
                  const result = await resolveStegoLoad(source, name);
                  if (result.handled) return;
                  const cleanImg = result.image;
+                 if (result.deferSlotChoice) {
+                     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                 }
 
                  // 0 loaded -> Slot A (Front)
                  if (!state.imgA && !state.imgB) {
@@ -1678,7 +1687,8 @@
                 if (window.dispatchAction) dispatchAction({ type: 'RESET_ALL', payload: {} });
             });
 
-            els.saveBtn.addEventListener('click', saveImage);
+            els.saveBtn.addEventListener('click', handleSaveClick);
+            els.exportBtn.addEventListener('click', () => saveImage());
             els.mergeBtn.addEventListener('click', mergeDown);
             els.censorBtn.addEventListener('click', applyCensor);
 
@@ -3404,7 +3414,25 @@
             });
         }
 
-        async function saveImage() {
+        async function handleSaveClick() {
+            if (!state.imgA && !state.imgB) return;
+            const hasTwoLayers = Boolean(state.imgA && state.imgB);
+            const isCensorProject = state.nameB === "Censored Layer";
+
+            if (hasTwoLayers && !isCensorProject && !state.hasShownSaveMergeWarning) {
+                state.hasShownSaveMergeWarning = true;
+                await showModal(
+                    "Warning",
+                    "The currently-selected save format does not support multiple image layers. Your current image layers will be merged in the save. Proceed?",
+                    [{ label: "proceed", value: true }],
+                    true
+                );
+            }
+
+            saveImage({ save: true });
+        }
+
+        async function saveImage(layerOverride = null) {
             if (!state.imgA && !state.imgB) return;
             bakeRotation();
             Logger.info("Exporting image...");
@@ -3413,7 +3441,7 @@
             const format = state.settings.exportFormat || 'image/png'; // 'image/jpeg', 'image/png', 'image/webp'
             const quality = (state.settings.exportQuality || 98) / 100;
             const heightCap = state.settings.exportHeightCap || 'Full';
-            const layers = state.settings.exportLayers || { merged: true };
+            const layers = layerOverride || state.settings.exportLayers || { merged: true };
 
             const pad = (n) => n.toString().padStart(2, '0');
             const now = new Date();

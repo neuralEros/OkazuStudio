@@ -12,6 +12,7 @@
 - **scripts/state.js** provides a browser-only factory for fresh default state objects used by `scripts/main.js` and future tests.
 - **scripts/adjustments.js** holds LUT/color adjustment logic and UI wiring, with `scripts/main.js` delegating slider handling and image filtering to it.
 - **scripts/input.js** owns pointer/keyboard handlers, panning/zooming, crop interactions, and brush cursor updates, with `scripts/main.js` consuming the exported hooks.
+- **scripts/test-harness.js** provides a lightweight in-app test registry, assertion helpers, and a Debug tab “Run Tests” trigger that logs results to Logger.
 - **scripts/geometry.js** provides reusable, DOM-free geometry helpers shared by input and future tooling.
 - **scripts/kakushi.js** provides LSB steganography helpers for embedding and extracting small payloads in PNG pixel data.
 - **Determinism hooks**: `AssetManager` and `ReplayEngine` accept optional time/ID providers (constructor options or setter helpers) to make deterministic browser testing possible without altering runtime behavior.

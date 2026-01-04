@@ -26,7 +26,6 @@
             fullDims: { w: 100, h: 100 },
             hasActiveColorTuning: false
         };
-        // Populate colorTuning state
         const bands = ['reds', 'oranges', 'yellows', 'greens', 'aquas', 'blues', 'purples', 'magentas', 'darks', 'mids', 'lights'];
         bands.forEach(b => state.adjustments.colorTuning[b] = { hue: 0, sat: 0, vib: 0, lum: 0, shadows: 0, highlights: 0 });
 
@@ -70,7 +69,6 @@
         const { getBandWeight } = window.OkazuTestables.adjustments;
 
         // 2.1.1 Width Selection
-        // 30 and 60 use narrow width (25)
         assertApprox(getBandWeight(30+25, 30), 0, 1e-6, 'Narrow band boundary');
         assertApprox(getBandWeight(60+25, 60), 0, 1e-6, 'Narrow band boundary');
         assert(getBandWeight(30+24.9, 30) > 0, 'Inside narrow band');
@@ -136,11 +134,6 @@
     register('Adjustments: 2.4 getCurvedValue', () => {
         const { getCurvedValue } = window.OkazuTestables.adjustments;
 
-        assert(Math.abs(getCurvedValue(80)) < Math.abs(getCurvedValue(81)), 'Slope increase check (flawed check but directionally correct)');
-        // Better check:
-        // 0-80 maps to 0-50. Slope 50/80 = 0.625
-        // 80-100 maps to 50-100. Slope 50/20 = 2.5
-        // So a step of 1 at 80 should be bigger than step of 1 at 40
         const stepLow = getCurvedValue(41) - getCurvedValue(40);
         const stepHigh = getCurvedValue(91) - getCurvedValue(90);
         assert(stepHigh > stepLow, 'Curve slope increases');

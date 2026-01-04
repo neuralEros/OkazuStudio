@@ -28,12 +28,6 @@
 
         const id2 = window.AssetManager.addAsset(undefined, 'Ignored');
         assertEqual(id2, null, 'addAsset(undefined) should return null');
-
-        // Access internal map size via getAsset lookup or just trust logic if not exposed?
-        // scripts/assets.js exposes assets map via getter? No.
-        // But we can check if any ID was returned. We verified null.
-        // We can't easily check internal map size without exposing it.
-        // Assuming addAsset logic is sound if it returns null.
     });
 
     register('AssetManager: 3.2 Width/Height Resolution', () => {
@@ -70,7 +64,6 @@
     register('AssetManager: 3.4 Timestamp Determinism', () => {
         window.AssetManager.clear();
 
-        // Mock Date.now
         const nowSpy = spyOn(Date, 'now').mockReturnValue(1700000001234);
 
         const id = window.AssetManager.addAsset(canvasStub, 'Timed Asset');
@@ -84,7 +77,6 @@
     register('AssetManager: 3.5 ID Uniqueness', () => {
         window.AssetManager.clear();
 
-        // Even with same time, IDs should differ due to randomness
         const nowSpy = spyOn(Date, 'now').mockReturnValue(1000);
         const mathSpy = spyOn(Math, 'random');
 

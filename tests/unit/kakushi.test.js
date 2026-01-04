@@ -14,11 +14,6 @@
     // --- 1. Harness & Mocking ---
 
     // Stub global compression utils if pako/etc are not available in test env
-    // Assuming scripts/kakushi.js handles compression.
-    // We will spy on internal helper methods if exposed or global window methods if used.
-    // Kakushi usually uses pako. If pako is missing, it might fail or fallback.
-    // Let's stub window.pako if needed.
-
     window.pako = window.pako || {
         deflate: (str) => new TextEncoder().encode(str), // Fake deflate
         inflate: (bytes) => new TextDecoder().decode(bytes) // Fake inflate
@@ -56,8 +51,6 @@
         const data = ctx.getImageData(0,0,w,h).data;
 
         // Embed Header: Magic + Length 0
-        // Magic: 0x4F, 0x4B, 0x5A, 0x31 (4 bytes)
-        // Length: 0 (4 bytes)
         const header = new Uint8Array([0x4F, 0x4B, 0x5A, 0x31, 0, 0, 0, 0]);
         embedBytes(data, header, null);
         ctx.putImageData({ data, width: w, height: h });
@@ -92,11 +85,6 @@
         const mask = new Uint8Array(data.length);
         mask[1*4 + 3] = 255;
 
-        // Effective pixels: Index 0 (Opaque, Unmasked), Index 2 (Opaque, Unmasked).
-        // Total 2 pixels * 3 channels = 6 bits.
-        // Header requires 8 bytes (64 bits).
-        // Should throw.
-
         try {
             await window.kakushi.seal(ctx.canvas, "A", { mask: { data: mask } });
             assert(false, 'Should have thrown Payload too large');
@@ -126,11 +114,6 @@
         const data = new Uint8ClampedArray(4); // 1 pixel
         data[0] = 0; data[1] = 0; data[2] = 0; data[3] = 255; // All 0
 
-        // 0xA0 = 10100000
-        // Bits: 1, 0, 1, ...
-        // RGB indices: 0, 1, 2.
-        // Expect: R=1, G=0, B=1.
-
         embedBytes(data, new Uint8Array([0xA0]), null);
 
         assertEqual(data[0] & 1, 1, 'Bit 0 (1)');
@@ -157,7 +140,6 @@
         // Header: Magic + Length 2
         const header = new Uint8Array([0x4F, 0x4B, 0x5A, 0x31, 0, 0, 0, 2]);
         // Payload: AA 55
-        // Total embed order: Header then Payload
         const combined = new Uint8Array(10);
         combined.set(header);
         combined.set([0xAA, 0x55], 8);
@@ -165,17 +147,8 @@
         embedBytes(data, combined, null);
         ctx.putImageData({ data, width: w, height: h });
 
-        // reveal uses inflate. AA 55 is raw.
-        // We mocked pako to be text encoder/decoder.
-        // AA 55 is invalid utf-8 likely?
-        // Let's use a payload that survives our mock pako.
-        // Mock pako.inflate(bytes) -> returns string.
-        // For test 5.3 we want to check extraction logic.
-        // Let's just spy on pako.inflate and check what it received.
-
         const inflateSpy = spyOn(window.pako, 'inflate');
         inflateSpy.mockImplementation((bytes) => {
-            // bytes should be AA 55
             if (bytes.length === 2 && bytes[0] === 0xAA && bytes[1] === 0x55) return "OK";
             return "FAIL";
         });
@@ -192,18 +165,12 @@
          const ctx = makeCtx(w, h, [128, 128, 128, 255]);
          const data = ctx.getImageData(0,0,w,h).data;
 
-         // Embed Header + Length 1 + 1 byte
          const header = new Uint8Array([0x4F, 0x4B, 0x5A, 0x31, 0, 0, 0, 1]);
-         const payload = new Uint8Array([0xFF]);
          const combined = new Uint8Array(9);
          combined.set(header);
          combined[8] = 0xFF;
 
          embedBytes(data, combined, null);
-
-         // Verify LSBs set
-         // 9 bytes * 8 bits = 72 bits.
-         // 72 / 3 channels per pixel = 24 pixels needed. 10x10=100. OK.
 
          ctx.putImageData({data, width:w, height:h});
 

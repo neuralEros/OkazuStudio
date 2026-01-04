@@ -24,7 +24,9 @@
         assertEqual(state.opacity, 0.8);
         assertEqual(state.brushSize, 0.1);
         assertEqual(state.feather, 1);
-        // ... (other property checks as needed)
+        // Ensure defaults are populated as expected
+        assertEqual(state.mode, 'master');
+        assertEqual(state.maskVisible, true);
     });
 
     register('Main: 2.2 createDefaultEls', () => {
@@ -50,7 +52,6 @@
 
         assertEqual(clone.width, 10);
         assertEqual(clone.height, 20);
-        // Checking content equality strictly requires mocking ctx.drawImage or checking data
     });
 
     register('Main: 4.2 generateThumbnail', () => {
@@ -118,14 +119,8 @@
         const r = main.state.cropRect;
         assert(r.x >= 0, 'x clamped');
         assert(r.y >= 0, 'y clamped');
-        assert(r.w <= 1000/500 * 1.0, 'w clamped'); // Aspect ratio check?
-        // 1000/500 = 2.0 aspect.
-        // Actually height is normalized to 1. So width is normalized to aspect.
-        // wait, cropRect is proportional to HEIGHT.
-        // x=0, y=0, h=1, w=aspect.
-
-        // In this case, w=1.5 is < aspect(2.0), so valid?
-        // x=-0.1 => -50px. Clamped to 0.
+        // Check clamping logic
+        assert(r.w <= 1000/500 * 1.0, 'w clamped');
 
         // Restore
         Object.assign(main.state, originalState);

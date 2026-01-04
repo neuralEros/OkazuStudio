@@ -780,6 +780,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 messagePart = match[6];
             }
 
+            const testLineRegex = /^(PASS|FAIL)\s+(.+?)\s+(\(\d+ms\))(?:\:\s*(.*))?$/;
+            const testMatch = messagePart.match(testLineRegex);
+            if (testMatch) {
+                const accentStyle = 'style="color: var(--log-accent-color)"';
+                const status = escapeHtml(testMatch[1]);
+                const testName = escapeHtml(testMatch[2]);
+                const duration = escapeHtml(testMatch[3]);
+                const detail = testMatch[4] ? `: ${escapeHtml(testMatch[4])}` : '';
+                return `${prefixPart}${status} <span ${accentStyle}>${testName}</span> ${duration}${detail}`;
+            }
+
             // Escape message part before highlighting
             let safeMessage = escapeHtml(messagePart);
 

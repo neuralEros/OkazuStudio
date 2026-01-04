@@ -3768,5 +3768,51 @@
             log("Workspace cleared.", "info");
         }
 
-        init();
+        if (window.OkazuTestables && window.OkazuTestables.main) {
+            Object.assign(window.OkazuTestables.main, {
+                state,
+                els,
+                ctx,
+                maskCanvas,
+                maskCtx,
+                frontLayerCanvas,
+                setAppMode,
+                bindModeSwitcher,
+                scheduleHeavyTask,
+                showModal,
+                cloneToCanvas,
+                generateThumbnail,
+                rotateCanvas,
+                rotateRect,
+                bakeRotation,
+                setLayerSource,
+                rebuildPreviewLayerForSlot,
+                getLayerForRender,
+                rebuildWorkingCopyForSlot,
+                rebuildWorkingCopies,
+                renderToContext,
+                render,
+                acceptCrop,
+                cancelCrop,
+                toggleCropMode,
+                trimCropRectToImageBounds,
+                updateCanvasDimensions,
+                resizeMainCanvas,
+                updateUI,
+                updateVisibilityToggles,
+                updateWorkspaceLabel,
+                syncDrawerHeights,
+                initDrawerSync,
+                assignLayer,
+                clearLayer,
+                handleFileLoad,
+                fetchImage,
+                handlePaste,
+                setupDragAndDrop,
+                applyCensor,
+                mergeDown
+            });
+        }
+
+        if (!window.__OKAZU_TEST__) init();
     

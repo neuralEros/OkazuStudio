@@ -39,6 +39,31 @@ window.TestRunner = (() => {
         }
     }
 
+    function spyOn(object, methodName) {
+        const original = object[methodName];
+        const calls = [];
+
+        const spy = function(...args) {
+            calls.push(args);
+            if (spy.impl) {
+                return spy.impl.apply(this, args);
+            }
+            if (original) {
+                return original.apply(this, args);
+            }
+        };
+
+        spy.calls = calls;
+        spy.impl = null;
+
+        spy.mockImplementation = (fn) => { spy.impl = fn; };
+        spy.mockReturnValue = (val) => { spy.impl = () => val; };
+        spy.restore = () => { object[methodName] = original; };
+
+        object[methodName] = spy;
+        return spy;
+    }
+
     function now() {
         return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     }
@@ -101,6 +126,7 @@ window.TestRunner = (() => {
         assert,
         assertEqual,
         assertApprox,
-        assertDeepEqual
+        assertDeepEqual,
+        spyOn
     };
 })();

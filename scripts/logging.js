@@ -32,6 +32,15 @@ window.Logger = (function() {
         undo: (index, total, action) => format('UNDO', `Action: ${action} | Index: ${index}/${total}`),
         brush: (type, nodes) => format('BRUSH', `${type} stroke completed with ${nodes} nodes`),
         getLogs: () => logs.join('\n'),
+        restore: (savedLogs) => {
+            if (typeof savedLogs === 'string') {
+                // Split by newline and insert at start (or end?)
+                // Requirement: Append logs from storage.
+                // If we append, they appear after init logs.
+                // We'll push them as raw strings.
+                logs.push(...savedLogs.split('\n'));
+            }
+        },
         clear: () => { logs.length = 0; }
     };
 

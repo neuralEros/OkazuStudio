@@ -63,6 +63,60 @@ window.TestRunner = (() => {
         }
     }
 
+    function spyOn(obj, methodName) {
+        const original = obj[methodName];
+        const calls = [];
+
+        const spy = function(...args) {
+            calls.push(args);
+            if (spy.implementation) {
+                return spy.implementation.apply(this, args);
+            }
+            if (spy.hasOwnProperty('returnValue')) {
+                return spy.returnValue;
+            }
+            return original ? original.apply(this, args) : undefined;
+        };
+
+        spy.calls = calls;
+        spy.implementation = null;
+        spy.returnValue = undefined;
+
+        spy.mockImplementation = (fn) => {
+            spy.implementation = fn;
+            return spy;
+        };
+        spy.mockReturnValue = (val) => {
+            spy.returnValue = val;
+            delete spy.implementation; // Return value takes precedence if set
+            return spy;
+        };
+        spy.restore = () => {
+            obj[methodName] = original;
+        };
+        spy.expectCalled = () => {
+            if (calls.length === 0) {
+                throw new Error(`Expected ${methodName} to be called, but it was not.`);
+            }
+        };
+        spy.expectCalledWith = (...expectedArgs) => {
+            const match = calls.some(callArgs =>
+                JSON.stringify(callArgs) === JSON.stringify(expectedArgs)
+            );
+            if (!match) {
+                throw new Error(`Expected ${methodName} to be called with ${JSON.stringify(expectedArgs)}, but it was not.`);
+            }
+        };
+        spy.expectNotCalled = () => {
+            if (calls.length > 0) {
+                throw new Error(`Expected ${methodName} not to be called, but it was called ${calls.length} times.`);
+            }
+        };
+
+        obj[methodName] = spy;
+        return spy;
+    }
+
     async function runAll() {
         logTest(`Running ${tests.length} tests.`);
         const results = {
@@ -101,6 +155,7 @@ window.TestRunner = (() => {
         assert,
         assertEqual,
         assertApprox,
-        assertDeepEqual
+        assertDeepEqual,
+        spyOn
     };
 })();

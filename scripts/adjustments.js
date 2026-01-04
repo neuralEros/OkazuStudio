@@ -813,6 +813,8 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         getCurvedValue
     };
 
+    window.createAdjustmentSystem = createAdjustmentSystem;
+
     return {
         applyMasterLUT,
         applyColorOps,

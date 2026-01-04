@@ -70,6 +70,12 @@
             border-color: var(--accent-strong);
             color: var(--accent-ink);
         }
+        .accent-action img {
+            filter: brightness(0) invert(1);
+        }
+        .accent-action:hover img {
+            filter: brightness(0) saturate(100%);
+        }
 
         /* Panels */
         .bg-panel { background-color: var(--panel); }

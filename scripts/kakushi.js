@@ -299,6 +299,7 @@ const kakushi = (() => {
     const testables = {
         embedBytes,
         extractBytes,
+        getContextForReading,
         hasMagic,
         normalizeMask,
         isMasked,

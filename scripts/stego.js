@@ -216,8 +216,17 @@ const Stego = (() => {
         return payload;
     }
 
+    const testables = {
+        getMaskActions,
+        getAdjustmentsPacket,
+        getCropPacket,
+        assemblePayload,
+        DEFAULTS
+    };
+
     return {
-        assemblePayload
+        assemblePayload,
+        _testables: testables
     };
 
 })();
@@ -227,4 +236,9 @@ if (typeof module !== 'undefined') {
     module.exports = Stego;
 } else {
     window.Stego = Stego;
+}
+
+if (typeof window !== 'undefined') {
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.stego = Stego._testables;
 }

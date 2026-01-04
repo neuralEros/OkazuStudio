@@ -385,9 +385,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 mb-2">Session Logs</label>
                                     <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap break-all select-text focus:outline-none mb-4" tabindex="0"></div>
-                                    <div class="flex justify-end gap-2 shrink-0">
-                                        <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
-                                        <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
+                                    <div class="flex justify-between gap-2 shrink-0">
+                                        <button id="run-tests-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-white hover:bg-panel-800 transition-colors">Run Tests</button>
+                                        <div class="flex gap-2">
+                                            <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
+                                            <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -725,6 +728,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // --- DEBUG TAB ---
         const logViewer = document.getElementById('debug-log-viewer');
         // Removed refresh btn
+        const runTestsBtn = document.getElementById('run-tests-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
@@ -844,6 +848,19 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 refreshLogs();
             }
         });
+
+        if (runTestsBtn) {
+            runTestsBtn.addEventListener('click', async () => {
+                if (window.TestRunner && window.TestRunner.runAll) {
+                    await window.TestRunner.runAll();
+                    refreshLogs();
+                } else if (window.Logger && window.Logger.warn) {
+                    window.Logger.warn('Test runner not available. Ensure test scripts are loaded.');
+                } else {
+                    console.warn('Test runner not available. Ensure test scripts are loaded.');
+                }
+            });
+        }
 
         copyLogsBtn.addEventListener('click', () => {
             // Use window.Logger.getLogs() directly to get the full raw text

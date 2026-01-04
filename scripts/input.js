@@ -58,10 +58,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { minX, maxX, minY, maxY, w: maxX - minX, h: maxY - minY };
     }
 
-    function truthToVisualCoords(tx, ty) {
-        const fullW = state.fullDims.w || 1;
-        const fullH = state.fullDims.h || 1;
-        const rot = state.rotation;
+    function truthToVisualCoordsRaw(tx, ty, fullW, fullH, rot) {
         if (rot === 0) return { x: tx, y: ty };
         if (rot === 90) return { x: fullH - ty, y: tx };
         if (rot === 180) return { x: fullW - tx, y: fullH - ty };
@@ -69,16 +66,27 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: tx, y: ty };
     }
 
-    function getVisualFullDims() {
+    function truthToVisualCoords(tx, ty) {
         const fullW = state.fullDims.w || 1;
         const fullH = state.fullDims.h || 1;
-        const isRotated = state.rotation % 180 !== 0;
+        const rot = state.rotation;
+        return truthToVisualCoordsRaw(tx, ty, fullW, fullH, rot);
+    }
+
+    function getVisualFullDimsRaw(fullW, fullH, rot) {
+        const isRotated = rot % 180 !== 0;
         return {
             fullW,
             fullH,
             visualW: isRotated ? fullH : fullW,
             visualH: isRotated ? fullW : fullH
         };
+    }
+
+    function getVisualFullDims() {
+        const fullW = state.fullDims.w || 1;
+        const fullH = state.fullDims.h || 1;
+        return getVisualFullDimsRaw(fullW, fullH, state.rotation);
     }
 
     function getCropMinScale() {
@@ -121,11 +129,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return toPixels(state.brushSize, state.fullDims.h);
     }
 
-    function visualToTruthCoords(vx, vy, overrideW, overrideH) {
-        const rot = state.rotation;
-        const fw = (overrideW !== undefined) ? overrideW : (state.fullDims.w || 1);
-        const fh = (overrideH !== undefined) ? overrideH : (state.fullDims.h || 1);
-
+    function visualToTruthCoordsRaw(vx, vy, fw, fh, rot) {
         let tx = vx;
         let ty = vy;
 
@@ -144,6 +148,13 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
             ty = vx;
         }
         return { x: tx, y: ty };
+    }
+
+    function visualToTruthCoords(vx, vy, overrideW, overrideH) {
+        const rot = state.rotation;
+        const fw = (overrideW !== undefined) ? overrideW : (state.fullDims.w || 1);
+        const fh = (overrideH !== undefined) ? overrideH : (state.fullDims.h || 1);
+        return visualToTruthCoordsRaw(vx, vy, fw, fh, rot);
     }
 
     function getCanvasCoordinates(e) {
@@ -1477,6 +1488,17 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         }
     }
 
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.input = {
+        rotatePoint,
+        getRotatedAABB,
+        truthToVisualCoordsRaw,
+        visualToTruthCoordsRaw,
+        getVisualFullDimsRaw,
+        toProportion,
+        toPixels
+    };
 
     return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue: brushSizeToSliderValue };
 }

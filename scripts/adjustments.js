@@ -792,6 +792,15 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         initColorTuning();
     };
 
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.adjustments = {
+        getBandWeight,
+        getLuminanceWeight,
+        rgbToHsl,
+        hslToRgb,
+        getCurvedValue
+    };
+
     return {
         applyMasterLUT,
         applyColorOps,

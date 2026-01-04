@@ -188,5 +188,11 @@
         }
     };
 
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.watermark = {
+        buildMaskCanvas,
+        rotatePoint
+    };
+
     window.Watermark = Watermark;
 })();

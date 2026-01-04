@@ -1,5 +1,35 @@
 
 function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
+    const base64Helpers = (() => {
+        const root = typeof globalThis !== 'undefined' ? globalThis : window;
+        const canUseBuffer = typeof Buffer !== 'undefined';
+
+        if (root && typeof root.btoa !== 'function' && canUseBuffer) {
+            root.btoa = (value) => Buffer.from(value, 'binary').toString('base64');
+        }
+
+        if (root && typeof root.atob !== 'function' && canUseBuffer) {
+            root.atob = (value) => Buffer.from(value, 'base64').toString('binary');
+        }
+
+        return {
+            encode(value) {
+                if (root && typeof root.btoa === 'function') return root.btoa(value);
+                if (canUseBuffer) return Buffer.from(value, 'binary').toString('base64');
+                return null;
+            },
+            decode(value) {
+                if (root && typeof root.atob === 'function') return root.atob(value);
+                if (canUseBuffer) return Buffer.from(value, 'base64').toString('binary');
+                return null;
+            }
+        };
+    })();
+
+    const coerceString = (value) => {
+        if (value === null || value === undefined) return '';
+        return typeof value === 'string' ? value : String(value);
+    };
 
     // Default Settings
     const defaults = {
@@ -73,22 +103,45 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         }
 
         // Don't save runtime state if any
-        localStorage.setItem('okazu_settings', JSON.stringify(toSave));
+        let serialized = '{}';
+        try {
+            serialized = JSON.stringify(toSave);
+        } catch (error) {
+            console.error("Failed to serialize settings", error);
+            try {
+                serialized = JSON.stringify({ ...defaults, apiKey: coerceString(toSave.apiKey) });
+            } catch (fallbackError) {
+                console.error("Failed to serialize fallback settings", fallbackError);
+                serialized = '{}';
+            }
+        }
+
+        localStorage.setItem('okazu_settings', serialized);
     }
 
     // Simple obfuscation (Not secure, just prevents casual reading)
     function encodeApiKey(key) {
-        if (!key) return '';
+        const safeKey = coerceString(key);
+        if (!safeKey) return '';
         try {
-            return btoa(key.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ (i % 255))).join(''));
-        } catch (e) { return key; }
+            const scrambled = safeKey.split('').map((c, i) => (
+                String.fromCharCode(c.charCodeAt(0) ^ (i % 255))
+            )).join('');
+            const encoded = base64Helpers.encode(scrambled);
+            return encoded ?? safeKey;
+        } catch (e) { return safeKey; }
     }
 
     function decodeApiKey(encoded) {
-        if (!encoded) return '';
+        const safeEncoded = coerceString(encoded);
+        if (!safeEncoded) return '';
         try {
-            return atob(encoded).split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ (i % 255))).join('');
-        } catch (e) { return encoded; }
+            const decoded = base64Helpers.decode(safeEncoded);
+            if (!decoded) return safeEncoded;
+            return decoded.split('').map((c, i) => (
+                String.fromCharCode(c.charCodeAt(0) ^ (i % 255))
+            )).join('');
+        } catch (e) { return safeEncoded; }
     }
 
     function updateThemeVariables(hue, sat) {

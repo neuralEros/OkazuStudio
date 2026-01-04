@@ -1,5 +1,5 @@
 
-function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
+function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage = localStorage }) {
 
     // Default Settings
     const defaults = {
@@ -30,23 +30,39 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     let rgbInterval = null;
     let debugPollInterval = null; // Polling for logs
 
+    let storageRef = storage;
+
+    function setStorage(nextStorage) {
+        if (nextStorage && typeof nextStorage.getItem === 'function' && typeof nextStorage.setItem === 'function') {
+            storageRef = nextStorage;
+        }
+    }
+
     // Load settings from localStorage or use defaults
     function loadSettings() {
-        const stored = localStorage.getItem('okazu_settings');
-        if (stored) {
+        const stored = storageRef.getItem('okazu_settings');
+        const hasStored = typeof stored === 'string' && stored.trim().length > 0;
+        let parsedSettings = null;
+
+        if (hasStored) {
             try {
                 const parsed = JSON.parse(stored);
-                // Merge with defaults to ensure all keys exist
-                state.settings = { ...defaults, ...parsed };
-                // Decode API Key if present
-                if (state.settings.apiKey) {
-                    state.settings.apiKey = decodeApiKey(state.settings.apiKey);
+                if (parsed && typeof parsed === 'object') {
+                    parsedSettings = parsed;
                 }
-                lastStaticHue = state.settings.hue;
             } catch (e) {
                 console.error("Failed to load settings", e);
-                state.settings = { ...defaults };
             }
+        }
+
+        if (parsedSettings) {
+            // Merge with defaults to ensure all keys exist
+            state.settings = { ...defaults, ...parsedSettings };
+            // Decode API Key if present
+            if (state.settings.apiKey) {
+                state.settings.apiKey = decodeApiKey(state.settings.apiKey);
+            }
+            lastStaticHue = state.settings.hue;
         } else {
             state.settings = { ...defaults };
         }
@@ -73,7 +89,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         }
 
         // Don't save runtime state if any
-        localStorage.setItem('okazu_settings', JSON.stringify(toSave));
+        storageRef.setItem('okazu_settings', JSON.stringify(toSave));
     }
 
     // Simple obfuscation (Not secure, just prevents casual reading)
@@ -199,6 +215,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             buttonHue = (buttonHue + 1) % 360; // 1 deg per ~10ms = 100 deg/s (~25x)
             updateRgbButtonColor(buttonHue);
         }, 10);
+    }
+
+    function stopRgbLoop() {
+        if (rgbInterval) clearInterval(rgbInterval);
+        if (buttonInterval) clearInterval(buttonInterval);
+        rgbInterval = null;
+        buttonInterval = null;
     }
 
     // Debounce utility
@@ -385,9 +408,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                                 <div id="tab-debug" class="settings-tab-content hidden h-full flex flex-col">
                                     <label class="block text-xs font-bold text-gray-400 mb-2">Session Logs</label>
                                     <div id="debug-log-viewer" class="w-full flex-grow bg-black/20 border border-panel-divider rounded p-2 text-[10px] font-mono text-gray-400 overflow-y-auto whitespace-pre-wrap break-all select-text focus:outline-none mb-4" tabindex="0"></div>
-                                    <div class="flex justify-end gap-2 shrink-0">
-                                        <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
-                                        <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
+                                    <div class="flex justify-between gap-2 shrink-0">
+                                        <button id="run-tests-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-white hover:bg-panel-800 transition-colors">Run Tests</button>
+                                        <div class="flex gap-2">
+                                            <button id="clear-logs-btn" class="px-3 py-1.5 text-xs font-bold rounded border border-panel-divider bg-panel-strong text-gray-400 hover:text-red-400 hover:bg-panel-800 transition-colors">Clear Log</button>
+                                            <button id="copy-logs-btn" class="accent-action px-3 py-1.5 text-xs font-bold rounded-sm shadow-sm flex items-center justify-center transition-colors">Copy to Clipboard</button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -725,6 +751,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         // --- DEBUG TAB ---
         const logViewer = document.getElementById('debug-log-viewer');
         // Removed refresh btn
+        const runTestsBtn = document.getElementById('run-tests-btn');
         const clearLogsBtn = document.getElementById('clear-logs-btn');
         const copyLogsBtn = document.getElementById('copy-logs-btn');
 
@@ -845,6 +872,31 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             }
         });
 
+        if (runTestsBtn) {
+            runTestsBtn.addEventListener('click', async () => {
+                if (window.TestRunner && window.TestRunner.runAll) {
+                    runTestsBtn.textContent = "Running...";
+                    runTestsBtn.disabled = true;
+
+                    // Run tests
+                    await window.TestRunner.runAll();
+
+                    // Save logs
+                    if (window.Logger && window.Logger.getLogs) {
+                        localStorage.setItem('okazu_test_logs', window.Logger.getLogs());
+                    }
+
+                    // Set flag to open debug panel on load
+                    localStorage.setItem('okazu_open_debug', 'true');
+
+                    // Reload
+                    location.reload();
+                } else {
+                    console.warn('Test runner not available.');
+                }
+            });
+        }
+
         copyLogsBtn.addEventListener('click', () => {
             // Use window.Logger.getLogs() directly to get the full raw text
             if (window.Logger && window.Logger.getLogs) {
@@ -883,6 +935,38 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             }
         }
 
+        // Check for open debug flag
+        if (storageRef.getItem('okazu_open_debug') === 'true') {
+            storageRef.removeItem('okazu_open_debug');
+
+            // Switch to Debug Tab
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.style.backgroundColor = '';
+                t.style.color = '';
+                t.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+            });
+            contents.forEach(c => c.classList.add('hidden'));
+
+            const debugTabBtn = document.querySelector('[data-tab="debug"]');
+            if (debugTabBtn) {
+                debugTabBtn.classList.add('active');
+                debugTabBtn.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+                debugTabBtn.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+                debugTabBtn.style.color = 'var(--accent-soft)';
+            }
+            document.getElementById('tab-debug').classList.remove('hidden');
+
+            openSettings();
+
+            // Restore logs
+            const savedLogs = storageRef.getItem('okazu_test_logs');
+            if (savedLogs && window.Logger && window.Logger.restore) {
+                window.Logger.restore(savedLogs);
+                storageRef.removeItem('okazu_test_logs');
+            }
+        }
+
         function closeSettings() {
             stopLogPolling(); // Ensure polling stops
             saveSettings(); // Ensure save on close
@@ -907,7 +991,28 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     loadSettings();
     initSettingsUI();
 
-    return {
-        // Expose if needed
+    const testables = {
+        loadSettings,
+        saveSettings,
+        encodeApiKey,
+        decodeApiKey,
+        updateThemeVariables,
+        initRgbLoop,
+        stopRgbLoop,
+        updateRgbButtonColor,
+        debounce,
+        saveDebounced,
+        setStorage,
+        getLastStaticHue: () => lastStaticHue,
+        setLastStaticHue: (value) => { lastStaticHue = value; },
+        getCycleHue: () => cycleHue,
+        setCycleHue: (value) => { cycleHue = value; },
+        getButtonHue: () => buttonHue,
+        setButtonHue: (value) => { buttonHue = value; }
     };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.settings = testables;
+
+    return testables;
 }

@@ -52,5 +52,10 @@
     }
 
     window.AssetManager = new AssetManager();
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.assets = {
+        AssetManager,
+        generateId
+    };
 
 })();

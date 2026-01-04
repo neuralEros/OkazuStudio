@@ -5,6 +5,12 @@
     const HARDNESS_MAX = 20;
 
     function getSoftness(size, feather, featherMode) {
+        if (!Number.isFinite(size)) {
+            return Number.isNaN(size) ? NaN : 0;
+        }
+        if (!Number.isFinite(feather)) {
+            return Number.isNaN(feather) ? NaN : 0;
+        }
         const radius = size / 2;
         if (radius <= 0) return 0;
         if (featherMode) {
@@ -83,6 +89,12 @@
         if (!points || points.length === 0) return;
         const { size, feather, featherMode, isErasing } = settings;
 
+        if (points.length === 1) {
+            const onlyPt = points[0];
+            paintStampAt(ctx, onlyPt.x, onlyPt.y, size, feather, featherMode, isErasing);
+            return;
+        }
+
         let lastStamp = null;
         for (const pt of points) {
             lastStamp = paintStrokeSegment(ctx, lastStamp, pt, size, feather, featherMode, isErasing);
@@ -100,6 +112,14 @@
         paintStrokeSegment,
         drawStroke,
         getSoftness // Exposed for debugging/UI if needed
+    };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.brush = {
+        paintStampAt,
+        paintStrokeSegment,
+        drawStroke,
+        getSoftness
     };
 
 })();

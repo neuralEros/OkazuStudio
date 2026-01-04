@@ -36,92 +36,106 @@
         const DEFAULT_PATCH_FEATHER = 10; // For Hardness mode
         const HARDNESS_MAX = 20;
 
-        const state = {
-            imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', formatA: '', formatB: '', sourceA: null, sourceB: null, thumbA: null, thumbB: null, isAFront: true,
-            opacity: 0.8, brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE, featherMode: false, brushMode: 'erase', isDrawing: false,
-            maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
-            isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
-            isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
-            isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
-            activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
-            rotation: 0,
-            brushSettings: {
-                erase: { brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
-                repair: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
-                patch: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_PATCH_FEATHER, featherSize: DEFAULT_FEATHER_SIZE }
-            },
-            adjustments: {
-                gamma: 1.0,
-                levels: { black: 0, mid: 1.0, white: 255 },
-                shadows: 0, highlights: 0,
-                saturation: 0, vibrance: 0,
-                wb: 0,
-                colorBal: { r: 0, g: 0, b: 0 },
-                colorTuning: {
-                    red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
-                    darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
-                }
-            },
-            activeColorBand: 'red',
-            isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
-            workingA: null, workingB: null, sourceA: null, sourceB: null,
-            previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
-            previewWorkingVersionA: 0, previewWorkingVersionB: 0,
-            previewComposite: null,
-            adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
-            isCropping: false, cropRect: null, cropRectSnapshot: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
-            fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
-            settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
-            pendingAdjustmentCommit: false, drawerCloseTimer: null,
-            activeDrawerTab: null,
-            mode: 'master',
-            cropRotation: 0,
-            hasShownSaveMergeWarning: false
-        };
+        function createDefaultState() {
+            return {
+                imgA: null, imgB: null, assetIdA: null, assetIdB: null, nameA: '', nameB: '', formatA: '', formatB: '', sourceA: null, sourceB: null, thumbA: null, thumbB: null, isAFront: true,
+                opacity: 0.8, brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE, featherMode: false, brushMode: 'erase', isDrawing: false,
+                maskVisible: true, backVisible: true, adjustmentsVisible: true, history: [], historyIndex: -1, lastActionType: null,
+                isSpacePressed: false, isPanning: false, lastPanX: 0, lastPanY: 0, view: { x: 0, y: 0, scale: 1 }, lastSpaceUp: 0,
+                isCtrlPressed: false, isPreviewing: false, lastPreviewTime: 0, previewMaskCanvas: null, previewMaskScale: 1, previewLoopId: null,
+                isPolylineStart: false, polylinePoints: [], polylineDirty: false, polylineSessionId: 0, currentPolylineAction: null, currentPointerX: null, currentPointerY: null,
+                activeStroke: null, fastPreviewLastPoint: null, pointerDownTime: 0, pointerDownCoords: null,
+                rotation: 0,
+                brushSettings: {
+                    erase: { brushSize: DEFAULT_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                    repair: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_FEATHER, featherSize: DEFAULT_FEATHER_SIZE },
+                    patch: { brushSize: DEFAULT_REPAIR_BRUSH_SIZE, feather: DEFAULT_PATCH_FEATHER, featherSize: DEFAULT_FEATHER_SIZE }
+                },
+                adjustments: {
+                    gamma: 1.0,
+                    levels: { black: 0, mid: 1.0, white: 255 },
+                    shadows: 0, highlights: 0,
+                    saturation: 0, vibrance: 0,
+                    wb: 0,
+                    colorBal: { r: 0, g: 0, b: 0 },
+                    colorTuning: {
+                        red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                        darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                    }
+                },
+                activeColorBand: 'red',
+                isAdjusting: false, previewCanvas: null, previewFrontLayer: null, previewThrottle: 0,
+                workingA: null, workingB: null, sourceA: null, sourceB: null,
+                previewWorkingA: null, previewWorkingB: null, previewScaleA: 1, previewScaleB: 1,
+                previewWorkingVersionA: 0, previewWorkingVersionB: 0,
+                previewComposite: null,
+                adjustmentsVersion: 0, workingVersionA: 0, workingVersionB: 0,
+                isCropping: false, cropRect: null, cropRectSnapshot: null, fullDims: { w: 0, h: 0 }, cropDrag: null,
+                fastMaskCanvas: null, fastMaskCtx: null, fastMaskScale: 1, useFastPreview: false,
+                settings: { brushPreviewResolution: 1080, adjustmentPreviewResolution: 1080 },
+                pendingAdjustmentCommit: false, drawerCloseTimer: null,
+                activeDrawerTab: null,
+                mode: 'master',
+                cropRotation: 0,
+                hasShownSaveMergeWarning: false
+            };
+        }
 
-        const els = {
-            fileA: document.getElementById('fileA'), fileB: document.getElementById('fileB'),
-            btnA: document.getElementById('btnA'), btnB: document.getElementById('btnB'),
-            btnTrashA: document.getElementById('btnTrashA'), btnTrashB: document.getElementById('btnTrashB'),
-            mainCanvas: document.getElementById('mainCanvas'), previewCanvas: document.getElementById('previewCanvas'),
-            loadingOverlay: document.getElementById('loading-overlay'),
-            adjDrawer: document.getElementById('drawer-adj'),
-            viewport: document.getElementById('viewport'),
-            canvasWrapper: document.getElementById('canvas-wrapper'), emptyState: document.getElementById('empty-state'),
-            swapBtn: document.getElementById('swapBtn'), opacitySlider: document.getElementById('opacitySlider'),
-            opacityVal: document.getElementById('opacityVal'), brushSize: document.getElementById('brushSize'),
-            brushSizeVal: document.getElementById('brushSizeVal'), feather: document.getElementById('feather'),
-            featherVal: document.getElementById('featherVal'), featherLabel: document.getElementById('featherLabel'),
-            eraseMode: document.getElementById('eraseMode'),
-            repairMode: document.getElementById('repairMode'), patchMode: document.getElementById('patchMode'), clearMask: document.getElementById('clearMask'),
-            saveBtn: document.getElementById('saveBtn'), exportBtn: document.getElementById('exportBtn'), dragOverlay: document.getElementById('drag-overlay'),
-            toggleMaskBtn: document.getElementById('toggleMaskBtn'), maskEyeOpen: document.getElementById('maskEyeOpen'), maskEyeClosed: document.getElementById('maskEyeClosed'),
-            toggleBackBtn: document.getElementById('toggleBackBtn'), rearEyeOpen: document.getElementById('rearEyeOpen'), rearEyeClosed: document.getElementById('rearEyeClosed'),
-            toggleAdjBtn: document.getElementById('toggleAdjBtn'), adjEyeOpen: document.getElementById('adjEyeOpen'), adjEyeClosed: document.getElementById('adjEyeClosed'),
-            mergeBtn: document.getElementById('mergeBtn'), censorBtn: document.getElementById('censorBtn'),
-            undoBtn: document.getElementById('undoBtn'), redoBtn: document.getElementById('redoBtn'),
-            rotateBtn: document.getElementById('rotateBtn'),
-            cropBtn: document.getElementById('cropBtn'), newBtn: document.getElementById('newBtn'),
-            cursor: document.getElementById('brush-cursor'),
-            resetAdjBtn: document.getElementById('resetAdjBtn'), resetLevelsBtn: document.getElementById('resetLevelsBtn'),
-            resetColorBtn: document.getElementById('resetColorBtn'), resetSatBtn: document.getElementById('resetSatBtn'),
-            adjGamma: document.getElementById('adj-gamma'), valGamma: document.getElementById('val-gamma'),
-            cropOverlayDom: document.getElementById('crop-overlay-dom'), cropBox: document.getElementById('crop-box'),
-            workspaceResolution: document.getElementById('workspace-resolution'),
-            colorTuningDrawer: document.getElementById('drawer-tools'),
-            verticalToolbox: document.getElementById('vertical-toolbox'),
-            modeMaster: document.getElementById('modeMaster'),
-            modeCensor: document.getElementById('modeCensor'),
-            modeComposite: document.getElementById('modeComposite')
+        const state = createDefaultState();
+
+        function createDefaultEls(root = document) {
+            return {
+                fileA: root.getElementById('fileA'), fileB: root.getElementById('fileB'),
+                btnA: root.getElementById('btnA'), btnB: root.getElementById('btnB'),
+                btnTrashA: root.getElementById('btnTrashA'), btnTrashB: root.getElementById('btnTrashB'),
+                mainCanvas: root.getElementById('mainCanvas'), previewCanvas: root.getElementById('previewCanvas'),
+                loadingOverlay: root.getElementById('loading-overlay'),
+                adjDrawer: root.getElementById('drawer-adj'),
+                viewport: root.getElementById('viewport'),
+                canvasWrapper: root.getElementById('canvas-wrapper'), emptyState: root.getElementById('empty-state'),
+                swapBtn: root.getElementById('swapBtn'), opacitySlider: root.getElementById('opacitySlider'),
+                opacityVal: root.getElementById('opacityVal'), brushSize: root.getElementById('brushSize'),
+                brushSizeVal: root.getElementById('brushSizeVal'), feather: root.getElementById('feather'),
+                featherVal: root.getElementById('featherVal'), featherLabel: root.getElementById('featherLabel'),
+                eraseMode: root.getElementById('eraseMode'),
+                repairMode: root.getElementById('repairMode'), patchMode: root.getElementById('patchMode'), clearMask: root.getElementById('clearMask'),
+                saveBtn: root.getElementById('saveBtn'), exportBtn: root.getElementById('exportBtn'), dragOverlay: root.getElementById('drag-overlay'),
+                toggleMaskBtn: root.getElementById('toggleMaskBtn'), maskEyeOpen: root.getElementById('maskEyeOpen'), maskEyeClosed: root.getElementById('maskEyeClosed'),
+                toggleBackBtn: root.getElementById('toggleBackBtn'), rearEyeOpen: root.getElementById('rearEyeOpen'), rearEyeClosed: root.getElementById('rearEyeClosed'),
+                toggleAdjBtn: root.getElementById('toggleAdjBtn'), adjEyeOpen: root.getElementById('adjEyeOpen'), adjEyeClosed: root.getElementById('adjEyeClosed'),
+                mergeBtn: root.getElementById('mergeBtn'), censorBtn: root.getElementById('censorBtn'),
+                undoBtn: root.getElementById('undoBtn'), redoBtn: root.getElementById('redoBtn'),
+                rotateBtn: root.getElementById('rotateBtn'),
+                cropBtn: root.getElementById('cropBtn'), newBtn: root.getElementById('newBtn'),
+                cursor: root.getElementById('brush-cursor'),
+                resetAdjBtn: root.getElementById('resetAdjBtn'), resetLevelsBtn: root.getElementById('resetLevelsBtn'),
+                resetColorBtn: root.getElementById('resetColorBtn'), resetSatBtn: root.getElementById('resetSatBtn'),
+                adjGamma: root.getElementById('adj-gamma'), valGamma: root.getElementById('val-gamma'),
+                cropOverlayDom: root.getElementById('crop-overlay-dom'), cropBox: root.getElementById('crop-box'),
+                workspaceResolution: root.getElementById('workspace-resolution'),
+                colorTuningDrawer: root.getElementById('drawer-tools'),
+                verticalToolbox: root.getElementById('vertical-toolbox'),
+                modeMaster: root.getElementById('modeMaster'),
+                modeCensor: root.getElementById('modeCensor'),
+                modeComposite: root.getElementById('modeComposite')
+            };
+        }
+
+        const els = createDefaultEls();
+
+        window.OkazuTestables = window.OkazuTestables || {};
+        window.OkazuTestables.main = {
+            createDefaultState,
+            createDefaultEls
         };
 
         const ctx = els.mainCanvas.getContext('2d');
@@ -663,7 +677,7 @@
         }
 
         function getLayerForRender(slot, { useBakedLayers = true, preferPreview = false, allowRebuild = true } = {}) {
-            const source = slot === 'A' ? state.imgA : state.imgB;
+            const source = slot === 'A' ? (state.imgA || state.sourceA) : (state.imgB || state.sourceB);
             if (!source) return { img: null, scale: 1 };
             if (!useBakedLayers) return { img: source, scale: 1 };
 
@@ -681,7 +695,10 @@
             const previewScale = slot === 'A' ? state.previewScaleA : state.previewScaleB;
 
             if (preferPreview && working && previewVersion !== state.adjustmentsVersion) {
-                rebuildPreviewLayerForSlot(slot, allowRebuild);
+                const previewRebuild = (window.OkazuTestables && window.OkazuTestables.main && window.OkazuTestables.main.rebuildPreviewLayerForSlot)
+                    ? window.OkazuTestables.main.rebuildPreviewLayerForSlot
+                    : rebuildPreviewLayerForSlot;
+                previewRebuild(slot, allowRebuild);
             }
 
             if (preferPreview && working && previewLayer && (previewVersion === state.adjustmentsVersion || !allowRebuild)) {
@@ -722,7 +739,10 @@
             if (slot === 'A') { state.workingA = canvas; state.workingVersionA = state.adjustmentsVersion; }
             else { state.workingB = canvas; state.workingVersionB = state.adjustmentsVersion; }
 
-            rebuildPreviewLayerForSlot(slot);
+            const previewRebuild = (window.OkazuTestables && window.OkazuTestables.main && window.OkazuTestables.main.rebuildPreviewLayerForSlot)
+                ? window.OkazuTestables.main.rebuildPreviewLayerForSlot
+                : rebuildPreviewLayerForSlot;
+            previewRebuild(slot);
         }
 
         function rebuildWorkingCopies(forceVersionBump = false) {
@@ -1917,10 +1937,14 @@
                     if (transformed && renderMode === 'mask_alpha') targetCtx.restore();
                 }
                 targetCtx.restore();
+                if (renderMode === 'mask_grayscale') {
+                    targetCtx.globalCompositeOperation = 'destination-over';
+                }
                 return;
             }
 
             // Standard Composite Render
+            let finalOpacity = 1.0;
 
             // Draw Back
             if (backImg && renderBack) {
@@ -2001,12 +2025,15 @@
                     // Use forceOpacity for adjustments preview (so we see true pixels)
                     // Also force opacity if only one layer is present
                     const singleLayer = !state.imgA || !state.imgB;
-                    const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
+                    const showBack = renderBack !== undefined ? renderBack : (state.backVisible ?? true);
+                    const effectiveOpacity = (singleLayer || !showBack || forceOpacity) ? 1.0 : state.opacity;
+                    finalOpacity = effectiveOpacity;
                     targetCtx.globalAlpha = effectiveOpacity;
                     targetCtx.drawImage(state.previewFrontLayer, 0, 0);
                 }
             }
             targetCtx.restore();
+            targetCtx.globalAlpha = finalOpacity;
         }
         
         function render(finalOutput = false, skipAdjustments = false) {
@@ -3754,5 +3781,51 @@
             log("Workspace cleared.", "info");
         }
 
-        init();
+        if (window.OkazuTestables && window.OkazuTestables.main) {
+            Object.assign(window.OkazuTestables.main, {
+                state,
+                els,
+                ctx,
+                maskCanvas,
+                maskCtx,
+                frontLayerCanvas,
+                setAppMode,
+                bindModeSwitcher,
+                scheduleHeavyTask,
+                showModal,
+                cloneToCanvas,
+                generateThumbnail,
+                rotateCanvas,
+                rotateRect,
+                bakeRotation,
+                setLayerSource,
+                rebuildPreviewLayerForSlot,
+                getLayerForRender,
+                rebuildWorkingCopyForSlot,
+                rebuildWorkingCopies,
+                renderToContext,
+                render,
+                acceptCrop,
+                cancelCrop,
+                toggleCropMode,
+                trimCropRectToImageBounds,
+                updateCanvasDimensions,
+                resizeMainCanvas,
+                updateUI,
+                updateVisibilityToggles,
+                updateWorkspaceLabel,
+                syncDrawerHeights,
+                initDrawerSync,
+                assignLayer,
+                clearLayer,
+                handleFileLoad,
+                fetchImage,
+                handlePaste,
+                setupDragAndDrop,
+                applyCensor,
+                mergeDown
+            });
+        }
+
+        if (!window.__OKAZU_TEST__) init();
     

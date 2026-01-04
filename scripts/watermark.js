@@ -173,6 +173,11 @@
             ctx.globalCompositeOperation = 'difference';
             ctx.drawImage(tempCanvas, 0, 0);
             ctx.restore();
+
+            if (ctx && ctx.canvas) {
+                ctx.canvas.__okazuWatermarkApplied = true;
+                ctx.canvas.__okazuWatermarkRemoved = false;
+            }
         },
 
         buildMask: function(width, height) {
@@ -183,9 +188,21 @@
 
         checkAndRemove: function(sourceCanvas) {
             // Apply the exact same logic. XOR cancels out.
+            if (sourceCanvas.__okazuWatermarkRemoved) return;
             const ctx = sourceCanvas.getContext('2d');
             this.apply(ctx, sourceCanvas.width, sourceCanvas.height);
+            sourceCanvas.__okazuWatermarkApplied = false;
+            sourceCanvas.__okazuWatermarkRemoved = true;
         }
+    };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.watermark = {
+        buildMaskCanvas,
+        rotatePoint,
+        apply: Watermark.apply.bind(Watermark),
+        buildMask: Watermark.buildMask.bind(Watermark),
+        checkAndRemove: Watermark.checkAndRemove.bind(Watermark)
     };
 
     window.Watermark = Watermark;

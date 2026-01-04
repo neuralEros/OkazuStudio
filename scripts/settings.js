@@ -1,5 +1,5 @@
 
-function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage = localStorage }) {
+function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage }) {
 
     // Default Settings
     const defaults = {
@@ -32,7 +32,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
 
     // Load settings from localStorage or use defaults
     function loadSettings() {
-        const stored = storage.getItem('okazu_settings');
+        const s = storage || window.localStorage;
+        const stored = s.getItem('okazu_settings');
         const hasStored = typeof stored === 'string' && stored.trim().length > 0;
         let parsedSettings = null;
 
@@ -81,7 +82,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         }
 
         // Don't save runtime state if any
-        storage.setItem('okazu_settings', JSON.stringify(toSave));
+        const s = storage || window.localStorage;
+        s.setItem('okazu_settings', JSON.stringify(toSave));
     }
 
     // Simple obfuscation (Not secure, just prevents casual reading)

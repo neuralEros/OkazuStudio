@@ -31,6 +31,10 @@
         assertEqual(getSoftness(0, 5, false), 0, 'Size 0 -> 0');
         // 2.2 Negative Size
         assertEqual(getSoftness(-10, 5, true), 0, 'Negative size -> 0');
+        // 2.2b Non-finite inputs
+        assert(Number.isNaN(getSoftness(NaN, 5, false)), 'NaN size returns NaN');
+        assert(Number.isNaN(getSoftness(10, NaN, true)), 'NaN feather returns NaN');
+        assertEqual(getSoftness(Infinity, 5, true), 0, 'Infinite size clamps to zero softness');
         // 2.3 Feather Mode On
         // size=20 (radius 10), feather=5 -> 0.5
         assertApprox(getSoftness(20, 5, true), 0.5, 1e-6, 'Feather mode ratio');
@@ -50,7 +54,10 @@
 
         // 3.1 Guard Against Non-finite
         paintStampAt(ctx, NaN, 0, 10, 5, false, true);
-        assertEqual(ctx.calls.length, 0, 'No calls for NaN coords');
+        paintStampAt(ctx, 0, Infinity, 10, 5, false, true);
+        paintStampAt(ctx, 0, 0, NaN, 5, false, true);
+        paintStampAt(ctx, 0, 0, 10, NaN, false, true);
+        assertEqual(ctx.calls.length, 0, 'No calls for non-finite inputs');
 
         // 3.2 Composite Operation
         paintStampAt(ctx, 5, 5, 10, 0, false, true); // Erase
@@ -76,7 +83,11 @@
         // r0 should be radius * (1 - softness). size=10 -> r=5. softness=1 (5/5). r0=0.
         // Wait, 10 size, 5 feather, featherMode=true => softness = 5/5 = 1.
         // 1 - 1 = 0. So inner radius 0.
+        assertEqual(gradCall[1], 10, 'Gradient x0 correct');
+        assertEqual(gradCall[2], 20, 'Gradient y0 correct');
         assertEqual(gradCall[3], 0, 'Inner radius correct');
+        assertEqual(gradCall[4], 10, 'Gradient x1 correct');
+        assertEqual(gradCall[5], 20, 'Gradient y1 correct');
         assertEqual(gradCall[6], 5, 'Outer radius correct');
 
         // Check gradient colors (via the returned mock object which we need to capture differently or inspect context)
@@ -85,6 +96,23 @@
         assert(gradObj.stops.length === 2, 'Two color stops');
         assertEqual(gradObj.stops[0][1], 'rgba(255, 255, 255, 1)', 'Start color white opaque');
         assertEqual(gradObj.stops[1][1], 'rgba(255, 255, 255, 0)', 'End color white transparent');
+
+        // 3.5 Repair Gradient Colors
+        ctx.clearCalls();
+        paintStampAt(ctx, 10, 20, 10, 5, true, false); // Repair, Soft
+        const repairGradCall = ctx.calls.find(c => c[0] === 'createRadialGradient');
+        assert(repairGradCall, 'Repair gradient created');
+        assertEqual(repairGradCall[1], 10, 'Repair gradient x0 correct');
+        assertEqual(repairGradCall[2], 20, 'Repair gradient y0 correct');
+        assertEqual(repairGradCall[3], 0, 'Repair inner radius correct');
+        assertEqual(repairGradCall[4], 10, 'Repair gradient x1 correct');
+        assertEqual(repairGradCall[5], 20, 'Repair gradient y1 correct');
+        assertEqual(repairGradCall[6], 5, 'Repair outer radius correct');
+
+        const repairGradObj = ctx.fillStyle;
+        assert(repairGradObj.stops.length === 2, 'Repair has two color stops');
+        assertEqual(repairGradObj.stops[0][1], 'rgba(0, 0, 0, 1)', 'Repair start color black opaque');
+        assertEqual(repairGradObj.stops[1][1], 'rgba(0, 0, 0, 0)', 'Repair end color black transparent');
     });
 
     // 4. Tests for paintStrokeSegment
@@ -97,7 +125,20 @@
         ctx.clearCalls();
         const res1 = paintStrokeSegment(ctx, null, { x: 10, y: 20 }, 10, 0, false, true);
         assertDeepEqual(res1, { x: 10, y: 20 }, 'Returns point as last stamp');
-        assert(ctx.calls.length > 0, 'Painted one stamp');
+        const arcs1 = ctx.calls.filter(c => c[0] === 'arc');
+        assertEqual(arcs1.length, 1, 'Painted one stamp');
+        assertEqual(arcs1[0][1], 10, 'Stamp x correct');
+        assertEqual(arcs1[0][2], 20, 'Stamp y correct');
+
+        // 4.1b Non-finite inputs
+        ctx.clearCalls();
+        const nonFiniteRes = paintStrokeSegment(ctx, null, { x: NaN, y: 20 }, 10, 0, false, true);
+        assertEqual(ctx.calls.length, 0, 'No calls for non-finite point');
+        assert(Number.isNaN(nonFiniteRes.x), 'Non-finite result x preserved');
+        ctx.clearCalls();
+        const nonFiniteSizeRes = paintStrokeSegment(ctx, null, { x: 10, y: 20 }, NaN, 0, false, true);
+        assertEqual(ctx.calls.length, 0, 'No calls for non-finite size');
+        assertDeepEqual(nonFiniteSizeRes, { x: 10, y: 20 }, 'Non-finite size preserves point');
 
         // 4.2 Distance < Spacing
         // Size 20 => Spacing 3. Dist (0,0)->(2,2) is ~2.82 < 3.
@@ -111,8 +152,13 @@
         ctx.clearCalls();
         const res3 = paintStrokeSegment(ctx, { x: 0, y: 0 }, { x: 30, y: 0 }, 20, 0, false, true);
         // Expect 10 'fill' calls (one per stamp)
-        const fills = ctx.calls.filter(c => c[0] === 'fill');
-        assertEqual(fills.length, 10, 'Painted 10 stamps');
+        const arcs3 = ctx.calls.filter(c => c[0] === 'arc');
+        assertEqual(arcs3.length, 10, 'Painted 10 stamps');
+        const expectedXs = [3, 6, 9, 12, 15, 18, 21, 24, 27, 30];
+        expectedXs.forEach((x, idx) => {
+            assertEqual(arcs3[idx][1], x, `Stamp ${idx + 1} x position`);
+            assertEqual(arcs3[idx][2], 0, `Stamp ${idx + 1} y position`);
+        });
         assertDeepEqual(res3, { x: 30, y: 0 }, 'Returned end point');
     });
 
@@ -127,8 +173,18 @@
         // 5.2 Single Point
         ctx.clearCalls();
         drawStroke(ctx, [{x:5,y:5}], {size:10, feather:0, featherMode:false, isErasing:true});
-        const fills1 = ctx.calls.filter(c => c[0] === 'fill');
-        assertEqual(fills1.length, 1, 'Single stamp for single point');
+        const arcs1 = ctx.calls.filter(c => c[0] === 'arc');
+        assertEqual(arcs1.length, 1, 'Single stamp for single point');
+        assertEqual(arcs1[0][1], 5, 'Single point x');
+        assertEqual(arcs1[0][2], 5, 'Single point y');
+
+        // 5.2b Non-finite inputs
+        ctx.clearCalls();
+        drawStroke(ctx, [{x:NaN,y:5}], {size:10, feather:0, featherMode:false, isErasing:true});
+        assertEqual(ctx.calls.length, 0, 'No calls for non-finite drawStroke point');
+        ctx.clearCalls();
+        drawStroke(ctx, [{x:5,y:5}], {size:NaN, feather:0, featherMode:false, isErasing:true});
+        assertEqual(ctx.calls.length, 0, 'No calls for non-finite drawStroke size');
 
         // 5.3 Multi Point
         ctx.clearCalls();
@@ -150,10 +206,13 @@
         // Finally drawStroke paints cap at P2 (10, 0).
         // Total stamps: 1 (start) + 6 (interp) + 1 (end) = 8.
         drawStroke(ctx, [{x:0,y:0}, {x:10,y:0}], {size:10, feather:0, featherMode:false, isErasing:true});
-        const fills2 = ctx.calls.filter(c => c[0] === 'fill');
-
-        // Note: Logic allows for potentially overlapping stamps at start/end, which is fine for density.
-        assert(fills2.length >= 2, 'Painted multiple stamps');
+        const arcs2 = ctx.calls.filter(c => c[0] === 'arc');
+        assertEqual(arcs2.length, 8, 'Painted exact stamp count including end cap');
+        const expectedMultiXs = [0, 1.5, 3, 4.5, 6, 7.5, 9, 10];
+        expectedMultiXs.forEach((x, idx) => {
+            assertApprox(arcs2[idx][1], x, 1e-6, `Multi stamp ${idx + 1} x`);
+            assertApprox(arcs2[idx][2], 0, 1e-6, `Multi stamp ${idx + 1} y`);
+        });
     });
 
 })();

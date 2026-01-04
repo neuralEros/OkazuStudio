@@ -39,6 +39,70 @@ window.TestRunner = (() => {
         }
     }
 
+    // Spy implementation
+    function spyOn(obj, methodName) {
+        if (!obj) throw new Error('spyOn: object is null or undefined');
+        const original = obj[methodName];
+        const calls = [];
+
+        const spy = function(...args) {
+            calls.push(args);
+            if (spy.impl) {
+                return spy.impl.apply(this, args);
+            }
+            if (original && !spy.suppressOriginal) {
+                return original.apply(this, args);
+            }
+        };
+
+        spy.calls = calls;
+        spy.restore = () => {
+            obj[methodName] = original;
+        };
+        spy.mockImplementation = (fn) => {
+            spy.impl = fn;
+            return spy;
+        };
+        spy.mockReturnValue = (val) => {
+            spy.impl = () => val;
+            return spy;
+        };
+        spy.andCallThrough = () => {
+            spy.suppressOriginal = false;
+            spy.impl = null;
+            return spy;
+        };
+        spy.reset = () => {
+            calls.length = 0;
+        };
+
+        // Assertions helper for the spy
+        spy.expectCalledWith = (...expectedArgs) => {
+            const match = calls.some(callArgs => {
+                if (callArgs.length !== expectedArgs.length) return false;
+                return callArgs.every((arg, i) => JSON.stringify(arg) === JSON.stringify(expectedArgs[i]));
+            });
+            if (!match) {
+                throw new Error(`Expected spy ${methodName} to be called with ${JSON.stringify(expectedArgs)} but calls were ${JSON.stringify(calls)}`);
+            }
+        };
+
+        spy.expectCalled = () => {
+            if (calls.length === 0) {
+                throw new Error(`Expected spy ${methodName} to be called, but it was not.`);
+            }
+        };
+
+        spy.expectNotCalled = () => {
+             if (calls.length > 0) {
+                throw new Error(`Expected spy ${methodName} NOT to be called, but it was called ${calls.length} times.`);
+            }
+        };
+
+        obj[methodName] = spy;
+        return spy;
+    }
+
     function now() {
         return (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
     }
@@ -101,6 +165,7 @@ window.TestRunner = (() => {
         assert,
         assertEqual,
         assertApprox,
-        assertDeepEqual
+        assertDeepEqual,
+        spyOn
     };
 })();

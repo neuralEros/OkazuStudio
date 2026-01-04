@@ -188,5 +188,14 @@
         }
     };
 
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.watermark = {
+        buildMaskCanvas,
+        rotatePoint,
+        apply: Watermark.apply.bind(Watermark),
+        buildMask: Watermark.buildMask.bind(Watermark),
+        checkAndRemove: Watermark.checkAndRemove.bind(Watermark)
+    };
+
     window.Watermark = Watermark;
 })();

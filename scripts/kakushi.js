@@ -296,10 +296,22 @@ const kakushi = (() => {
         return decoder.decode(decompressed);
     }
 
+    const testables = {
+        embedBytes,
+        extractBytes,
+        getContextForReading,
+        hasMagic,
+        normalizeMask,
+        isMasked,
+        sanitizeRegion,
+        toHex
+    };
+
     return {
         peek,
         seal,
-        reveal
+        reveal,
+        _testables: testables
     };
 })();
 
@@ -307,4 +319,9 @@ if (typeof module !== 'undefined') {
     module.exports = kakushi;
 } else {
     window.kakushi = kakushi;
+}
+
+if (typeof window !== 'undefined') {
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.kakushi = kakushi._testables;
 }

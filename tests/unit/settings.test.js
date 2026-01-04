@@ -5,6 +5,40 @@
 
     // 1. Storage Persistence
 
+    register('Settings: Basic Save/Load Cycle', () => {
+        const store = {};
+        const origStorage = localStorage;
+        const originalSettings = mainState.settings;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => { store[k] = v; },
+            removeItem: (k) => { delete store[k]; }
+        };
+
+        try {
+            settings.setStorage(storage);
+
+            // Set a test state
+            mainState.settings = { ...originalSettings, hue: 150, exportQuality: 50 };
+            settings.saveSettings();
+
+            // Verify storage content
+            const saved = JSON.parse(store.okazu_settings);
+            assertEqual(saved.hue, 150);
+            assertEqual(saved.exportQuality, 50);
+
+            // Clear state and load back
+            mainState.settings = {};
+            settings.loadSettings();
+            assertEqual(mainState.settings.hue, 150);
+            assertEqual(mainState.settings.exportQuality, 50);
+
+        } finally {
+            mainState.settings = originalSettings;
+            settings.setStorage(origStorage);
+        }
+    });
+
     register('Settings: loadSettings merges defaults and handles malformed storage', () => {
         const store = {};
         const origStorage = localStorage;

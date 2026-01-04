@@ -38,11 +38,6 @@
     register('Logging: 3.1 Format Under Controlled Time', () => {
         const restoreDate = mockDate();
 
-        // Logger.timestamp is not exposed directly in Logger API usually, it's internal.
-        // But the format logic is tested via output.
-        // Let's rely on checking log output.
-        // Assuming Logger attaches timestamp to every message.
-
         window.Logger.clear();
         const spies = spyConsole();
 
@@ -212,7 +207,6 @@
         const restoreDate = mockDate();
         window.Logger.clear();
 
-        // Suppress console output for cleanliness
         const spies = spyConsole();
 
         window.Logger.info('first');
@@ -226,7 +220,7 @@
         restoreDate();
     });
 
-    // --- 7. clear ---
+    // --- 7. clear/restore ---
 
     register('Logging: 7.1 Clear Buffer', () => {
         const restoreDate = mockDate();
@@ -240,6 +234,23 @@
 
         restoreConsole(spies);
         restoreDate();
+    });
+
+    register('Logging: 7.2 Restore', () => {
+        window.Logger.clear();
+        const logs = "Line 1\nLine 2";
+        window.Logger.restore(logs);
+
+        assertEqual(window.Logger.getLogs(), "Line 1\nLine 2");
+
+        // Restore empty
+        window.Logger.restore('');
+        assertEqual(window.Logger.getLogs(), "Line 1\nLine 2"); // Should be no-op for empty or clear?
+        // Implementation: if (!logString) return; so no-op.
+
+        // Restore overwrite
+        window.Logger.restore("New Log");
+        assertEqual(window.Logger.getLogs(), "New Log");
     });
 
 })();

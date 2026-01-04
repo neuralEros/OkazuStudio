@@ -859,8 +859,18 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (runTestsBtn) {
             runTestsBtn.addEventListener('click', async () => {
                 if (window.TestRunner && window.TestRunner.runAll) {
+                    // 1. Run Tests
                     await window.TestRunner.runAll();
-                    refreshLogs();
+
+                    // 2. Capture Logs
+                    const logs = window.Logger.getLogs();
+
+                    // 3. Save to LocalStorage
+                    localStorage.setItem('okazu_test_logs', logs);
+                    localStorage.setItem('okazu_run_tests', 'true');
+
+                    // 4. Reload
+                    window.location.reload();
                 } else if (window.Logger && window.Logger.warn) {
                     window.Logger.warn('Test runner not available. Ensure test scripts are loaded.');
                 } else {
@@ -930,6 +940,30 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     // Init logic
     loadSettings();
     initSettingsUI();
+
+    // Check for test run flag on load
+    if (localStorage.getItem('okazu_run_tests') === 'true') {
+        localStorage.removeItem('okazu_run_tests');
+        const savedLogs = localStorage.getItem('okazu_test_logs');
+        if (savedLogs && window.Logger && window.Logger.restore) {
+            window.Logger.restore(savedLogs);
+
+            // Open Settings -> Debug Tab
+            const overlay = document.getElementById('settings-overlay');
+            const modal = document.getElementById('settings-modal');
+            const debugTab = document.querySelector('[data-tab="debug"]');
+
+            if (overlay && modal && debugTab) {
+                // Trigger Open
+                overlay.classList.remove('hidden');
+                overlay.classList.remove('opacity-0');
+                modal.style.transform = 'translate(-50%, -50%)';
+
+                // Switch Tab
+                debugTab.click();
+            }
+        }
+    }
 
     const testables = {
         loadSettings,

@@ -32,7 +32,14 @@ window.Logger = (function() {
         undo: (index, total, action) => format('UNDO', `Action: ${action} | Index: ${index}/${total}`),
         brush: (type, nodes) => format('BRUSH', `${type} stroke completed with ${nodes} nodes`),
         getLogs: () => logs.join('\n'),
-        clear: () => { logs.length = 0; }
+        clear: () => { logs.length = 0; },
+        restore: (logString) => {
+            if (!logString) return;
+            logs.length = 0;
+            // Split by newline and push
+            const lines = logString.split('\n');
+            lines.forEach(line => logs.push(line));
+        }
     };
 
     window.OkazuTestables = window.OkazuTestables || {};

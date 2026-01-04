@@ -86,11 +86,86 @@
         state.cropRect = { x:0, y:0, w:1, h:1 };
     });
 
-    // 8. Layer Management (Stubbed to verify existence)
-    register('Main: assignLayer existence', () => {
-        const { assignLayer } = window.OkazuTestables.main;
-        assert(typeof assignLayer === 'function', 'assignLayer is a function');
-        // Full testing requires complex DOM/Async setup covered by e2e or more advanced harnesses.
+    // 8. Layer Management
+    register('Main: assignLayer Logic', () => {
+        const { assignLayer, createDefaultState } = window.OkazuTestables.main;
+
+        // We cannot replace the state object itself because main.js uses a closure variable.
+        // We must mutate the shared state object.
+        const realState = window.OkazuTestables.main.state;
+        const realEls = window.OkazuTestables.main.els;
+
+        // Save backups to restore later
+        const backupState = { ...realState }; // Shallow backup of props
+        // els structure is deep, but we only strictly rely on specific props for this test.
+        // We will try to patch the methods we need on the real objects or just accept some dirtying if harmless.
+        // Better: Use Object.assign to inject mocks, then restore.
+
+        // Mock AssetManager
+        const mockAM = {
+            addAsset: (img, name) => 'mock_asset_id_' + name
+        };
+        const origAM = window.AssetManager;
+        window.AssetManager = mockAM;
+
+        // Prepare State
+        const cleanState = createDefaultState();
+        Object.assign(realState, cleanState);
+
+        // Prepare DOM Mocks (inject into realEls)
+        // We need to preserve original references where possible or just overwrite properties.
+        const mockViewport = { clientWidth: 1000, clientHeight: 800, style: {}, addEventListener: () => {} };
+        const mockCanvas = { width: 100, height: 100, style: {}, getContext: () => ({ drawImage: ()=>{}, clearRect: ()=>{} }) };
+        // We can't easily replace realEls properties if they are used by reference in event listeners,
+        // but for assignLayer logic it accesses them properties directly.
+
+        // Strategy: Mutate specific properties of realEls
+        const backupViewportCW = realEls.viewport.clientWidth; // Read-only usually?
+        // In JSDOM/Browser, clientWidth is read-only 0.
+        // We need to define property?
+        try {
+            Object.defineProperty(realEls.viewport, 'clientWidth', { value: 1000, configurable: true });
+            Object.defineProperty(realEls.viewport, 'clientHeight', { value: 800, configurable: true });
+        } catch (e) {
+            // If we can't redefine, we might be stuck.
+            // But verify_tests runs in Headless Chrome. properties might be writable or defineProperty works.
+        }
+
+        // Mock buttons to prevent crash on classList
+        if (!realEls.btnA.classList) realEls.btnA.classList = { add:()=>{}, remove:()=>{} };
+        if (!realEls.btnB.classList) realEls.btnB.classList = { add:()=>{}, remove:()=>{} };
+        realEls.btnA.appendChild = () => {};
+
+        try {
+            // Setup
+            const imgStub = document.createElement('canvas');
+            imgStub.width = 400; imgStub.height = 300;
+
+            // Call
+            assignLayer(imgStub, 'A', 'test_image.png');
+
+            // Assertions against REAL state
+            assertEqual(realState.assetIdA, 'mock_asset_id_test_image.png', 'Asset ID Assigned');
+            assertEqual(realState.nameA, 'test_image.png', 'Name Assigned');
+            assertEqual(realState.formatA, 'PNG', 'Format Derived');
+
+            // Dims
+            // Only A loaded. Union = A dims.
+            assertEqual(realState.fullDims.w, 400, 'Full Dims Width');
+            assertEqual(realState.fullDims.h, 300, 'Full Dims Height');
+
+            // Crop Rect (Default is Full)
+            // 400x300. Aspect 1.333.
+            assertApprox(realState.cropRect.w, 1.333, 0.01, 'Crop Rect Aspect');
+
+        } finally {
+            // Restore
+            window.AssetManager = origAM;
+            // Restore State
+            Object.assign(realState, backupState);
+            // Restore Viewport? (Hard to undo defineProperty fully without original descriptor, but we can try delete)
+            // Or just leave it, likely won't hurt subsequent tests if any.
+        }
     });
 
 })();

@@ -156,66 +156,24 @@
 
         const engine = new ReplayEngine(state, createMockCtx(), { width: 100, height: 100 }, () => {}, () => {}, () => {});
 
-        // Mock cloneCanvas to avoid real canvas ops in unit test
-        const originalClone = window.OkazuTestables.replay.cloneCanvas;
-        window.OkazuTestables.replay.cloneCanvas = (src) => ({ width: src.width, height: src.height, fake: true });
-
-        // We also need to override the method on the prototype or bind?
-        // ReplayEngine uses `cloneCanvas` from the closure scope, but `window.OkazuTestables.replay` exposes the *reference*.
-        // Modifying the exposed reference won't change the internal usage in `replay.js`.
-        // However, `replay.js` is inside an IIFE. We cannot monkeypatch internal functions.
-        // But `ReplayEngine` logic calls `cloneCanvas(asset.source)`.
-
-        // Solution: Since we can't mock internal `cloneCanvas`, we must ensure `asset.source` is a valid CanvasImageSource.
-        // In JSDOM/Headless, `document.createElement('canvas')` creates a valid source.
-        // The error `The provided value is not of type...` suggests `makeCanvas` failed or returned a plain object.
-        // In the previous patch, `makeCanvas` returns `{ width, height, getContext }` if document is undefined.
-        // `cloneCanvas` calls `c.getContext('2d').drawImage(source, 0, 0)`.
-        // `drawImage` requires a valid Canvas/Image. A plain object with `getContext` is NOT valid.
-        // Ensure `document` exists or mock `ReplayEngine.prototype.applyAction`? No.
-
-        // If we are in a browser environment (TestRunner runs in browser), `document` exists.
-        // `makeCanvas` returns a real canvas.
-        // `cloneCanvas` creates a real canvas and draws.
-        // The error implies `mockAssetManager` returned a plain object source?
-        // Ah, `AssetManager` is mocked globally. `ReplayEngine` calls `window.AssetManager.getAsset`.
-        // The mock returns: `{ source: makeCanvas(...) }`.
-
-        // Wait, if `makeCanvas` returns a real canvas, it should work.
-        // Maybe the error comes from `cloneCanvas` creating `document.createElement('canvas')` and failing?
-        // Or `c.getContext('2d')`?
-        // Let's assume the issue is strict type checking in `drawImage`.
-        // I will Mock `performBakeRotation` and `applyAction` parts if possible? No.
-
-        // Best approach: If we can't rely on canvas ops, we should skip the drawing part.
-        // But we can't inject logic into `replay.js`.
-
-        // Let's try to pass a real ImageBitmap or Canvas if possible?
-        // Or, assume that `makeCanvas` logic in previous patch was flawed?
-        // `if (typeof document !== 'undefined')` -> it IS defined in browser.
-
-        // Let's debug by simplifying: Just ensure the mock returns a simplistic object that passes check?
-        // No, `drawImage` checks internal slots.
-        // Okay, let's try to mock `window.createReplayEngine` or methods?
-        // No, we are testing `ReplayEngine`.
-
-        // Critical: In `scripts/replay.js`, `cloneCanvas` is NOT exposed for reassignment.
-        // It is an internal function.
-
-        // Workaround: Mock `CanvasRenderingContext2D.prototype.drawImage` to be a no-op spy?
-        // This is global, but valid for this test session.
-        const origDraw = CanvasRenderingContext2D.prototype.drawImage;
-        CanvasRenderingContext2D.prototype.drawImage = () => {};
+        // Mock drawImage to prevent strict type errors in test environment or canvas tainting issues
+        const drawSpy = spyOn(CanvasRenderingContext2D.prototype, 'drawImage');
+        drawSpy.mockImplementation(() => {});
 
         try {
             // Load Asset B (900x300) into Slot B
             engine.applyAction('LOAD_IMAGE', { assetId: 'asset-b', slot: 'B' });
 
             assertEqual(state.assetIdB, 'asset-b');
+            // Union Logic: A(100x100), B(900x300).
+            // Max H = 300.
+            // A scale = 300/100 = 3. A Vis W = 300.
+            // B scale = 1. B Vis W = 900.
+            // Union W = 900. H = 300.
             assertEqual(state.fullDims.w, 900, 'Union Width');
             assertEqual(state.fullDims.h, 300, 'Union Height');
         } finally {
-            CanvasRenderingContext2D.prototype.drawImage = origDraw;
+            drawSpy.restore();
         }
     });
 

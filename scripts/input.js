@@ -38,15 +38,23 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     }
 
     function getRotatedAABB(w, h, angleDeg) {
-        const cx = w / 2;
-        const cy = h / 2;
+        let width = w;
+        let height = h;
+        let rotation = angleDeg;
+        if (typeof w === 'object' && w !== null) {
+            width = w.w;
+            height = w.h;
+            rotation = h;
+        }
+        const cx = width / 2;
+        const cy = height / 2;
         // Corners: TL, TR, BR, BL
         const corners = [
             { x: 0, y: 0 },
-            { x: w, y: 0 },
-            { x: w, y: h },
-            { x: 0, y: h }
-        ].map(p => rotatePoint(p, cx, cy, angleDeg));
+            { x: width, y: 0 },
+            { x: width, y: height },
+            { x: 0, y: height }
+        ].map(p => rotatePoint(p, cx, cy, rotation));
 
         let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         corners.forEach(p => {
@@ -64,13 +72,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         if (rot === 180) return { x: fullW - tx, y: fullH - ty };
         if (rot === 270) return { x: ty, y: fullW - tx };
         return { x: tx, y: ty };
-    }
-
-    function truthToVisualCoords(tx, ty) {
-        const fullW = state.fullDims.w || 1;
-        const fullH = state.fullDims.h || 1;
-        const rot = state.rotation;
-        return truthToVisualCoordsRaw(tx, ty, fullW, fullH, rot);
     }
 
     function getVisualFullDimsRaw(fullW, fullH, rot) {
@@ -94,6 +95,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         const vpW = els.viewport.clientWidth;
         const vpH = els.viewport.clientHeight;
         const bounds = state.cropRotation ? getRotatedAABB(visualW, visualH, state.cropRotation) : { w: visualW, h: visualH };
+        if (!bounds.w || !bounds.h || !vpW || !vpH) return 0.25;
         const requiredScale = Math.max(vpW / bounds.w, vpH / bounds.h);
         return Math.min(requiredScale, 0.25);
     }
@@ -666,22 +668,6 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         state.previewMaskScale = state.fastMaskScale;
         state.isPreviewing = true;
         state.useFastPreview = true;
-        state.activeStroke = {
-            points: [],
-            brushSize: getBrushPixelSize(),
-            feather: state.featherMode ? state.featherPx : state.feather,
-            featherMode: state.featherMode,
-            isErasing: isEraseMode()
-        };
-        state.fastPreviewLastStamp = null;
-    }
-
-    function beginFastStrokeSession() {
-        ensureFastMaskCanvas();
-        state.previewMaskCanvas = state.fastMaskCanvas;
-        state.previewMaskScale = state.fastMaskScale;
-        state.isPreviewing = true;
-        state.useFastPreview = true;
 
         // Active Stroke stores PROPS
         state.activeStroke = {
@@ -1244,7 +1230,7 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         return { x: vx, y: vy, w: vw, h: vh };
     }
 
-    function truthToVisualCoords(p, rot, fullW, fullH) {
+    function truthToVisualPoint(p, rot, fullW, fullH) {
         if (rot === 0) return { x: p.x, y: p.y };
         let vx = p.x;
         let vy = p.y;
@@ -1497,8 +1483,40 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
         visualToTruthCoordsRaw,
         getVisualFullDimsRaw,
         toProportion,
-        toPixels
+        toPixels,
+        clampBrushSize,
+        sliderToBrushSize,
+        brushSizeToSliderValue,
+        sliderToFeatherSize,
+        featherSizeToSliderValue,
+        truthToVisualRect,
+        visualToTruthRect,
+        truthToVisualPoint
     };
 
-    return { canDraw, resetView, updateCursorSize, updateCursorStyle, attachInputHandlers, setBrushPercent, setBrushPercentFromSlider, setFeather, setFeatherFromSlider, setFeatherMode, syncBrushUIToActive, brushPercentToSliderValue: brushSizeToSliderValue };
+    return {
+        canDraw,
+        resetView,
+        updateCursorSize,
+        updateCursorStyle,
+        attachInputHandlers,
+        setBrushPercent,
+        setBrushPercentFromSlider,
+        setFeather,
+        setFeatherFromSlider,
+        setFeatherMode,
+        syncBrushUIToActive,
+        brushPercentToSliderValue: brushSizeToSliderValue,
+        getCanvasCoordinates,
+        getCropPivot,
+        enforceCropView,
+        startCropDrag,
+        attachCropHandlers,
+        handlePointerDown,
+        handlePointerMove,
+        handlePointerUp,
+        handleWheel,
+        updateViewTransform,
+        forceCropHandleUpdate
+    };
 }

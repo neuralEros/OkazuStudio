@@ -2946,17 +2946,12 @@
                                        : (proxy.endsWith('/') ? proxy + url : proxy + '/?' + url);
 
                         // We will rely on user provided proxy URL structure mostly, but fallback to simple concatenation
-                        // The default is https://corsproxy.io/?https://...
-                        // If user hasn't changed it:
                         let finalUrl = state.settings.proxyUrl;
-                        if (finalUrl === "https://corsproxy.io/?https://api.replicate.com") {
-                            // Default is for Replicate, let's just use corsproxy.io generic
-                             finalUrl = "https://corsproxy.io/?" + url;
-                        } else {
-                             // Naive substitution if they have {url}, else append
-                             if (finalUrl.includes('{url}')) finalUrl = finalUrl.replace('{url}', encodeURIComponent(url));
-                             else finalUrl = finalUrl + url;
-                        }
+
+                        // Naive substitution if they have {url}, else append
+                        if (finalUrl.includes('{url}')) finalUrl = finalUrl.replace('{url}', encodeURIComponent(url));
+                        else finalUrl = finalUrl + url;
+
                         return tryFetch(finalUrl);
                     }
                     throw err;

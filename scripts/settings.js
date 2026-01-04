@@ -799,6 +799,12 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
+            // Highlight test names in PASS/FAIL lines
+            const testNameRegex = /(\b(?:PASS|FAIL)\s+)([^()]+?)(\s*\()/;
+            safeMessage = safeMessage.replace(testNameRegex, (match, status, testName, rest) => {
+                return `${status}<span style="color: var(--log-accent-color)">${testName.trim()}</span>${rest}`;
+            });
+
             // Combined Regex for Assets, Filenames, Resolutions, and Numbers
             // Group 1: Asset Prefix (optional)
             // Group 2: Asset ID (asset_...)

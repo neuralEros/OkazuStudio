@@ -8,6 +8,13 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
     let hasActiveColorTuning = false;
     let saveSnapshot = () => {};
     let updateWorkingCopies = () => {};
+    const logger = typeof Logger !== 'undefined'
+        ? Logger
+        : {
+            warn: (...args) => console.warn(...args),
+            error: (...args) => console.error(...args),
+            interaction: () => {}
+        };
 
     const BAND_CENTERS = {
         red: 0,
@@ -89,6 +96,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 const w = getBandWeight(h, BAND_CENTERS[bandName]);
                 if (w > 0) {
                     const t = tuning[bandName];
+                    if (!t) continue;
                     dHue += t.hue * w;
                     dSat += t.saturation * w;
                     dVib += t.vibrance * w;
@@ -111,17 +119,11 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 const w = getLuminanceWeight(lumVal, band);
                 if (w > 0) {
                     const t = tuning[band];
-                    if (t) {
-                         dHue += t.hue * w;
-                         dSat += t.saturation * w;
-                         dVib += t.vibrance * w;
-                         dLum += t.luminance * w;
-                         // Ignore shadows/highlights for luminance bands, but process them for color bands
-                         if (!['lights', 'mids', 'darks'].includes(band)) {
-                             dShadows += t.shadows * w;
-                             dHighlights += t.highlights * w;
-                         }
-                    }
+                    if (!t) return;
+                    dHue += t.hue * w;
+                    dSat += t.saturation * w;
+                    dVib += t.vibrance * w;
+                    dLum += t.luminance * w;
                 }
             });
 
@@ -403,6 +405,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
     function updateAdjustmentPreview() {
         if (!state.imgA && !state.imgB) return;
+        if (!state.adjustmentsVisible) return;
         const now = Date.now();
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
@@ -422,6 +425,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              const imgData = ctx.getImageData(0, 0, w, h);
              applyMasterLUT(imgData);
              applyColorOps(imgData);
+             applySelectiveColor(imgData);
              ctx.putImageData(imgData, 0, 0);
              return;
         }
@@ -490,7 +494,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
          updateSlider('adj-cb-g', 0);
          updateSlider('adj-cb-b', 0);
          updateSlider('adj-shadows', 0);
-         updateSlider('adj-highlights', 0);
+        updateSlider('adj-highlights', 0);
 
          if (typeof refreshTuningSliders === 'function') refreshTuningSliders();
          updateColorTuningLUT();
@@ -500,15 +504,19 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
 
     function updateSlider(id, val) {
         const el = document.getElementById(id);
-        if(el) {
-            el.value = val;
-            const label = document.getElementById('val-' + id.replace('adj-', ''));
-            if (label) {
-                 if (id.startsWith('adj-cb')) label.textContent = getCurvedValue(val);
-                 else if (id === 'adj-wb') label.textContent = (6500 + val*30) + 'K';
-                 else if (el.step === '0.01' || el.step === '0.1') label.textContent = parseFloat(val).toFixed(2);
-                 else label.textContent = val;
-            }
+        if (!el) {
+            console.warn(`[Adjustments] Slider not found: ${id}`);
+            return;
+        }
+        el.value = val;
+        const label = document.getElementById('val-' + id.replace('adj-', ''));
+        if (label) {
+             if (id.startsWith('adj-cb')) label.textContent = getCurvedValue(val);
+             else if (id === 'adj-wb') label.textContent = (6500 + val*30) + 'K';
+             else if (el.step === '0.01' || el.step === '0.1') label.textContent = parseFloat(val).toFixed(2);
+             else label.textContent = val;
+        } else {
+            console.warn(`[Adjustments] Label not found for slider: ${id}`);
         }
     }
 
@@ -517,7 +525,13 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             const el = document.getElementById(id);
             const label = document.getElementById('val-' + id.replace('adj-', ''));
             const actionKey = `adjustment-${id}`;
-            if(!el) return;
+            if(!el) {
+                console.warn(`[Adjustments] Slider not found: ${id}`);
+                return;
+            }
+            if (!label) {
+                console.warn(`[Adjustments] Label not found for slider: ${id}`);
+            }
 
             const captureStart = () => { el.dataset.startVal = el.value; };
             el.addEventListener('pointerdown', captureStart);
@@ -528,10 +542,12 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 if (subkey) state.adjustments[key][subkey] = val;
                 else state.adjustments[key] = val;
 
-                if (type === 'curve') label.textContent = getCurvedValue(val);
-                else if (type === 'float') label.textContent = val.toFixed(2);
-                else if (type === 'K') label.textContent = (6500 + val*30) + 'K';
-                else label.textContent = val;
+                if (label) {
+                    if (type === 'curve') label.textContent = getCurvedValue(val);
+                    else if (type === 'float') label.textContent = val.toFixed(2);
+                    else if (type === 'K') label.textContent = (6500 + val*30) + 'K';
+                    else label.textContent = val;
+                }
 
                 state.isAdjusting = true;
                 updateAdjustmentPreview();
@@ -541,7 +557,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 const oldVal = parseFloat(el.dataset.startVal || 0);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                if (window.dispatchAction) dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value), oldValue: oldVal } });
+                if (window.dispatchAction) window.dispatchAction({ type: 'ADJUST', payload: { id, key, subkey, value: parseFloat(e.target.value), oldValue: oldVal } });
             });
         }
 
@@ -568,7 +584,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             resetAllAdjustments();
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            if (window.dispatchAction) dispatchAction({ type: 'RESET_ADJUSTMENTS', payload: {} });
+            if (window.dispatchAction) window.dispatchAction({ type: 'RESET_ADJUSTMENTS', payload: {} });
         });
 
         els.resetLevelsBtn.addEventListener('click', () => {
@@ -580,7 +596,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             updateSlider('adj-l-white', 255);
             state.pendingAdjustmentCommit = true;
             updateAdjustmentPreview();
-            if (window.dispatchAction) dispatchAction({ type: 'RESET_LEVELS', payload: {} });
+            if (window.dispatchAction) window.dispatchAction({ type: 'RESET_LEVELS', payload: {} });
         });
 
         document.getElementById('resetSatBtn').addEventListener('click', () => {
@@ -591,7 +607,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-vib', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             if (window.dispatchAction) dispatchAction({ type: 'RESET_SATURATION', payload: {} });
+             if (window.dispatchAction) window.dispatchAction({ type: 'RESET_SATURATION', payload: {} });
         });
 
         els.resetColorBtn.addEventListener('click', () => {
@@ -605,7 +621,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
              updateSlider('adj-cb-b', 0);
              state.pendingAdjustmentCommit = true;
              updateAdjustmentPreview();
-             if (window.dispatchAction) dispatchAction({ type: 'RESET_COLOR_BALANCE', payload: {} });
+             if (window.dispatchAction) window.dispatchAction({ type: 'RESET_COLOR_BALANCE', payload: {} });
         });
     }
 
@@ -714,7 +730,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             const el = document.getElementById(param.id);
             const label = document.getElementById('val-' + param.id);
             if(!el) {
-                Logger.warn(`Tuning param element ${param.id} not found`);
+                logger.warn(`Tuning param element ${param.id} not found`);
                 return;
             }
 
@@ -723,31 +739,27 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             el.addEventListener('focus', captureStart);
 
             el.addEventListener('input', (e) => {
-                try {
-                    const val = parseFloat(e.target.value);
-                    if (!state.activeColorBand || !state.adjustments.colorTuning[state.activeColorBand]) {
-                         Logger.error("Missing activeColorBand or tuning data");
-                         return;
-                    }
-                    state.adjustments.colorTuning[state.activeColorBand][param.key] = val;
-                    if(label) label.textContent = val;
-
-                    updateColorTuningLUT(); // Rebuild LUT
-
-                    state.isAdjusting = true;
-                    updateAdjustmentPreview();
-                } catch(err) {
-                    console.error("Color Tuning Input Error:", err);
+                const val = parseFloat(e.target.value);
+                if (!state.activeColorBand || !state.adjustments.colorTuning[state.activeColorBand]) {
+                     logger.error("Missing activeColorBand or tuning data");
+                     return;
                 }
+                state.adjustments.colorTuning[state.activeColorBand][param.key] = val;
+                if(label) label.textContent = val;
+
+                updateColorTuningLUT(); // Rebuild LUT
+
+                state.isAdjusting = true;
+                updateAdjustmentPreview();
             });
 
             el.addEventListener('change', (e) => {
                 const val = e.target.value;
                 const oldVal = el.dataset.startVal || "unknown";
-                Logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
+                logger.interaction(`Tuning ${state.activeColorBand} ${param.key}`, "changed", `${oldVal} -> ${val}`);
                 state.isAdjusting = false;
                 state.pendingAdjustmentCommit = true;
-                if (window.dispatchAction) dispatchAction({ type: 'TUNE_COLOR', payload: { band: state.activeColorBand, key: param.key, value: parseFloat(val), oldValue: parseFloat(oldVal || 0) } });
+                if (window.dispatchAction) window.dispatchAction({ type: 'TUNE_COLOR', payload: { band: state.activeColorBand, key: param.key, value: parseFloat(val), oldValue: parseFloat(oldVal || 0) } });
             });
         });
 
@@ -764,7 +776,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 updateColorTuningLUT();
                 state.pendingAdjustmentCommit = true;
                 updateAdjustmentPreview();
-                if (window.dispatchAction) dispatchAction({ type: 'RESET_TUNING_BAND', payload: { band } });
+                if (window.dispatchAction) window.dispatchAction({ type: 'RESET_TUNING_BAND', payload: { band } });
             });
         }
 
@@ -780,7 +792,7 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
                 updateColorTuningLUT();
                 state.pendingAdjustmentCommit = true;
                 updateAdjustmentPreview();
-                if (window.dispatchAction) dispatchAction({ type: 'RESET_TUNING_ALL', payload: {} });
+                if (window.dispatchAction) window.dispatchAction({ type: 'RESET_TUNING_ALL', payload: {} });
             });
         }
     }

@@ -819,17 +819,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 const statusColor = status === 'FAIL' ? '#ef4444' : 'var(--log-accent-color)';
                 const statusSpan = `<span style="color: ${statusColor}">${status}</span>`;
                 let restMessage = rest;
-                const nameMatch = restMessage.match(/^([^\s(]+)/);
-                if (nameMatch) {
-                    const name = nameMatch[1];
-                    const isTestName = /[A-Z0-9_]/.test(name);
-                    if (isTestName) {
-                        restMessage = restMessage.replace(
-                            name,
-                            `<span style="color: var(--log-accent-color)">${name}</span>`
-                        );
-                    }
-                }
                 restMessage = restMessage.replace(
                     /\b\d+ms\b/g,
                     (duration) => `<span style="color: var(--log-accent-color)">${duration}</span>`

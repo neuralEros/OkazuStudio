@@ -3,19 +3,19 @@ Agents: It is CRITICAL that you keep track of your progress here, and in each of
 
 ===== MAIN CHECKLIST:
 
- [ ] 0.  Ensure the Okazu Test System is up and running (see below)
- [ ] 1.  Complete all assignments in adjustments_tdd.md
- [ ] 2.  Complete all assignments in assets_tdd.md
- [ ] 3.  Complete all assignments in brush_tdd.md
- [ ] 4.  Complete all assignments in input_tdd.md
- [ ] 5.  Complete all assignments in kakushi_tdd.md
- [ ] 6.  Complete all assignments in logging_tdd.md
- [ ] 7.  Complete all assignments in main_tdd.md
- [ ] 8.  Complete all assignments in replay_tdd.md
- [ ] 9.  Complete all assignments in settings_tdd.md
- [ ] 10. Complete all assignments in stego_tdd.md
- [ ] 11. Complete all assignments in watermark_tdd.md
- [ ] 12. Ensure all implemented tests pass.
+ [x] 0.  Ensure the Okazu Test System is up and running (see below)
+ [x] 1.  Complete all assignments in adjustments_tdd.md
+ [x] 2.  Complete all assignments in assets_tdd.md
+ [x] 3.  Complete all assignments in brush_tdd.md
+ [x] 4.  Complete all assignments in input_tdd.md
+ [x] 5.  Complete all assignments in kakushi_tdd.md
+ [x] 6.  Complete all assignments in logging_tdd.md
+ [x] 7.  Complete all assignments in main_tdd.md
+ [x] 8.  Complete all assignments in replay_tdd.md
+ [x] 9.  Complete all assignments in settings_tdd.md
+ [x] 10. Complete all assignments in stego_tdd.md
+ [x] 11. Complete all assignments in watermark_tdd.md
+ [x] 12. Ensure all implemented tests pass.
  
  ===== OKAZU TEST SYSTEM REFERENCE:
 

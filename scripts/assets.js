@@ -55,7 +55,8 @@
     window.OkazuTestables = window.OkazuTestables || {};
     window.OkazuTestables.assets = {
         AssetManager,
-        generateId
+        generateId,
+        instance: window.AssetManager // Expose the singleton instance for testing state
     };
 
 })();

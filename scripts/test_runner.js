@@ -1,3 +1,6 @@
+// Set flag to expose testables
+window.__OKAZU_TEST__ = true;
+
 window.TestRunner = (() => {
     const tests = [];
     const DEFAULT_TIMEOUT_MS = 2000;
@@ -37,6 +40,58 @@ window.TestRunner = (() => {
             const suffix = message ? `: ${message}` : '';
             throw new Error(`Deep equal failed${suffix}\nExpected: ${expectedStr}\nActual: ${actualStr}`);
         }
+    }
+
+    function spyOn(obj, methodName) {
+        const original = obj[methodName];
+        const calls = [];
+
+        const spy = function(...args) {
+            calls.push(args);
+            return spy.impl ? spy.impl.apply(this, args) : (original ? original.apply(this, args) : undefined);
+        };
+
+        spy.impl = null; // Default to calling original if exists
+        spy.calls = calls;
+
+        spy.mockImplementation = (fn) => {
+            spy.impl = fn;
+            return spy;
+        };
+
+        spy.mockReturnValue = (val) => {
+            spy.impl = () => val;
+            return spy;
+        };
+
+        spy.restore = () => {
+            obj[methodName] = original;
+        };
+
+        spy.expectCalled = () => {
+            if (calls.length === 0) {
+                throw new Error(`Expected ${methodName} to be called, but it was not.`);
+            }
+        };
+
+        spy.expectNotCalled = () => {
+            if (calls.length > 0) {
+                throw new Error(`Expected ${methodName} NOT to be called, but it was called ${calls.length} times.`);
+            }
+        };
+
+        spy.expectCalledWith = (...expectedArgs) => {
+            const match = calls.some(callArgs => {
+                if (callArgs.length !== expectedArgs.length) return false;
+                return callArgs.every((arg, i) => JSON.stringify(arg) === JSON.stringify(expectedArgs[i]));
+            });
+            if (!match) {
+                 throw new Error(`Expected ${methodName} to be called with ${JSON.stringify(expectedArgs)}, but no such call found. Calls: ${JSON.stringify(calls)}`);
+            }
+        };
+
+        obj[methodName] = spy;
+        return spy;
     }
 
     function now() {
@@ -101,6 +156,7 @@ window.TestRunner = (() => {
         assert,
         assertEqual,
         assertApprox,
-        assertDeepEqual
+        assertDeepEqual,
+        spyOn
     };
 })();

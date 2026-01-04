@@ -813,6 +813,20 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         getCurvedValue
     };
 
+    // Expose implementation details for tests if they aren't part of the returned API
+    if (window.__OKAZU_TEST__) {
+        Object.assign(window.OkazuTestables.adjustments, {
+            updateColorTuningLUT,
+            updateMasterLUT,
+            applyMasterLUT,
+            applyColorOps,
+            applySelectiveColor,
+            masterLUT,
+            hueCorrectionLUT,
+            luminanceCorrectionLUT
+        });
+    }
+
     return {
         applyMasterLUT,
         applyColorOps,

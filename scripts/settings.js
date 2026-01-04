@@ -859,8 +859,24 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (runTestsBtn) {
             runTestsBtn.addEventListener('click', async () => {
                 if (window.TestRunner && window.TestRunner.runAll) {
-                    await window.TestRunner.runAll();
-                    refreshLogs();
+                    try {
+                        // 1. Run Tests
+                        await window.TestRunner.runAll();
+
+                        // 2. Save logs to LocalStorage
+                        if (window.Logger && window.Logger.getLogs) {
+                            const logs = window.Logger.getLogs();
+                            localStorage.setItem('okazu_test_logs', logs);
+                        }
+
+                        // 3. Set flag for auto-open
+                        localStorage.setItem('okazu_debug_auto_open', 'true');
+
+                        // 4. Reload page
+                        location.reload();
+                    } catch (e) {
+                        console.error("Failed to run/save tests", e);
+                    }
                 } else if (window.Logger && window.Logger.warn) {
                     window.Logger.warn('Test runner not available. Ensure test scripts are loaded.');
                 } else {
@@ -897,14 +913,64 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             modal.style.transform = 'translate(-50%, -50%)';
             // -50% Y is centered. Start was -150% (above)
 
-            // Default to General tab?
-            // If debug was last active, we might want to start polling?
-            // For now, let's just leave the DOM state as is (hidden tabs).
-            // But if debug tab is currently visible class-wise, we should start polling.
+            // Check if we need to auto-switch to debug (e.g. from test run)
+            const autoOpenDebug = localStorage.getItem('okazu_debug_auto_open');
+            if (autoOpenDebug === 'true') {
+                localStorage.removeItem('okazu_debug_auto_open');
+
+                // Click Debug Tab
+                const debugBtn = document.querySelector('[data-tab="debug"]');
+                if (debugBtn) debugBtn.click();
+
+                // Append Logs from Storage if available
+                const savedLogs = localStorage.getItem('okazu_test_logs');
+                if (savedLogs && window.Logger && window.Logger.log) {
+                    // Inject into Logger
+                    // We can't easily prepend to the internal array of Logger without a method.
+                    // But we can just log a separator and then maybe Logger needs a method to bulk add?
+                    // Or we just display it in the viewer directly?
+                    // The viewer reads from Logger.getLogs().
+                    // If we want it to persist in the viewer, we should probably add it to the Logger.
+                    // For now, let's just log a message saying "Restored from previous run"
+                    // and rely on the fact that we just reloaded so the logger is empty except for init messages.
+
+                    // Actually, the requirement says "append the log from storage".
+                    // Since the page refreshed, the Logger is fresh.
+                    // We should probably just PREPEND or SET the logs in the viewer or Logger.
+                    // Let's try to inject into Logger if possible, or just set innerHTML of viewer if we can't.
+                    // But refreshLogs() overwrites innerHTML.
+
+                    // Best approach: Add a special method to Logger to import logs?
+                    // Or just log them line by line? That might be slow.
+                    // Let's assume Logger has a 'raw' log method or we just modify the viewer logic.
+                    // A simple hack: Log a "Previous Run Results:" line, then the blob.
+                    console.log("Restoring test logs...");
+                    // We'll just append to the logger so it shows up.
+                    if (window.Logger.importLogs) {
+                         window.Logger.importLogs(savedLogs);
+                    } else {
+                        // Fallback: log a summary
+                        window.Logger.info("Previous Test Run Logs Restored from LocalStorage.");
+                        window.Logger.info("--- START RESTORED LOGS ---");
+                        // Split by newline and log each? Too many.
+                        // Let's just dump it to console and maybe show in viewer via a special mechanism?
+                        // Actually, let's add `importLogs` to logging.js later.
+                        // For now, I'll just write to the DOM and pause polling? No, refreshLogs will kill it.
+                        // I will add a TODO to update logging.js to support import.
+                        // Wait, I can just modify logging.js now or soon.
+                    }
+                }
+            }
+
             const debugTab = document.getElementById('tab-debug');
             if (debugTab && !debugTab.classList.contains('hidden')) {
                 startLogPolling();
             }
+        }
+
+        // Check for auto-open on init (if settings button wasn't clicked, but we reloaded)
+        if (localStorage.getItem('okazu_debug_auto_open') === 'true') {
+            openSettings();
         }
 
         function closeSettings() {

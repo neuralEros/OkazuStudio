@@ -32,6 +32,13 @@ window.Logger = (function() {
         undo: (index, total, action) => format('UNDO', `Action: ${action} | Index: ${index}/${total}`),
         brush: (type, nodes) => format('BRUSH', `${type} stroke completed with ${nodes} nodes`),
         getLogs: () => logs.join('\n'),
+        importLogs: (logString) => {
+            if (!logString) return;
+            // Split by newline and append to logs array
+            // We do NOT use format() because these lines are already formatted with timestamps
+            const lines = logString.split('\n');
+            logs.push(...lines);
+        },
         clear: () => { logs.length = 0; }
     };
 

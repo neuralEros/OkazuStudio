@@ -799,27 +799,36 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
-            // Highlight test names in PASS/FAIL lines
-            const testNameRegex = /(\b(?:PASS|FAIL)\s+)([^()]+?)(\s*\()/;
-            safeMessage = safeMessage.replace(testNameRegex, (match, status, testName, rest) => {
-                return `${status}<span style="color: var(--log-accent-color)">${testName.trim()}</span>${rest}`;
-            });
+            // Highlight test status, names, and duration in PASS/FAIL lines.
+            const testLineRegex = /^(PASS|FAIL)\s+(.+?)\s*(\(\d+ms\))(?:\s*:\s*(.*))?$/;
+            const testLineMatch = safeMessage.match(testLineRegex);
+            if (testLineMatch) {
+                const [, status, testName, duration, remainder] = testLineMatch;
+                const statusColor = status === 'FAIL' ? '#ef4444' : 'var(--log-accent-color)';
+                const statusSpan = `<span style="color: ${statusColor}">${status}</span>`;
+                const nameSpan = `<span style="color: var(--log-accent-color)">${testName.trim()}</span>`;
+                const durationSpan = `<span style="color: var(--log-accent-color)">${duration}</span>`;
+                const suffix = remainder ? `: ${remainder}` : '';
+                return `${prefixPart}${statusSpan} ${nameSpan} ${durationSpan}${suffix}`;
+            }
 
             // Combined Regex for Assets, Filenames, Resolutions, and Numbers
             // Group 1: Asset Prefix (optional)
             // Group 2: Asset ID (asset_...)
             // Group 3: Filename
             // Group 4: Resolution
-            // Group 5: Number (Floats only to avoid highlighting indices)
-            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+\.\d+\b)/g;
+            // Group 5: Duration (e.g. 12ms)
+            // Group 6: Number (Floats only to avoid highlighting indices)
+            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|(\b\d+ms\b)|((?<!\w)-?\d+\.\d+\b)/g;
 
-            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, number) => {
+            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, duration, number) => {
                 const style = 'style="color: var(--log-accent-color)"';
                 if (assetId) {
                     return (assetPrefix || '') + `<span ${style}>${assetId}</span>`;
                 }
                 if (filename) return `<span ${style}>${filename}</span>`;
                 if (resolution) return `<span ${style}>${resolution}</span>`;
+                if (duration) return `<span ${style}>${duration}</span>`;
                 if (number) return `<span ${style}>${number}</span>`;
                 return match;
             });

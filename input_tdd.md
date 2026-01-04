@@ -1,650 +1,278 @@
-# input.js Unit-Test Blueprint
+1. 1. Test harness + DOM mocks
+    1.1. 1.1 Minimal state and els scaffolding
+        [ ] 1.1.1. Construct minimal state object
+            # Goal: Provide just enough state/element wiring to exercise scripts/input.js
+            # state.view = { scale: 1, translateX: 0, translateY: 0 }
+            # state.canvasSize = { width: 1000, height: 800 }
+            # state.cropped = false
+            # state.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 0 }
+            # state.cropView = { scale: 1, translateX: 0, translateY: 0, rotation: 0 }
+            # state.mode = 'erase'
+            # state.brushSize = 0.1
+            # state.featherMode = false
+            # state.brushSettings = { erase: { size: 0.1, hardness: 0.8, featherPx: 12 }, repair: { size: 0.05, hardness: 0.8, featherPx: 12 }, censor: { size: 0.2, hardness: 0.5, featherPx: 18 } }
+            # state.cursor = { canDraw: true }
+            # state.pointer = { isDown: false, isDrawing: false, isPanning: false }
+            # state.polyline = { active: false, points: [] }
+            # state.preview = { active: false }
+        [ ] 1.1.2. Construct minimal els object
+            # els.viewport = { clientWidth: 1200, clientHeight: 800, style: {}, getBoundingClientRect: () => ({ left: 10, top: 20, width: 1200, height: 800 }) }
+            # els.canvasWrapper = { style: {}, getBoundingClientRect: () => ({ left: 10, top: 20, width: 1000, height: 800 }) }
+            # els.mainCanvas = { width: 1000, height: 800 }
+            # els.previewCanvas = { width: 1000, height: 800 }
+            # els.cursor = { style: {} }
+            # els.brushSizeSlider = { value: '10' }
+            # els.brushSizeLabel = { textContent: '' }
+            # els.hardnessSlider = { value: '80', min: '0', max: '100', step: '1' }
+            # els.hardnessLabel = { textContent: '' }
+            # els.cropBox = { style: {}, classList: { add: () => {}, remove: () => {} } }
+            # els.cropHandles = { topLeft: { style: {} }, topRight: { style: {} }, bottomLeft: { style: {} }, bottomRight: { style: {} }, rotation: { style: {} } }
+        [ ] 1.1.3. Assert initial state and element scaffolding
+            # state.view.scale === 1 and translate values are 0
+            # els.viewport.getBoundingClientRect() returns expected static values
+            # Sliders/labels are present with string values
+            # els.cropBox.style and els.cropHandles.*.style exist for CSS variable assignment
+        [ ] 1.1.4. Test Edge Case: state.canvasSize.height = 0
+            # Should not cause errors for helpers relying on height proportions
+        [ ] 1.1.5. Test Edge Case: els.viewport.clientWidth = 0
+            # Should be handled gracefully in view reset logic
+    1.2. 1.2 Event-mock helpers
+        [ ] 1.2.1. Implement mockPointerEvent helper
+            # Args: { type, clientX, clientY, button = 0, buttons = 1, pointerId = 1, ctrlKey = false, metaKey = false, shiftKey = false }
+            # Must include preventDefault = jest.fn() and stopPropagation = jest.fn()
+        [ ] 1.2.2. Implement mockWheelEvent helper
+            # Args: { deltaY, clientX, clientY }
+            # Must include preventDefault = jest.fn() and stopPropagation = jest.fn()
+        [ ] 1.2.3. Implement mockKeyEvent helper
+            # Args: { key, ctrlKey = false, metaKey = false, shiftKey = false, code }
+            # Must include preventDefault = jest.fn() and stopPropagation = jest.fn()
+        [ ] 1.2.4. Assert event helper behavior
+            # event.preventDefault is called by handlers suppressing native behavior (draw, pan)
+            # event.stopPropagation is called when input should not bubble
+        [ ] 1.2.5. Test Edge Case: Pointer with buttons = 0 on move
+            # Should not trigger drawing
+        [ ] 1.2.6. Test Edge Case: metaKey true (Mac behavior)
+            # Should behave like ctrlKey in shortcut tests
+
+2. 2. Pure math/coordinate helpers (OkazuTestables.input)
+    2.1. 2.1 toProportion / toPixels
+        [ ] 2.1.1. Test toProportion(50, 200)
+            # Expected assertion: returns 0.25
+        [ ] 2.1.2. Test toPixels(0.25, 200)
+            # Expected assertion: returns 50
+        [ ] 2.1.3. Test Edge Case: toProportion(50, 0)
+            # Expected assertion: returns 0 or fallback
+        [ ] 2.1.4. Test Edge Case: toPixels(0.25, 0)
+            # Expected assertion: returns 0
+        [ ] 2.1.5. Test Edge Case: Negative values
+            # Assert they are clamped or returned consistently
+    2.2. 2.2 rotatePoint
+        [ ] 2.2.1. Test rotatePoint({ x: 10, y: 20 }, 0)
+            # Expected assertion: returns { x: 10, y: 20 }
+        [ ] 2.2.2. Test rotatePoint({ x: 10, y: 20 }, 90)
+            # Expected assertion: returns { x: -20, y: 10 }
+        [ ] 2.2.3. Test rotatePoint({ x: 10, y: 20 }, 180)
+            # Expected assertion: returns { x: -10, y: -20 }
+        [ ] 2.2.4. Test rotatePoint({ x: 10, y: 20 }, 270)
+            # Expected assertion: returns { x: 20, y: -10 }
+        [ ] 2.2.5. Test Edge Case: rotatePoint({ x: 0, y: 0 }, 90)
+            # Expected assertion: returns { x: 0, y: 0 }
+    2.3. 2.3 getRotatedAABB
+        # Setup: Rectangle centered at origin with width 100, height 50
+        [ ] 2.3.1. Test getRotatedAABB({ x: 0, y: 0, w: 100, h: 50 }, 0)
+            # Expected assertion: { minX: -50, maxX: 50, minY: -25, maxY: 25, w: 100, h: 50 }
+        [ ] 2.3.2. Test getRotatedAABB({ x: 0, y: 0, w: 100, h: 50 }, 90)
+            # Expected assertion: { minX: -25, maxX: 25, minY: -50, maxY: 50, w: 50, h: 100 }
+        [ ] 2.3.3. Test getRotatedAABB({ x: 0, y: 0, w: 100, h: 50 }, 180)
+            # Expected assertion: identical to rotation 0
+        [ ] 2.3.4. Test getRotatedAABB({ x: 0, y: 0, w: 100, h: 50 }, 270)
+            # Expected assertion: identical to rotation 90
+        [ ] 2.3.5. Test Edge Case: Zero-width or zero-height rectangle
+            # Expected assertion: w or h is 0; min/max match single line or point
+    2.4. 2.4 truthToVisualCoordsRaw / visualToTruthCoordsRaw
+        # Setup: truth = { x: 250, y: 120 }, fullDims = { width: 1000, height: 800 }
+        # Setup: crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: rot }
+        [ ] 2.4.1. For each rot (0, 90, 180, 270), assert round-trip invariants
+            # logic: visual = truthToVisualCoordsRaw(truth, fullDims, crop)
+            # logic: roundTrip = visualToTruthCoordsRaw(visual, fullDims, crop)
+            # Expected assertion: roundTrip matches original truth within 1e-6 tolerance
+        [ ] 2.4.2. Assert visual coords within crop bounds when rotation is 0
+        [ ] 2.4.3. Test Edge Case: Crop width or height is 0
+            # Expected assertion: returns safe fallback; no NaN
+        [ ] 2.4.4. Test Edge Case: Truth points outside crop
+            # Expected assertion: points round-trip even if visual is outside viewport
+    2.5. 2.5 getVisualFullDimsRaw
+        # Setup: fullDims = { width: 1000, height: 800 }
+        [ ] 2.5.1. Assert rotation 0/180
+            # Expected assertion: returns { width: 1000, height: 800 }
+        [ ] 2.5.2. Assert rotation 90/270
+            # Expected assertion: returns { width: 800, height: 1000 }
+        [ ] 2.5.3. Test Edge Case: fullDims.height = 0
+            # Expected assertion: yields height 0 in all rotations
+
+3. 3. Brush size / feather mapping
+    3.1. 3.1 clampBrushSize, sliderToBrushSize, brushSizeToSliderValue
+        [ ] 3.1.1. Assert clampBrushSize(-1) returns min (e.g., 0.005)
+        [ ] 3.1.2. Assert clampBrushSize(10) returns max (e.g., 1.0)
+        [ ] 3.1.3. Assert round-trip: sliderToBrushSize(0) and brushSizeToSliderValue(min)
+        [ ] 3.1.4. Assert round-trip: sliderToBrushSize(100) and brushSizeToSliderValue(max)
+        [ ] 3.1.5. Assert round-trip tolerance for values 0, 25, 50, 75, 100
+        [ ] 3.1.6. Test Edge Case: sliderToBrushSize('not-a-number')
+            # Assert returns min or default
+    3.2. 3.2 setBrushPercent
+        # Setup: state.mode = 'erase', brushSettings.erase.size = 0.1, slider.value = '10'
+        [ ] 3.2.1. Input: setBrushPercent(25)
+        [ ] 3.2.2. Assert state.brushSize updated to 0.25
+        [ ] 3.2.3. Assert state.brushSettings.erase.size updated to 0.25
+        [ ] 3.2.4. Assert els.brushSizeSlider.value === '25'
+        [ ] 3.2.5. Assert els.brushSizeLabel.textContent contains '25%'
+        [ ] 3.2.6. Test Edge Case: setBrushPercent(-5) clamps to min
+        [ ] 3.2.7. Test Edge Case: setBrushPercent(200) clamps to max
+    3.3. 3.3 setBrushPercentFromSlider
+        [ ] 3.3.1. Test with els.brushSizeSlider.value = '0' (Expect min)
+        [ ] 3.3.2. Test with els.brushSizeSlider.value = '100' (Expect max)
+        [ ] 3.3.3. Test with els.brushSizeSlider.value = '999' (Expect max clamp)
+        [ ] 3.3.4. Test with els.brushSizeSlider.value = 'foo' (Expect min or previous value)
+    3.4. 3.4 sliderToFeatherSize / featherSizeToSliderValue
+        [ ] 3.4.1. Assert sliderToFeatherSize(0) returns min feather
+        [ ] 3.4.2. Assert sliderToFeatherSize(100) returns max feather
+        [ ] 3.4.3. Assert round-trip mapping within tolerance
+        [ ] 3.4.4. Test Edge Case: Invalid slider value returns min or default
+    3.5. 3.5 setFeatherFromSlider
+        # Setup: els.hardnessSlider.value = '25'
+        [ ] 3.5.1. Test in featherMode === true
+            # Assert state.brushSettings[mode].featherPx updates from slider mapping
+            # Assert label updates with 'px'
+        [ ] 3.5.2. Test in featherMode === false
+            # Assert state.brushSettings[mode].hardness updates (check for inverted mapping per implementation)
+            # Assert label updates with '%'
+        [ ] 3.5.3. Test Edge Case: Slider values outside bounds clamp correctly
+    3.6. 3.6 setFeather
+        [ ] 3.6.1. Test setFeather(12) in featherMode === true
+            # Assert state.brushSettings[mode].featherPx updated to 12
+            # Assert UI slider value syncs
+        [ ] 3.6.2. Test setFeather(0.6) in featherMode === false
+            # Assert state.brushSettings[mode].hardness updated to 0.6
+            # Assert UI slider value syncs
+        [ ] 3.6.3. Test Edge Case: Values outside range are clamped
+    3.7. 3.7 updateFeatherUI
+        [ ] 3.7.1. Test in featherMode === true
+            # Assert els.hardnessSlider.min/max/step set to feather ranges
+            # Assert els.hardnessLabel.textContent includes 'px'
+        [ ] 3.7.2. Test in featherMode === false
+            # Assert els.hardnessSlider.min/max/step set to hardness ranges
+            # Assert els.hardnessLabel.textContent includes '%'
+        [ ] 3.7.3. Test Edge Case: Out of bounds settings are clamped and reflected in slider
+
+4. 4. Feather mode toggle
+    4.1. 4.1 setFeatherMode
+        # Setup: brushSettings.erase = { size: 0.1, hardness: 0.8, featherPx: 12 }
+        # Setup: brushSettings.repair = { size: 0.05, hardness: 0.7, featherPx: 8 }
+        # Setup: state.mode = 'erase'
+        [ ] 4.1.1. Input: setFeatherMode(true, { applyToAll: false })
+            # Assert only current mode updates slider/label
+            # Assert state.featherMode is true
+        [ ] 4.1.2. Input: setFeatherMode(false, { applyToAll: true })
+            # Assert current mode's value propagates to erase, repair, censor
+            # Assert UI toggles (classes/checked state) reflect mode
+            # Assert state.featherMode is false
+        [ ] 4.1.3. Test Edge Case: Missing applyToAll defaults to false
+
+5. 5. View/cursor logic
+    5.1. 5.1 resetView
+        [ ] 5.1.1. Test Non-crop (state.cropped = false)
+            # Expected assertion: scale fits canvas to viewport; translateX/Y centers image
+            # Expected assertion: updateViewTransform called once
+        [ ] 5.1.2. Test Crop (state.cropped = true)
+            # Expected assertion: uses state.cropView scale/translate
+            # Expected assertion: updateViewTransform called once
+        [ ] 5.1.3. Test Edge Case: viewport clientWidth/Height = 0
+            # Expected assertion: scale = 1; no NaN translations
+    5.2. 5.2 updateViewTransform
+        # Setup: state.view = { scale: 1.5, translateX: 20, translateY: -10 }
+        [ ] 5.2.1. Assert els.canvasWrapper.style.transform matches "translate(20px, -10px) scale(1.5)"
+        [ ] 5.2.2. Assert updateCursorSize and crop handle updates are invoked
+        [ ] 5.2.3. Test Edge Case: Negative scale or NaN inputs
+            # Assert values are clamped or sanitized
+    5.3. 5.3 updateCursorSize
+        # Setup: canDraw = true, brushSize = 0.1, canvasHeight = 800, scale = 2
+        [ ] 5.3.1. Assert cursor width/height equals 160px (brushPx * scale = 0.1 * 800 * 2)
+        [ ] 5.3.2. Test Edge Case: state.cursor.canDraw = false
+            # Assert cursor size remains unchanged
+
+6. 6. Coordinate mapping
+    6.1. 6.1 getCanvasCoordinates
+        # Setup: view scale 1, trans 0, rect {L: 10, T: 20, W: 1000, H: 800}, canvasSize {1000, 800}
+        [ ] 6.1.1. Test Uncropped with clientX: 510, clientY: 420
+            # Expected assertion: returns { x: 0.5, y: 0.5 } (normalized)
+        [ ] 6.1.2. Test Cropped (rot: 90)
+            # Expected assertion: returns proportions mapped through crop/rotation logic
+        [ ] 6.1.3. Test Edge Case: Pointer outside canvas bounds
+            # Expected assertion: returns values < 0 or > 1 without throwing
+        [ ] 6.1.4. Test Edge Case: view.scale = 0.5
+            # Expected assertion: adjusts mapping correctly for zoomed view
+    6.2. 6.2 getCropPivot
+        # Setup: crop = { x: 0.2, y: 0.1, w: 0.4, h: 0.3, rotation: 90 }, canvasHeight: 800
+        [ ] 6.2.1. Assert pivot equals center of crop box in truth space
+        [ ] 6.2.2. Test Edge Case: Zero-width/height crop
+            # Expected assertion: pivot at crop origin; no NaN
+
+7. 7. Crop interactions
+    7.1. 7.1 startCropDrag
+        [ ] 7.1.1. Assert state.cropDrag.type set via getCropHandleType (scale/rotate/pan)
+        [ ] 7.1.2. Assert state.cropDrag.start stores initial pointer position
+        [ ] 7.1.3. Assert state.cropDrag.startCrop clones current crop values
+        [ ] 7.1.4. Test Edge Case: No handle match
+            # Expected assertion: defaults to 'pan'
+    7.2. 7.2 attachCropHandlers and enforceCropView
+        [ ] 7.2.1. Assert document pointermove/pointerup listeners attached once
+        [ ] 7.2.2. Assert state.cropView.scale >= minScale (e.g., 1.2) after enforcement
+        [ ] 7.2.3. Assert state.cropView.translateX/Y clamped to keep crop in view
+        [ ] 7.2.4. Test Edge Case: getCropMinScale returns 0
+            # Expected assertion: scale stays unchanged
+    7.3. 7.3 forceCropHandleUpdate
+        # Setup: crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 90 }
+        [ ] 7.3.1. Assert els.cropBox.style contains CSS variables: --crop-x, --crop-y, --crop-w, --crop-h, --crop-rotation
+        [ ] 7.3.2. Assert rotation handle has correct transform/position values
+        [ ] 7.3.3. Test Edge Case: Crop outside bounds
+            # Expected assertion: clamps or writes variables without exception
+
+8. 8. Pointer and keyboard handling
+    8.1. 8.1 handlePointerDown/Move/Up (Drawing vs Panning)
+        # Setup: canDraw = true, mode = 'erase', pointer = { isDown: false... }
+        [ ] 8.1.1. Assert state.pointer.isDown lifecycle: true on down, false on up
+        [ ] 8.1.2. Assert startStroke called on pointerdown (when not panning)
+        [ ] 8.1.3. Assert appendStroke called on pointermove (when not panning)
+        [ ] 8.1.4. Assert endStroke and dispatchSnapshot called on pointerup
+        [ ] 8.1.5. Test Edge Case: Spacebar held (Pan mode)
+            # Expected assertion: isPanning is true; no stroke calls made
+        [ ] 8.1.6. Test Edge Case: pointermove with buttons = 0
+            # Expected assertion: does not append stroke
+    8.2. 8.2 Polyline flow
+        [ ] 8.2.1. Assert first ctrl-click activates polyline mode and adds point
+        [ ] 8.2.2. Assert subsequent ctrl-clicks add points to state.polyline.points
+        [ ] 8.2.3. Assert clicking close to first point commits polyline (calls endStroke/dispatchSnapshot)
+        [ ] 8.2.4. Test Edge Case: metaKey (Mac) behavior
+            # Expected assertion: behaves identically to ctrlKey
+    8.3. 8.3 Preview loop toggles
+        [ ] 8.3.1. Assert state.preview.active is true during stroke
+        [ ] 8.3.2. Assert state.preview.active is false after stroke ends
+        [ ] 8.3.3. Assert startPreviewLoop / stopPreviewLoop called exactly once per lifecycle
+        [ ] 8.3.4. Test Edge Case: Double pointerdown without up
+            # Expected assertion: prevents multiple active loops
+    8.4. 8.4 handleWheel
+        [ ] 8.4.1. Assert scale increases/decreases within min/max bounds
+        [ ] 8.4.2. Assert translation changes preserve visual focus point under cursor
+        [ ] 8.4.3. Test Edge Case: state.cropped = true
+            # Expected assertion: zoom follows crop-specific min/max scales
+    8.5. 8.5 Keyboard shortcuts
+        [ ] 8.5.1. Test Space key: Assert pan mode toggled and preventDefault called
+        [ ] 8.5.2. Test Ctrl+Z: Assert undo invoked once
+        [ ] 8.5.3. Test Ctrl+Shift+Z or Ctrl+Y: Assert redo invoked once
+        [ ] 8.5.4. Test Enter (Crop mode): Assert applyCrop invoked
+        [ ] 8.5.5. Test Escape (Crop mode): Assert cancelCrop invoked
+        [ ] 8.5.6. Test Edge Case: Shortcut while focus is in INPUT
+            # Expected assertion: shortcuts are ignored
+        [ ] 8.5.7. Test Edge Case: Mac Command (metaKey) behavior
+            # Expected assertion: triggers same behavior as Ctrl
 
-This document defines a production-quality unit-test plan for `scripts/input.js`. It is intended to be used with the `OkazuTestables.input` helpers and a minimal DOM/state harness. Each test case includes setup, event payloads, mocked element bounds, inputs, and explicit assertions (including edge cases).
-
----
-
-## 1. Test harness + DOM mocks
-
-### 1.1 Minimal `state` and `els` scaffolding
-
-**Goal:** Provide just enough state/element wiring to exercise `scripts/input.js` without the full app.
-
-**Scenario:** Construct a minimal `state` and `els` object that matches the shapes used by `input.js`.
-
-**Setup:**
-- `state`
-  - `state.view = { scale: 1, translateX: 0, translateY: 0 }`
-  - `state.canvasSize = { width: 1000, height: 800 }`
-  - `state.cropped = false`
-  - `state.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 0 }`
-  - `state.cropView = { scale: 1, translateX: 0, translateY: 0, rotation: 0 }`
-  - `state.mode = 'erase'`
-  - `state.brushSize = 0.1` (height-proportion)
-  - `state.featherMode = false`
-  - `state.brushSettings = {
-      erase: { size: 0.1, hardness: 0.8, featherPx: 12 },
-      repair: { size: 0.05, hardness: 0.8, featherPx: 12 },
-      censor: { size: 0.2, hardness: 0.5, featherPx: 18 }
-    }`
-  - `state.cursor = { canDraw: true }`
-  - `state.pointer = { isDown: false, isDrawing: false, isPanning: false }`
-  - `state.polyline = { active: false, points: [] }`
-  - `state.preview = { active: false }`
-- `els`
-  - `els.viewport = { clientWidth: 1200, clientHeight: 800, style: {}, getBoundingClientRect: () => ({ left: 10, top: 20, width: 1200, height: 800 }) }`
-  - `els.canvasWrapper = { style: {}, getBoundingClientRect: () => ({ left: 10, top: 20, width: 1000, height: 800 }) }`
-  - `els.mainCanvas = { width: 1000, height: 800 }`
-  - `els.previewCanvas = { width: 1000, height: 800 }`
-  - `els.cursor = { style: {} }`
-  - `els.brushSizeSlider = { value: '10' }`
-  - `els.brushSizeLabel = { textContent: '' }`
-  - `els.hardnessSlider = { value: '80', min: '0', max: '100', step: '1' }`
-  - `els.hardnessLabel = { textContent: '' }`
-  - `els.cropBox = { style: {}, classList: { add: () => {}, remove: () => {} } }`
-  - `els.cropHandles = { topLeft: { style: {} }, topRight: { style: {} }, bottomLeft: { style: {} }, bottomRight: { style: {} }, rotation: { style: {} } }`
-
-**Inputs:** N/A
-
-**Expected Assertions:**
-- `state.view.scale === 1` and translate values are `0`.
-- `els.viewport.getBoundingClientRect()` returns the expected static values.
-- Sliders/labels are present with string values.
-- `els.cropBox.style` and `els.cropHandles.*.style` exist so CSS variables can be assigned.
-
-**Edge Cases:**
-- `state.canvasSize.height = 0` should not cause errors for any helper relying on height proportions.
-- `els.viewport.clientWidth = 0` should be handled gracefully in view reset logic.
-
----
-
-### 1.2 Event-mock helpers
-
-**Goal:** Provide consistent mocks for pointer/keyboard/wheel events.
-
-**Scenario:** Fabricate event objects with required fields for handlers.
-
-**Setup:**
-- `mockPointerEvent({ type, clientX, clientY, button = 0, buttons = 1, pointerId = 1, ctrlKey = false, metaKey = false, shiftKey = false })`.
-- `mockWheelEvent({ deltaY, clientX, clientY })`.
-- `mockKeyEvent({ key, ctrlKey = false, metaKey = false, shiftKey = false, code })`.
-- Each mock has `preventDefault = jest.fn()` and `stopPropagation = jest.fn()` spies.
-
-**Inputs:**
-- Pointer: `{ type: 'pointerdown', clientX: 110, clientY: 200 }`
-- Wheel: `{ deltaY: -100, clientX: 500, clientY: 400 }`
-- Key: `{ key: ' ', code: 'Space' }`
-
-**Expected Assertions:**
-- `event.preventDefault` is called by handlers that suppress native behavior (e.g., draw, pan).
-- `event.stopPropagation` is called where input should not bubble.
-
-**Edge Cases:**
-- Pointer with `buttons = 0` on move should not trigger drawing.
-- `metaKey` true on mac should behave like `ctrlKey` in shortcut tests.
-
----
-
-## 2. Pure math/coordinate helpers (OkazuTestables.input)
-
-### 2.1 `toProportion` / `toPixels`
-
-**Scenario:** Convert between absolute pixel values and height-based proportions.
-
-**Setup:** Use helpers from `OkazuTestables.input`.
-
-**Inputs:**
-- `toProportion(50, 200)` → expected `0.25`.
-- `toPixels(0.25, 200)` → expected `50`.
-
-**Expected Assertions:**
-- `toProportion(50, 200) === 0.25`.
-- `toPixels(0.25, 200) === 50`.
-
-**Edge Cases:**
-- `toProportion(50, 0)` returns `0` (or a safe fallback defined by implementation).
-- `toPixels(0.25, 0) === 0`.
-- Negative values are clamped or returned consistently (assert the actual behavior).
-
----
-
-### 2.2 `rotatePoint`
-
-**Scenario:** Rotate a point around origin for canonical angles.
-
-**Setup:** `point = { x: 10, y: 20 }`.
-
-**Inputs + Expected Assertions:**
-- `rotatePoint(point, 0)` → `{ x: 10, y: 20 }`.
-- `rotatePoint(point, 90)` → `{ x: -20, y: 10 }`.
-- `rotatePoint(point, 180)` → `{ x: -10, y: -20 }`.
-- `rotatePoint(point, 270)` → `{ x: 20, y: -10 }`.
-
-**Edge Cases:**
-- `rotatePoint({ x: 0, y: 0 }, 90)` returns `{0,0}`.
-
----
-
-### 2.3 `getRotatedAABB`
-
-**Scenario:** Compute bounding box for a rotated rectangle.
-
-**Setup:** Rectangle centered at origin with width `100` and height `50`.
-
-**Inputs:**
-- `getRotatedAABB({ x: 0, y: 0, w: 100, h: 50 }, 0)`.
-- Same with `90`, `180`, `270`.
-
-**Expected Assertions:**
-- Rotation `0`: `{ minX: -50, maxX: 50, minY: -25, maxY: 25, w: 100, h: 50 }`.
-- Rotation `90`: `{ minX: -25, maxX: 25, minY: -50, maxY: 50, w: 50, h: 100 }`.
-- Rotation `180`: identical to 0.
-- Rotation `270`: identical to 90.
-
-**Edge Cases:**
-- Zero-width or zero-height rect yields `w` or `h` of `0` and min/max match the single line/point.
-
----
-
-### 2.4 `truthToVisualCoordsRaw` / `visualToTruthCoordsRaw`
-
-**Scenario:** Ensure round-trip invariants for all rotations.
-
-**Setup:**
-- `truth = { x: 250, y: 120 }`
-- `fullDims = { width: 1000, height: 800 }`
-- `crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: rot }`
-
-**Inputs:**
-- For each `rot` in `{0,90,180,270}`: `visual = truthToVisualCoordsRaw(truth, fullDims, crop)` then `roundTrip = visualToTruthCoordsRaw(visual, fullDims, crop)`.
-
-**Expected Assertions:**
-- `roundTrip.x` and `roundTrip.y` match original `truth` within an epsilon (e.g., `1e-6`).
-- With `rotation: 0`, `visual.x` and `visual.y` are within the crop bounds.
-
-**Edge Cases:**
-- Crop with `w=0` or `h=0` yields safe fallback (assert no `NaN`).
-- Truth points outside crop still round-trip (even if visual is outside viewport bounds).
-
----
-
-### 2.5 `getVisualFullDimsRaw`
-
-**Scenario:** Compute visual dimensions after rotation.
-
-**Setup:** `fullDims = { width: 1000, height: 800 }`.
-
-**Inputs:**
-- `getVisualFullDimsRaw(fullDims, 0)`.
-- `getVisualFullDimsRaw(fullDims, 90)`.
-- `getVisualFullDimsRaw(fullDims, 180)`.
-- `getVisualFullDimsRaw(fullDims, 270)`.
-
-**Expected Assertions:**
-- Rotation `0/180`: `{ width: 1000, height: 800 }`.
-- Rotation `90/270`: `{ width: 800, height: 1000 }`.
-
-**Edge Cases:**
-- `fullDims.height = 0` yields height `0` in all rotations.
-
----
-
-## 3. Brush size / feather mapping
-
-### 3.1 `clampBrushSize`, `sliderToBrushSize`, `brushSizeToSliderValue`
-
-**Scenario:** Validate mapping and invertibility.
-
-**Setup:** Use current min/max in `input.js` (from constants or default slider range).
-
-**Inputs:**
-- `clampBrushSize(-1)` → expected min (e.g., `0.005`).
-- `clampBrushSize(10)` → expected max (e.g., `1.0`).
-- `sliderToBrushSize(0)` and `brushSizeToSliderValue(min)` round-trip.
-- `sliderToBrushSize(100)` and `brushSizeToSliderValue(max)` round-trip.
-
-**Expected Assertions:**
-- `brushSizeToSliderValue(sliderToBrushSize(x)) ≈ x` for `x = 0, 25, 50, 75, 100` (within tolerance).
-- Inputs outside slider range clamp to min/max.
-
-**Edge Cases:**
-- `sliderToBrushSize('not-a-number')` → returns min or default (asserted behavior).
-
----
-
-### 3.2 `setBrushPercent`
-
-**Scenario:** Updates brush size state and UI.
-
-**Setup:**
-- `state.mode = 'erase'` and `state.brushSettings.erase.size = 0.1`.
-- `els.brushSizeSlider.value = '10'`, `els.brushSizeLabel.textContent = ''`.
-
-**Inputs:**
-- `setBrushPercent(25)`.
-
-**Expected Assertions:**
-- `state.brushSize` updated to `0.25`.
-- `state.brushSettings.erase.size` updated to `0.25`.
-- `els.brushSizeSlider.value === '25'`.
-- `els.brushSizeLabel.textContent` includes `25%` (or exact formatting expected by implementation).
-
-**Edge Cases:**
-- `setBrushPercent(-5)` clamps to min.
-- `setBrushPercent(200)` clamps to max.
-
----
-
-### 3.3 `setBrushPercentFromSlider`
-
-**Scenario:** Read slider value and update state with clamping.
-
-**Setup:**
-- `els.brushSizeSlider.value = '0'` then `'100'` then `'999'` then `'foo'`.
-
-**Inputs:**
-- Call `setBrushPercentFromSlider()` for each slider value.
-
-**Expected Assertions:**
-- `state.brushSize` equals min for `'0'`.
-- `state.brushSize` equals max for `'100'`.
-- `'999'` clamps to max.
-- `'foo'` clamps to min or falls back to previous value (assert actual behavior).
-
----
-
-### 3.4 `sliderToFeatherSize` / `featherSizeToSliderValue`
-
-**Scenario:** Validate mapping for feather (pixel) size.
-
-**Setup:** Use slider min/max from `els.hardnessSlider` or constants.
-
-**Inputs:**
-- `sliderToFeatherSize(0)` → min feather.
-- `sliderToFeatherSize(100)` → max feather.
-- `featherSizeToSliderValue(min/max)` round-trip.
-
-**Expected Assertions:**
-- Round-trip tolerance similar to brush size mapping.
-
-**Edge Cases:**
-- Invalid slider value returns min or default (assert actual behavior).
-
----
-
-### 3.5 `setFeatherFromSlider`
-
-**Scenario:** Adjust feather vs hardness depending on `featherMode`.
-
-**Setup:**
-- `state.featherMode = true` then `false`.
-- `els.hardnessSlider.value = '25'`.
-
-**Inputs:**
-- `setFeatherFromSlider()` in both modes.
-
-**Expected Assertions:**
-- When `featherMode === true`, `state.brushSettings[mode].featherPx` updates from slider value mapping.
-- When `featherMode === false`, `state.brushSettings[mode].hardness` updates and uses inverse mapping if the UI is inverted (assert exact implementation).
-- Label updates reflect mode (e.g., `%` for hardness vs `px` for feather).
-
-**Edge Cases:**
-- Slider values outside bounds clamp correctly.
-
----
-
-### 3.6 `setFeather`
-
-**Scenario:** Directly set feather/hardness values.
-
-**Setup:**
-- `state.featherMode = true` then `false`.
-
-**Inputs:**
-- `setFeather(12)` in feather mode.
-- `setFeather(0.6)` in hardness mode.
-
-**Expected Assertions:**
-- Feather mode updates `state.brushSettings[mode].featherPx` to `12`.
-- Hardness mode updates `state.brushSettings[mode].hardness` to `0.6`.
-- UI slider value syncs to corresponding mapped value.
-
-**Edge Cases:**
-- Values outside allowable range are clamped.
-
----
-
-### 3.7 `updateFeatherUI`
-
-**Scenario:** Ensure correct UI min/max/step and label formatting.
-
-**Setup:**
-- `state.featherMode = true` then `false`.
-
-**Inputs:**
-- `updateFeatherUI()` for each mode.
-
-**Expected Assertions:**
-- Feather mode sets `els.hardnessSlider.min/max/step` to feather ranges.
-- Hardness mode sets `els.hardnessSlider.min/max/step` to hardness ranges.
-- `els.hardnessLabel.textContent` includes `px` (feather) or `%` (hardness).
-
-**Edge Cases:**
-- Current brush settings outside bounds are clamped and reflected in slider value.
-
----
-
-## 4. Feather mode toggle
-
-### 4.1 `setFeatherMode`
-
-**Scenario:** Switching modes reloads and applies correct values.
-
-**Setup:**
-- `state.brushSettings.erase = { size: 0.1, hardness: 0.8, featherPx: 12 }`.
-- `state.brushSettings.repair = { size: 0.05, hardness: 0.7, featherPx: 8 }`.
-- `state.mode = 'erase'`.
-
-**Inputs:**
-- `setFeatherMode(true, { applyToAll: false })`.
-- `setFeatherMode(false, { applyToAll: true })`.
-
-**Expected Assertions:**
-- When `applyToAll: false`, only current mode updates slider/label values.
-- When `applyToAll: true`, propagate current mode’s value to all modes (`erase`, `repair`, `censor`).
-- `state.featherMode` toggles accordingly.
-- UI toggles (class names or checked state) reflect mode.
-
-**Edge Cases:**
-- Missing `applyToAll` defaults to `false` (assert default behavior).
-
----
-
-## 5. View/cursor logic
-
-### 5.1 `resetView`
-
-**Scenario:** Reset view for crop vs non-crop.
-
-**Setup:**
-- Non-crop: `state.cropped = false`, `state.view.scale = 2`, `translateX = 50`, `translateY = -40`.
-- Crop: `state.cropped = true`, `state.crop = { x: 0.1, y: 0.1, w: 0.5, h: 0.5, rotation: 90 }`.
-
-**Inputs:**
-- `resetView()` for both cases.
-
-**Expected Assertions:**
-- Non-crop: `state.view.scale` fits canvas into viewport; `translateX/Y` centers image; `updateViewTransform` called once.
-- Crop: uses `state.cropView` scale/translate for cropped bounds; `updateViewTransform` called once.
-
-**Edge Cases:**
-- `els.viewport.clientWidth/Height = 0` results in `scale = 1` and no NaN translations.
-
----
-
-### 5.2 `updateViewTransform`
-
-**Scenario:** Applies CSS transforms and updates cursor/handles.
-
-**Setup:**
-- `state.view = { scale: 1.5, translateX: 20, translateY: -10 }`.
-
-**Inputs:**
-- `updateViewTransform()`.
-
-**Expected Assertions:**
-- `els.canvasWrapper.style.transform` matches `translate(20px, -10px) scale(1.5)` (exact string per implementation).
-- `updateCursorSize` and crop handle updates are invoked (spy or mock assertion).
-
-**Edge Cases:**
-- Negative scale or NaN inputs are clamped or sanitized (assert actual behavior).
-
----
-
-### 5.3 `updateCursorSize`
-
-**Scenario:** Cursor size scales with brush size and view scale.
-
-**Setup:**
-- `state.cursor.canDraw = true`.
-- `state.brushSize = 0.1`, `state.canvasSize.height = 800`, `state.view.scale = 2`.
-
-**Inputs:**
-- `updateCursorSize()`.
-
-**Expected Assertions:**
-- Cursor width/height equals `brushPx * scale`, with `brushPx = 0.1 * 800 = 80`.
-- `els.cursor.style.width/height === '160px'` (or computed exact string).
-
-**Edge Cases:**
-- `state.cursor.canDraw = false` results in no changes to cursor size (assert unchanged).
-
----
-
-## 6. Coordinate mapping
-
-### 6.1 `getCanvasCoordinates`
-
-**Scenario:** Map screen coordinates to truth-space proportions.
-
-**Setup:**
-- `state.view = { scale: 1, translateX: 0, translateY: 0 }`.
-- `els.canvasWrapper.getBoundingClientRect()` returns `{ left: 10, top: 20, width: 1000, height: 800 }`.
-- `state.canvasSize = { width: 1000, height: 800 }`.
-
-**Inputs:**
-- Uncropped: `state.cropped = false`; call with `clientX: 510`, `clientY: 420`.
-- Cropped: `state.cropped = true`, `state.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 90 }`.
-
-**Expected Assertions:**
-- Uncropped: returns `{ x: 0.5, y: 0.5 }` (normalized by height where required by implementation).
-- Cropped: returns proportions mapped through crop + rotation using `visualToTruthCoordsRaw` logic.
-
-**Edge Cases:**
-- Pointer outside canvas bounds results in values < 0 or > 1 but does not throw.
-- `state.view.scale = 0.5` correctly adjusts mapping for zoomed out view.
-
----
-
-### 6.2 `getCropPivot`
-
-**Scenario:** Compute crop pivot in truth space for rotated crop.
-
-**Setup:**
-- `state.crop = { x: 0.2, y: 0.1, w: 0.4, h: 0.3, rotation: 90 }`.
-- `state.canvasSize = { width: 1000, height: 800 }`.
-
-**Inputs:**
-- `getCropPivot()`.
-
-**Expected Assertions:**
-- Pivot equals the center of the crop box in truth space (not visual space).
-- Values match exact pixel center: `x = (0.2 + 0.2) * 800 = 320` if normalized by height in implementation; adjust expected values to actual math.
-
-**Edge Cases:**
-- Zero-width/height crop yields pivot at crop origin (assert no NaN).
-
----
-
-## 7. Crop interactions
-
-### 7.1 `startCropDrag`
-
-**Scenario:** Determine drag type based on handle hit testing.
-
-**Setup:**
-- Mock `getCropHandleType` to return `scale`, `rotate`, or `pan`.
-- `state.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 0 }`.
-
-**Inputs:**
-- Pointerdown at handle coords `{ clientX: 120, clientY: 160 }`.
-
-**Expected Assertions:**
-- `state.cropDrag.type` is set based on handle (`scale`/`rotate`/`pan`).
-- `state.cropDrag.start` stores initial pointer position.
-- `state.cropDrag.startCrop` clones current crop values.
-
-**Edge Cases:**
-- If no handle matches, defaults to `pan` (assert actual behavior).
-
----
-
-### 7.2 `attachCropHandlers` and `enforceCropView`
-
-**Scenario:** Hook document listeners and enforce min scale.
-
-**Setup:**
-- Spy on `document.addEventListener` for `pointermove`/`pointerup`.
-- Mock `getCropMinScale` to return `1.2`.
-
-**Inputs:**
-- Call `attachCropHandlers()` then simulate a crop view update via `enforceCropView()`.
-
-**Expected Assertions:**
-- Document listeners attached once per call.
-- `state.cropView.scale >= 1.2` after enforcement.
-- `state.cropView.translateX/Y` clamped to keep crop in view (assert against known expected values given `viewport` and `crop` dims).
-
-**Edge Cases:**
-- `getCropMinScale` returns `0` → scale stays unchanged.
-
----
-
-### 7.3 `forceCropHandleUpdate`
-
-**Scenario:** Ensure crop box/handles CSS variables update.
-
-**Setup:**
-- `state.crop = { x: 0.1, y: 0.2, w: 0.6, h: 0.5, rotation: 90 }`.
-- `els.cropBox.style` and handle styles are empty objects.
-
-**Inputs:**
-- `forceCropHandleUpdate()`.
-
-**Expected Assertions:**
-- `els.cropBox.style` has CSS variables like `--crop-x`, `--crop-y`, `--crop-w`, `--crop-h`, `--crop-rotation`.
-- Rotation handle has correct transform/position values.
-
-**Edge Cases:**
-- Crop outside bounds clamps or still writes CSS variables (assert no exception).
-
----
-
-## 8. Pointer and keyboard handling
-
-### 8.1 `handlePointerDown/Move/Up`
-
-**Scenario:** Drawing vs panning transitions.
-
-**Setup:**
-- `state.cursor.canDraw = true`.
-- `state.mode = 'erase'`.
-- Mock `startStroke`, `appendStroke`, `endStroke`, `dispatchSnapshot`.
-- `state.pointer = { isDown: false, isDrawing: false, isPanning: false }`.
-
-**Inputs:**
-- `pointerdown` at `{ clientX: 110, clientY: 120, buttons: 1 }`.
-- `pointermove` to `{ clientX: 120, clientY: 130, buttons: 1 }`.
-- `pointerup` at `{ clientX: 120, clientY: 130 }`.
-
-**Expected Assertions:**
-- `state.pointer.isDown === true` after down, then false after up.
-- When not panning, `startStroke` called on down, `appendStroke` on move.
-- `endStroke` called on up.
-- `dispatchSnapshot` called after stroke completes.
-
-**Edge Cases:**
-- Spacebar held (pan mode): `state.pointer.isPanning === true`, no stroke calls.
-- `buttons = 0` on move does not append stroke.
-
----
-
-### 8.2 Polyline flow
-
-**Scenario:** Ctrl/meta click toggles polyline points and commit.
-
-**Setup:**
-- `state.polyline = { active: false, points: [] }`.
-
-**Inputs:**
-- `pointerdown` with `{ ctrlKey: true }` at two distinct points.
-- `pointerdown` with `{ ctrlKey: true }` on the first point to close.
-
-**Expected Assertions:**
-- First ctrl-click activates polyline mode and adds point.
-- Subsequent ctrl-click adds points.
-- Clicking close to first point commits polyline, calls `endStroke`/`dispatchSnapshot`.
-
-**Edge Cases:**
-- `metaKey` behaves same as `ctrlKey`.
-
----
-
-### 8.3 Preview loop toggles
-
-**Scenario:** Preview mode starts/stops correctly.
-
-**Setup:**
-- Mock `startPreviewLoop` and `stopPreviewLoop` or observe `state.preview.active`.
-
-**Inputs:**
-- `pointerdown` to begin drawing.
-- `pointerup` to end drawing.
-
-**Expected Assertions:**
-- `state.preview.active === true` during drawing.
-- `state.preview.active === false` after drawing ends.
-- `startPreviewLoop` called once per draw begin; `stopPreviewLoop` once per draw end.
-
-**Edge Cases:**
-- Double pointerdown without up does not start multiple loops (assert single active loop).
-
----
-
-### 8.4 `handleWheel`
-
-**Scenario:** Zoom clamping and focus-point preservation.
-
-**Setup:**
-- `state.view = { scale: 1, translateX: 0, translateY: 0 }`.
-- `els.viewport.getBoundingClientRect()` returns `{ left: 10, top: 20, width: 1200, height: 800 }`.
-
-**Inputs:**
-- Wheel at `{ clientX: 610, clientY: 420, deltaY: -100 }` (zoom in).
-- Wheel at `{ clientX: 610, clientY: 420, deltaY: 5000 }` (excess zoom out).
-
-**Expected Assertions:**
-- Scale increases/decreases within min/max.
-- Translate changes so the visual focus point stays under cursor (assert against expected translate values).
-
-**Edge Cases:**
-- With `state.cropped = true`, zoom respects crop min/max scales.
-
----
-
-### 8.5 Keyboard shortcuts
-
-**Scenario:** Space for pan/reset view, undo/redo, crop accept/cancel.
-
-**Setup:**
-- Mock `resetView`, `undo`, `redo`, `applyCrop`, `cancelCrop` functions.
-
-**Inputs & Assertions:**
-- `keydown Space` → `state.pointer.isPanning = true` or pan mode toggled; `preventDefault` called.
-- `keyup Space` → pan mode cleared.
-- `keydown Ctrl+Z` → `undo` called once.
-- `keydown Ctrl+Shift+Z` or `Ctrl+Y` → `redo` called once.
-- `keydown Enter` in crop mode → `applyCrop` called.
-- `keydown Escape` in crop mode → `cancelCrop` called.
-
-**Edge Cases:**
-- On mac: `metaKey` triggers same behavior as `ctrlKey`.
-- When focus is inside an input, shortcuts should be ignored (assert using mocked `event.target` with `tagName = 'INPUT'`).
-
----
-
-## Notes
-
-- All tests should assert both **state changes** and **DOM side effects**.
-- Use explicit numeric expectations (no fuzzy “changed” checks) except where floating math requires a tolerance.
-- Prefer `describe()` blocks mirroring the sections above to keep coverage organized.

@@ -1,5 +1,6 @@
 (function() {
     const { register, assert, assertEqual, assertDeepEqual } = window.TestRunner;
+    const { peek, seal, reveal } = window.kakushi;
     const {
         embedBytes, extractBytes, getContextForReading, hasMagic,
         normalizeMask, isMasked, sanitizeRegion, toHex
@@ -31,6 +32,7 @@
     }
 
     const MAGIC = new Uint8Array([0x4f, 0x4b, 0x5a, 0x31]); // "OKZ1"
+    const HEADER_BYTES = 8;
 
     // 6. Helper Tests
     register('Kakushi: Helpers', async () => {
@@ -84,6 +86,104 @@
         const id2 = asImageData(cvs2);
         const ex2 = extractBytes(id2.data, 8, null);
         assert(!hasMagic(ex2), 'Clean canvas has no magic');
+    });
+
+    register('Kakushi: Peek/Seal/Reveal Payload', async () => {
+        const secret = 'Hello from Okazu!';
+        const cvs = makeCanvas(24, 24, [20, 30, 40, 255]);
+        const sealed = await seal(cvs, secret);
+
+        assert(peek(sealed), 'Peek detects embedded header');
+
+        const sealedData = asImageData(sealed).data;
+        const header = extractBytes(sealedData, HEADER_BYTES, null);
+        const headerView = new DataView(header.buffer);
+        const payloadLength = headerView.getUint32(4, false);
+        const bitsNeeded = (HEADER_BYTES + payloadLength) * 8;
+
+        const result = await reveal(sealed);
+        assert(result.headerFound, 'Reveal detects header');
+        assertEqual(result.error, null, 'Reveal has no error');
+        assertEqual(result.secret, secret, 'Reveal returns secret');
+
+        const cleanData = asImageData(result.cleanImage).data;
+        let bitsChecked = 0;
+        for (let i = 0; i < cleanData.length && bitsChecked < bitsNeeded; i += 4) {
+            if (cleanData[i + 3] < 255) continue;
+            for (let c = 0; c < 3 && bitsChecked < bitsNeeded; c++) {
+                assertEqual(cleanData[i + c] & 1, 0, 'Sanitized LSB cleared');
+                bitsChecked++;
+            }
+        }
+        assertEqual(bitsChecked, bitsNeeded, 'Sanitized expected bit count');
+    });
+
+    register('Kakushi: Mask/Transparency Offset Handling', async () => {
+        const secret = 'Masked payload ok';
+        const cvs = makeCanvas(20, 20, [120, 130, 140, 255]);
+        const ctx = cvs.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, cvs.width, cvs.height);
+        const data = imageData.data;
+
+        // Make first 5 pixels transparent to force offset.
+        for (let i = 0; i < 5 * 4; i += 4) {
+            data[i + 3] = 0;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        const mask = new Uint8ClampedArray(data.length);
+        // Mask next 5 pixels (after transparent ones).
+        for (let i = 5 * 4; i < 10 * 4; i += 4) {
+            mask[i + 3] = 255;
+        }
+
+        const maskedSampleBefore = data.slice(5 * 4, 6 * 4);
+        const sealed = await seal(cvs, secret, { mask });
+        assert(peek(sealed, { mask }), 'Peek skips masked/transparent pixels');
+
+        const sealedData = asImageData(sealed).data;
+        const maskedSampleAfter = sealedData.slice(5 * 4, 6 * 4);
+        assertDeepEqual(Array.from(maskedSampleAfter), Array.from(maskedSampleBefore), 'Masked pixel unchanged');
+        assertEqual(sealedData[3], 0, 'Transparent pixel alpha untouched');
+
+        const revealed = await reveal(sealed, { mask });
+        assertEqual(revealed.secret, secret, 'Reveal returns secret with masked offset');
+    });
+
+    register('Kakushi: Seal Capacity Checks', async () => {
+        const cvs = makeCanvas(2, 2, [200, 200, 200, 255]);
+        let threw = false;
+        try {
+            await seal(cvs, 'Too big');
+        } catch (e) {
+            threw = true;
+            assert(e.message.includes('Payload too large'), 'Throws payload too large');
+        }
+        assert(threw, 'Seal throws on over-capacity');
+    });
+
+    register('Kakushi: Reveal Decompression Errors', async () => {
+        const cvs = makeCanvas(12, 12, [10, 20, 30, 255]);
+        const id = asImageData(cvs);
+
+        const payloadLength = 4;
+        const header = new Uint8Array(HEADER_BYTES);
+        header.set(MAGIC, 0);
+        const view = new DataView(header.buffer);
+        view.setUint32(4, payloadLength, false);
+
+        const payload = new Uint8Array(header.length + payloadLength);
+        payload.set(header, 0);
+        payload.set(new Uint8Array([0xde, 0xad, 0xbe, 0xef]), header.length);
+
+        embedBytes(id.data, payload, null);
+        const ctx = cvs.getContext('2d');
+        ctx.putImageData(id, 0, 0);
+
+        const result = await reveal(cvs);
+        assert(result.headerFound, 'Reveal detects header');
+        assertEqual(result.secret, null, 'Reveal returns null secret');
+        assert(result.error, 'Reveal reports decompression error');
     });
 
     // 4. seal/embedBytes Tests

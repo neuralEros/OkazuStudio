@@ -19,7 +19,7 @@ window.Logger = (function() {
         }
     }
 
-    return {
+    const logger = {
         info: (msg, data) => format('INFO', msg, data),
         warn: (msg, data) => format('WARN', msg, data),
         error: (msg, data) => format('ERROR', msg, data),
@@ -34,4 +34,12 @@ window.Logger = (function() {
         getLogs: () => logs.join('\n'),
         clear: () => { logs.length = 0; }
     };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.logging = {
+        timestamp,
+        format
+    };
+
+    return logger;
 })();

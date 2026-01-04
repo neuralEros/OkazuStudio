@@ -859,12 +859,24 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (runTestsBtn) {
             runTestsBtn.addEventListener('click', async () => {
                 if (window.TestRunner && window.TestRunner.runAll) {
+                    runTestsBtn.textContent = "Running...";
+                    runTestsBtn.disabled = true;
+
+                    // Run tests
                     await window.TestRunner.runAll();
-                    refreshLogs();
-                } else if (window.Logger && window.Logger.warn) {
-                    window.Logger.warn('Test runner not available. Ensure test scripts are loaded.');
+
+                    // Save logs
+                    if (window.Logger && window.Logger.getLogs) {
+                        localStorage.setItem('okazu_test_logs', window.Logger.getLogs());
+                    }
+
+                    // Set flag to open debug panel on load
+                    localStorage.setItem('okazu_open_debug', 'true');
+
+                    // Reload
+                    location.reload();
                 } else {
-                    console.warn('Test runner not available. Ensure test scripts are loaded.');
+                    console.warn('Test runner not available.');
                 }
             });
         }
@@ -904,6 +916,38 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
             const debugTab = document.getElementById('tab-debug');
             if (debugTab && !debugTab.classList.contains('hidden')) {
                 startLogPolling();
+            }
+        }
+
+        // Check for open debug flag
+        if (localStorage.getItem('okazu_open_debug') === 'true') {
+            localStorage.removeItem('okazu_open_debug');
+
+            // Switch to Debug Tab
+            tabs.forEach(t => {
+                t.classList.remove('active');
+                t.style.backgroundColor = '';
+                t.style.color = '';
+                t.classList.add('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+            });
+            contents.forEach(c => c.classList.add('hidden'));
+
+            const debugTabBtn = document.querySelector('[data-tab="debug"]');
+            if (debugTabBtn) {
+                debugTabBtn.classList.add('active');
+                debugTabBtn.classList.remove('text-gray-400', 'hover:text-white', 'hover:bg-white/5');
+                debugTabBtn.style.backgroundColor = 'hsla(var(--accent-h), var(--accent-s), var(--accent-l), 0.15)';
+                debugTabBtn.style.color = 'var(--accent-soft)';
+            }
+            document.getElementById('tab-debug').classList.remove('hidden');
+
+            openSettings();
+
+            // Restore logs
+            const savedLogs = localStorage.getItem('okazu_test_logs');
+            if (savedLogs && window.Logger && window.Logger.restore) {
+                window.Logger.restore(savedLogs);
+                localStorage.removeItem('okazu_test_logs');
             }
         }
 

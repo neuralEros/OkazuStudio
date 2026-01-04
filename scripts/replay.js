@@ -781,6 +781,17 @@
         return new ReplayEngine(state, maskCtx, maskCanvas, render, updateUI, rebuildWorkingCopies);
     };
 
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.replay = {
+        ActionHistoryLog,
+        KeyframeManager,
+        ReplayEngine,
+        getUnionDims,
+        cloneCanvas,
+        rotateCanvas,
+        rotateRect
+    };
+
     // Global Dispatch shim is now handled in main.js via delegation,
     // but we ensure the global object exists for safety if main.js calls it early.
     window.dispatchAction = function(action) {

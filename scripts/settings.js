@@ -201,6 +201,13 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         }, 10);
     }
 
+    function stopRgbLoop() {
+        if (rgbInterval) clearInterval(rgbInterval);
+        if (buttonInterval) clearInterval(buttonInterval);
+        rgbInterval = null;
+        buttonInterval = null;
+    }
+
     // Debounce utility
     function debounce(func, wait) {
         let timeout;
@@ -924,7 +931,27 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     loadSettings();
     initSettingsUI();
 
-    return {
-        // Expose if needed
+    const testables = {
+        loadSettings,
+        saveSettings,
+        encodeApiKey,
+        decodeApiKey,
+        updateThemeVariables,
+        initRgbLoop,
+        stopRgbLoop,
+        updateRgbButtonColor,
+        debounce,
+        saveDebounced,
+        getLastStaticHue: () => lastStaticHue,
+        setLastStaticHue: (value) => { lastStaticHue = value; },
+        getCycleHue: () => cycleHue,
+        setCycleHue: (value) => { cycleHue = value; },
+        getButtonHue: () => buttonHue,
+        setButtonHue: (value) => { buttonHue = value; }
     };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.settings = testables;
+
+    return testables;
 }

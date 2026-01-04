@@ -799,17 +799,28 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
-            // Highlight test status, names, and duration in PASS/FAIL lines.
-            const testLineRegex = /^(PASS|FAIL)\s+(.+?)\s*(\(\d+ms\))(?:\s*:\s*(.*))?$/;
+            // Highlight test status, test name, and duration in PASS/FAIL lines.
+            // Format: PASS Category: TestName ... (12ms)
+            const testLineRegex = /^(PASS|FAIL)\s+([^:]+):\s*(.*)$/;
             const testLineMatch = safeMessage.match(testLineRegex);
             if (testLineMatch) {
-                const [, status, testName, duration, remainder] = testLineMatch;
+                const [, status, category, rest] = testLineMatch;
                 const statusColor = status === 'FAIL' ? '#ef4444' : 'var(--log-accent-color)';
                 const statusSpan = `<span style="color: ${statusColor}">${status}</span>`;
-                const nameSpan = `<span style="color: var(--log-accent-color)">${testName.trim()}</span>`;
-                const durationSpan = `<span style="color: var(--log-accent-color)">${duration}</span>`;
-                const suffix = remainder ? `: ${remainder}` : '';
-                return `${prefixPart}${statusSpan} ${nameSpan} ${durationSpan}${suffix}`;
+                let restMessage = rest;
+                const nameMatch = restMessage.match(/^([^\s(]+)/);
+                if (nameMatch) {
+                    const name = nameMatch[1];
+                    restMessage = restMessage.replace(
+                        name,
+                        `<span style="color: var(--log-accent-color)">${name}</span>`
+                    );
+                }
+                restMessage = restMessage.replace(
+                    /\b\d+ms\b/g,
+                    (duration) => `<span style="color: var(--log-accent-color)">${duration}</span>`
+                );
+                return `${prefixPart}${statusSpan} ${category.trim()}: ${restMessage}`;
             }
 
             // Combined Regex for Assets, Filenames, Resolutions, and Numbers

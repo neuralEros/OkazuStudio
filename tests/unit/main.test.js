@@ -65,10 +65,12 @@
     register('Main: renderToContext', () => {
         const { renderToContext, createDefaultState } = window.OkazuTestables.main;
 
-        // Mock state for render
-        const state = createDefaultState();
-        state.cropRect = { x:0, y:0, w:1, h:1 };
-        state.fullDims = { w: 100, h: 100 };
+        const realState = window.OkazuTestables.main.state;
+        const backupState = { ...realState };
+        const cleanState = createDefaultState();
+        Object.assign(realState, cleanState);
+        realState.cropRect = { x:0, y:0, w:1, h:1 };
+        realState.fullDims = { w: 100, h: 100 };
 
         const ctx = document.createElement('canvas').getContext('2d');
         const spy = window.TestRunner.spyOn(ctx, 'drawImage'); // Requires spy capability, assume simple
@@ -76,14 +78,16 @@
         let calls = 0;
         ctx.drawImage = () => calls++;
 
-        // 6.1.1 Returns early without crop (if not cropping)
-        state.cropRect = null;
-        state.isCropping = false;
-        renderToContext(ctx, 100, 100);
-        assertEqual(calls, 0, 'No draw without crop');
-
-        // Restore
-        state.cropRect = { x:0, y:0, w:1, h:1 };
+        try {
+            // 6.1.1 Returns early without crop (if not cropping)
+            realState.cropRect = null;
+            realState.isCropping = false;
+            renderToContext(ctx, 100, 100);
+            assertEqual(calls, 0, 'No draw without crop');
+        } finally {
+            spy.restore();
+            Object.assign(realState, backupState);
+        }
     });
 
     // 8. Layer Management

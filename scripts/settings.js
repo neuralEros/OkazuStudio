@@ -42,7 +42,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
                 if (state.settings.apiKey) {
                     state.settings.apiKey = decodeApiKey(state.settings.apiKey);
                 }
-                lastStaticHue = state.settings.hue;
             } catch (e) {
                 console.error("Failed to load settings", e);
                 state.settings = { ...defaults };
@@ -50,6 +49,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         } else {
             state.settings = { ...defaults };
         }
+
+        lastStaticHue = state.settings.hue;
 
         // If RGB mode is active on load, force start at Hue 0 (Red)
         if (state.settings.rgbMode) {
@@ -61,7 +62,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
     // Save settings to localStorage
     function saveSettings() {
-        const toSave = { ...state.settings };
+        const toSave = (state.settings && typeof state.settings === 'object')
+            ? { ...state.settings }
+            : { ...defaults };
         // Encode API Key before saving
         if (toSave.apiKey) {
             toSave.apiKey = encodeApiKey(toSave.apiKey);
@@ -73,7 +76,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         }
 
         // Don't save runtime state if any
-        localStorage.setItem('okazu_settings', JSON.stringify(toSave));
+        let payload;
+        try {
+            payload = JSON.stringify(toSave);
+        } catch (error) {
+            console.error("Failed to serialize settings", error);
+            payload = JSON.stringify({ ...defaults });
+        }
+        if (payload === undefined) {
+            payload = JSON.stringify({ ...defaults });
+        }
+        localStorage.setItem('okazu_settings', payload);
     }
 
     // Simple obfuscation (Not secure, just prevents casual reading)
@@ -168,7 +181,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
         if (rgbInterval) clearInterval(rgbInterval);
 
         const baseInterval = 125;
-        const interval = baseInterval / (state.settings.rgbSpeed || 1.0);
+        const safeSpeed = Math.max(Number(state.settings.rgbSpeed) || 1.0, 0.1);
+        const interval = baseInterval / safeSpeed;
 
         rgbInterval = setInterval(() => {
             // Increment theme cycle

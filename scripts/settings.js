@@ -30,9 +30,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
     let rgbInterval = null;
     let debugPollInterval = null; // Polling for logs
 
+    let storageRef = storage;
+
+    function setStorage(nextStorage) {
+        if (nextStorage && typeof nextStorage.getItem === 'function' && typeof nextStorage.setItem === 'function') {
+            storageRef = nextStorage;
+        }
+    }
+
     // Load settings from localStorage or use defaults
     function loadSettings() {
-        const stored = storage.getItem('okazu_settings');
+        const stored = storageRef.getItem('okazu_settings');
         const hasStored = typeof stored === 'string' && stored.trim().length > 0;
         let parsedSettings = null;
 
@@ -81,7 +89,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         }
 
         // Don't save runtime state if any
-        storage.setItem('okazu_settings', JSON.stringify(toSave));
+        storageRef.setItem('okazu_settings', JSON.stringify(toSave));
     }
 
     // Simple obfuscation (Not secure, just prevents casual reading)
@@ -928,8 +936,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         }
 
         // Check for open debug flag
-        if (localStorage.getItem('okazu_open_debug') === 'true') {
-            localStorage.removeItem('okazu_open_debug');
+        if (storageRef.getItem('okazu_open_debug') === 'true') {
+            storageRef.removeItem('okazu_open_debug');
 
             // Switch to Debug Tab
             tabs.forEach(t => {
@@ -952,10 +960,10 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
             openSettings();
 
             // Restore logs
-            const savedLogs = localStorage.getItem('okazu_test_logs');
+            const savedLogs = storageRef.getItem('okazu_test_logs');
             if (savedLogs && window.Logger && window.Logger.restore) {
                 window.Logger.restore(savedLogs);
-                localStorage.removeItem('okazu_test_logs');
+                storageRef.removeItem('okazu_test_logs');
             }
         }
 
@@ -994,6 +1002,7 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         updateRgbButtonColor,
         debounce,
         saveDebounced,
+        setStorage,
         getLastStaticHue: () => lastStaticHue,
         setLastStaticHue: (value) => { lastStaticHue = value; },
         getCycleHue: () => cycleHue,

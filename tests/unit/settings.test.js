@@ -33,18 +33,21 @@
 
     register('Settings: loadSettings merges defaults and handles malformed storage', () => {
         const store = {};
-        const origGet = localStorage.getItem;
-        const origSet = localStorage.setItem;
+        const origStorage = localStorage;
         const origSetInterval = window.setInterval;
         const origClearInterval = window.clearInterval;
         const originalSettings = mainState.settings;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => { store[k] = v; },
+            removeItem: (k) => { delete store[k]; }
+        };
 
         window.setInterval = () => 1;
         window.clearInterval = () => {};
-        localStorage.getItem = (k) => store[k];
-        localStorage.setItem = (k, v) => store[k] = v;
 
         try {
+            settings.setStorage(storage);
             store.okazu_settings = JSON.stringify({ hue: 120 });
             settings.loadSettings();
             assertEqual(mainState.settings.hue, 120);
@@ -57,8 +60,7 @@
             assertEqual(mainState.settings.saturation, 96);
         } finally {
             mainState.settings = originalSettings;
-            localStorage.getItem = origGet;
-            localStorage.setItem = origSet;
+            settings.setStorage(origStorage);
             window.setInterval = origSetInterval;
             window.clearInterval = origClearInterval;
             settings.stopRgbLoop();
@@ -67,18 +69,21 @@
 
     register('Settings: save/load persist API key encoding', () => {
         const store = {};
-        const origGet = localStorage.getItem;
-        const origSet = localStorage.setItem;
+        const origStorage = localStorage;
         const origSetInterval = window.setInterval;
         const origClearInterval = window.clearInterval;
         const originalSettings = mainState.settings;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => { store[k] = v; },
+            removeItem: (k) => { delete store[k]; }
+        };
 
         window.setInterval = () => 1;
         window.clearInterval = () => {};
-        localStorage.getItem = (k) => store[k];
-        localStorage.setItem = (k, v) => store[k] = v;
 
         try {
+            settings.setStorage(storage);
             mainState.settings = { ...originalSettings, apiKey: 'super-secret' };
             settings.saveSettings();
 
@@ -91,8 +96,7 @@
             assertEqual(mainState.settings.apiKey, 'super-secret');
         } finally {
             mainState.settings = originalSettings;
-            localStorage.getItem = origGet;
-            localStorage.setItem = origSet;
+            settings.setStorage(origStorage);
             window.setInterval = origSetInterval;
             window.clearInterval = origClearInterval;
             settings.stopRgbLoop();
@@ -101,20 +105,22 @@
 
     register('Settings: saveDebounced timing', () => {
         const store = {};
-        const origGet = localStorage.getItem;
-        const origSet = localStorage.setItem;
+        const origStorage = localStorage;
         const origSetTimeout = window.setTimeout;
         const origClearTimeout = window.clearTimeout;
         const originalSettings = mainState.settings;
         let callCount = 0;
         const timeouts = new Map();
         let nextId = 1;
-
-        localStorage.getItem = (k) => store[k];
-        localStorage.setItem = (k, v) => {
-            store[k] = v;
-            callCount += 1;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => {
+                store[k] = v;
+                callCount += 1;
+            },
+            removeItem: (k) => { delete store[k]; }
         };
+
         window.setTimeout = (cb, ms) => {
             const id = nextId++;
             timeouts.set(id, { cb, ms });
@@ -125,6 +131,7 @@
         };
 
         try {
+            settings.setStorage(storage);
             mainState.settings = { ...originalSettings };
             settings.saveDebounced();
             settings.saveDebounced();
@@ -139,8 +146,7 @@
             assertEqual(callCount, 1, 'Called after timeout');
         } finally {
             mainState.settings = originalSettings;
-            localStorage.getItem = origGet;
-            localStorage.setItem = origSet;
+            settings.setStorage(origStorage);
             window.setTimeout = origSetTimeout;
             window.clearTimeout = origClearTimeout;
         }
@@ -173,15 +179,17 @@
 
     register('Settings: RGB loop persistence and speed changes', () => {
         const store = {};
-        const origGet = localStorage.getItem;
-        const origSet = localStorage.setItem;
+        const origStorage = localStorage;
         const origSetInterval = window.setInterval;
         const origClearInterval = window.clearInterval;
         const intervals = [];
         const originalSettings = mainState.settings;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => { store[k] = v; },
+            removeItem: (k) => { delete store[k]; }
+        };
 
-        localStorage.getItem = (k) => store[k];
-        localStorage.setItem = (k, v) => store[k] = v;
         window.setInterval = (cb, ms) => {
             intervals.push(ms);
             return intervals.length;
@@ -189,6 +197,7 @@
         window.clearInterval = () => {};
 
         try {
+            settings.setStorage(storage);
             mainState.settings = { ...originalSettings, rgbMode: true, rgbSpeed: 2.0, hue: 210 };
             settings.setLastStaticHue(45);
             settings.saveSettings();
@@ -211,8 +220,7 @@
             assertApprox(nextInterval, 31.25, 0.01);
         } finally {
             mainState.settings = originalSettings;
-            localStorage.getItem = origGet;
-            localStorage.setItem = origSet;
+            settings.setStorage(origStorage);
             window.setInterval = origSetInterval;
             window.clearInterval = origClearInterval;
             settings.stopRgbLoop();

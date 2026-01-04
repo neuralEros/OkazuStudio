@@ -4,30 +4,38 @@
     const mainState = window.OkazuTestables.main.state;
 
     // 1. Storage Persistence
-    register('Settings: Load/Save Cycle', () => {
-        // Mock localStorage
-        const store = {};
-        const origGet = localStorage.getItem;
-        const origSet = localStorage.setItem;
 
-        localStorage.getItem = (k) => store[k];
-        localStorage.setItem = (k, v) => store[k] = v;
+    register('Settings: Basic Save/Load Cycle', () => {
+        const store = {};
+        const origStorage = localStorage;
+        const originalSettings = mainState.settings;
+        const storage = {
+            getItem: (k) => store[k],
+            setItem: (k, v) => { store[k] = v; },
+            removeItem: (k) => { delete store[k]; }
+        };
 
         try {
-            // Save
-            const state = { settings: { hue: 123, apiKey: 'secret' } };
-            // We need to inject state into the system, but `settings.js` runs as a factory closure.
-            // We can test the exposed helpers.
+            settings.setStorage(storage);
 
-            // Encode API Key
-            const encoded = settings.encodeApiKey('secret');
-            assert(encoded !== 'secret', 'Encoded');
-            const decoded = settings.decodeApiKey(encoded);
-            assertEqual(decoded, 'secret', 'Round trip');
+            // Set a test state
+            mainState.settings = { ...originalSettings, hue: 150, exportQuality: 50 };
+            settings.saveSettings();
+
+            // Verify storage content
+            const saved = JSON.parse(store.okazu_settings);
+            assertEqual(saved.hue, 150);
+            assertEqual(saved.exportQuality, 50);
+
+            // Clear state and load back
+            mainState.settings = {};
+            settings.loadSettings();
+            assertEqual(mainState.settings.hue, 150);
+            assertEqual(mainState.settings.exportQuality, 50);
 
         } finally {
-            localStorage.getItem = origGet;
-            localStorage.setItem = origSet;
+            mainState.settings = originalSettings;
+            settings.setStorage(origStorage);
         }
     });
 
@@ -67,41 +75,6 @@
         }
     });
 
-    register('Settings: save/load persist API key encoding', () => {
-        const store = {};
-        const origStorage = localStorage;
-        const origSetInterval = window.setInterval;
-        const origClearInterval = window.clearInterval;
-        const originalSettings = mainState.settings;
-        const storage = {
-            getItem: (k) => store[k],
-            setItem: (k, v) => { store[k] = v; },
-            removeItem: (k) => { delete store[k]; }
-        };
-
-        window.setInterval = () => 1;
-        window.clearInterval = () => {};
-
-        try {
-            settings.setStorage(storage);
-            mainState.settings = { ...originalSettings, apiKey: 'super-secret' };
-            settings.saveSettings();
-
-            const saved = JSON.parse(store.okazu_settings);
-            assert(saved.apiKey !== 'super-secret', 'API key encoded');
-            assertEqual(settings.decodeApiKey(saved.apiKey), 'super-secret');
-
-            mainState.settings = {};
-            settings.loadSettings();
-            assertEqual(mainState.settings.apiKey, 'super-secret');
-        } finally {
-            mainState.settings = originalSettings;
-            settings.setStorage(origStorage);
-            window.setInterval = origSetInterval;
-            window.clearInterval = origClearInterval;
-            settings.stopRgbLoop();
-        }
-    });
 
     register('Settings: saveDebounced timing', () => {
         const store = {};

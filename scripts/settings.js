@@ -9,7 +9,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         rgbSpeed: 5.0, // Multiplier (1.0 = 4 deg/s)
         brushPreviewResolution: 1080, // 'p' refers to height
         adjustmentPreviewResolution: 1080,
-        apiKey: '',
         keyframeInterval: 10,
         keyframeBuffer: 5,
         useReplay: true,
@@ -58,10 +57,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
         if (parsedSettings) {
             // Merge with defaults to ensure all keys exist
             state.settings = { ...defaults, ...parsedSettings };
-            // Decode API Key if present
-            if (state.settings.apiKey) {
-                state.settings.apiKey = decodeApiKey(state.settings.apiKey);
-            }
             lastStaticHue = state.settings.hue;
         } else {
             state.settings = { ...defaults };
@@ -78,10 +73,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
     // Save settings to localStorage
     function saveSettings() {
         const toSave = { ...state.settings };
-        // Encode API Key before saving
-        if (toSave.apiKey) {
-            toSave.apiKey = encodeApiKey(toSave.apiKey);
-        }
 
         // If RGB mode is active, don't save the current cycling hue, save the last user-set hue.
         if (toSave.rgbMode) {
@@ -90,21 +81,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
 
         // Don't save runtime state if any
         storageRef.setItem('okazu_settings', JSON.stringify(toSave));
-    }
-
-    // Simple obfuscation (Not secure, just prevents casual reading)
-    function encodeApiKey(key) {
-        if (!key) return '';
-        try {
-            return btoa(key.split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ (i % 255))).join(''));
-        } catch (e) { return key; }
-    }
-
-    function decodeApiKey(encoded) {
-        if (!encoded) return '';
-        try {
-            return atob(encoded).split('').map((c, i) => String.fromCharCode(c.charCodeAt(0) ^ (i % 255))).join('');
-        } catch (e) { return encoded; }
     }
 
     function updateThemeVariables(hue, sat) {
@@ -1023,8 +999,6 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
     const testables = {
         loadSettings,
         saveSettings,
-        encodeApiKey,
-        decodeApiKey,
         updateThemeVariables,
         initRgbLoop,
         stopRgbLoop,

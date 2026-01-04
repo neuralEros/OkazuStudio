@@ -799,6 +799,17 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
+            // Highlight summary counts for test completion line.
+            const doneLineRegex = /^Done\.\s+Passed:\s+(\d+),\s+Failed:\s+(\d+),\s+Total:\s+(\d+)$/;
+            const doneLineMatch = safeMessage.match(doneLineRegex);
+            if (doneLineMatch) {
+                const [, passedCount, failedCount, totalCount] = doneLineMatch;
+                const passedSpan = `<span style="color: #22c55e">${passedCount}</span>`;
+                const failedSpan = `<span style="color: #ef4444">${failedCount}</span>`;
+                const totalSpan = `<span style="color: var(--log-accent-color)">${totalCount}</span>`;
+                return `${prefixPart}Done. Passed: ${passedSpan}, Failed: ${failedSpan}, Total: ${totalSpan}`;
+            }
+
             // Highlight test status, test name, and duration in PASS/FAIL lines.
             // Format: PASS Category: TestName ... (12ms)
             const testLineRegex = /^(PASS|FAIL)\s+([^:]+):\s*(.*)$/;

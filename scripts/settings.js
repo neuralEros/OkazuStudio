@@ -799,21 +799,50 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask, storage =
                 return prefixPart + 'System Info: ' + processedParts.join('|');
             }
 
+            // Highlight summary counts for test completion line.
+            const doneLineRegex = /^Done\.\s+Passed:\s+(\d+),\s+Failed:\s+(\d+),\s+Total:\s+(\d+)$/;
+            const doneLineMatch = safeMessage.match(doneLineRegex);
+            if (doneLineMatch) {
+                const [, passedCount, failedCount, totalCount] = doneLineMatch;
+                const passedSpan = `<span style="color: #22c55e">${passedCount}</span>`;
+                const failedSpan = `<span style="color: #ef4444">${failedCount}</span>`;
+                const totalSpan = `<span style="color: var(--log-accent-color)">${totalCount}</span>`;
+                return `${prefixPart}Done. Passed: ${passedSpan}, Failed: ${failedSpan}, Total: ${totalSpan}`;
+            }
+
+            // Highlight test status, test name, and duration in PASS/FAIL lines.
+            // Format: PASS Category: TestName ... (12ms)
+            const testLineRegex = /^(PASS|FAIL)\s+([^:]+):\s*(.*)$/;
+            const testLineMatch = safeMessage.match(testLineRegex);
+            if (testLineMatch) {
+                const [, status, category, rest] = testLineMatch;
+                const statusColor = status === 'FAIL' ? '#ef4444' : 'var(--log-accent-color)';
+                const statusSpan = `<span style="color: ${statusColor}">${status}</span>`;
+                let restMessage = rest;
+                restMessage = restMessage.replace(
+                    /\b\d+ms\b/g,
+                    (duration) => `<span style="color: var(--log-accent-color)">${duration}</span>`
+                );
+                return `${prefixPart}${statusSpan} ${category.trim()}: ${restMessage}`;
+            }
+
             // Combined Regex for Assets, Filenames, Resolutions, and Numbers
             // Group 1: Asset Prefix (optional)
             // Group 2: Asset ID (asset_...)
             // Group 3: Filename
             // Group 4: Resolution
-            // Group 5: Number (Floats only to avoid highlighting indices)
-            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|((?<!\w)-?\d+\.\d+\b)/g;
+            // Group 5: Duration (e.g. 12ms)
+            // Group 6: Number (Floats only to avoid highlighting indices)
+            const regex = /(Asset: )?(asset_\w+)|(\b[\w-]+\.(?:png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)\b)|(\b\d+x\d+\b)|(\b\d+ms\b)|((?<!\w)-?\d+\.\d+\b)/g;
 
-            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, number) => {
+            safeMessage = safeMessage.replace(regex, (match, assetPrefix, assetId, filename, resolution, duration, number) => {
                 const style = 'style="color: var(--log-accent-color)"';
                 if (assetId) {
                     return (assetPrefix || '') + `<span ${style}>${assetId}</span>`;
                 }
                 if (filename) return `<span ${style}>${filename}</span>`;
                 if (resolution) return `<span ${style}>${resolution}</span>`;
+                if (duration) return `<span ${style}>${duration}</span>`;
                 if (number) return `<span ${style}>${number}</span>`;
                 return match;
             });

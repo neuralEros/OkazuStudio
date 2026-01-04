@@ -1,4 +1,40 @@
 function createAdjustmentSystem({ state, els, ctx, renderToContext, render, scheduleHeavyTask }) {
+    const COLOR_TUNING_BANDS = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta', 'lights', 'mids', 'darks'];
+    const createDefaultColorTuning = () => COLOR_TUNING_BANDS.reduce((acc, band) => {
+        acc[band] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+        return acc;
+    }, {});
+    const createDefaultAdjustments = () => ({
+        gamma: 1.0,
+        levels: { black: 0, mid: 1.0, white: 255 },
+        shadows: 0,
+        highlights: 0,
+        saturation: 0,
+        vibrance: 0,
+        wb: 0,
+        colorBal: { r: 0, g: 0, b: 0 },
+        colorTuning: createDefaultColorTuning()
+    });
+
+    function ensureAdjustments() {
+        if (!state.adjustments) {
+            state.adjustments = createDefaultAdjustments();
+            return;
+        }
+        if (!state.adjustments.levels) state.adjustments.levels = { black: 0, mid: 1.0, white: 255 };
+        if (!state.adjustments.colorBal) state.adjustments.colorBal = { r: 0, g: 0, b: 0 };
+        if (!state.adjustments.colorTuning || typeof state.adjustments.colorTuning !== 'object') {
+            state.adjustments.colorTuning = createDefaultColorTuning();
+        } else {
+            COLOR_TUNING_BANDS.forEach((band) => {
+                if (!state.adjustments.colorTuning[band]) {
+                    state.adjustments.colorTuning[band] = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+                }
+            });
+        }
+    }
+
+    ensureAdjustments();
     let gammaLUT = new Uint8Array(256);
     let currentGammaLUTValue = -1;
     let masterLUT = new Uint8Array(256);
@@ -407,6 +443,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (!state.imgA && !state.imgB) return;
         if (!state.adjustmentsVisible) return;
         const now = Date.now();
+        if (now < state.previewThrottle) {
+            state.previewThrottle = now - 100;
+        }
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
 

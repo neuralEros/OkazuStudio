@@ -422,7 +422,9 @@
                     if (asset) {
                         // Determine Slot (Legacy fallback)
                         let slot = payload.slot || payload.targetSlot;
-                        if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
+                        if (!slot) {
+                            slot = type === 'APPLY_CENSOR' ? 'B' : 'A';
+                        }
 
                         // Logic
                         if (slot === 'A') {
@@ -504,10 +506,7 @@
                              this.state.nameB = "";
 
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             // Preserve Crop if valid prop, else default
-                             if (!this.state.cropRect) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
-                             }
+                             this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
                         } else if (type === 'APPLY_CENSOR') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
                              if (!this.state.cropRect) {
@@ -743,6 +742,7 @@
 
     function cloneCanvas(source) {
         if (!source) return null;
+        if (!isDrawableSource(source)) return source;
         const width = source.naturalWidth || source.width;
         const height = source.naturalHeight || source.height;
         const c = document.createElement('canvas');
@@ -752,10 +752,19 @@
         return c;
     }
 
+    function isDrawableSource(source) {
+        if (!source) return false;
+        if (typeof HTMLCanvasElement !== 'undefined' && source instanceof HTMLCanvasElement) return true;
+        if (typeof HTMLImageElement !== 'undefined' && source instanceof HTMLImageElement) return true;
+        if (typeof Image !== 'undefined' && source instanceof Image) return true;
+        return typeof source.getContext === 'function';
+    }
+
     function rotateCanvas(canvas, rotation) {
         if (rotation === 0 || !canvas) return canvas;
-        const w = canvas.width;
-        const h = canvas.height;
+        if (!isDrawableSource(canvas)) return canvas;
+        const w = canvas.naturalWidth || canvas.width;
+        const h = canvas.naturalHeight || canvas.height;
         const newW = (rotation % 180 === 0) ? w : h;
         const newH = (rotation % 180 === 0) ? h : w;
         const temp = document.createElement('canvas');

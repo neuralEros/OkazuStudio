@@ -832,6 +832,9 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
 
     function handlePointerMove(e) {
         if (!canDraw()) return;
+        if (e.buttons === 0 && !state.isPanning && !state.isZooming && !(state.isCropping && state.cropDrag)) {
+            state.isDrawing = false;
+        }
         const coords = getCanvasCoordinates(e);
         state.currentPointerX = coords.x;
         state.currentPointerY = coords.y;

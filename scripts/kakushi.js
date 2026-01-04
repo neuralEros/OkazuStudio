@@ -283,17 +283,38 @@ const kakushi = (() => {
     async function compressString(str) {
         const encoder = new TextEncoder();
         const input = encoder.encode(str);
-        // Create stream from input
-        const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
-        return await streamToArrayBuffer(stream);
+        if (typeof CompressionStream !== 'undefined' && Blob.prototype.stream) {
+            const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
+            return await streamToArrayBuffer(stream);
+        }
+        if (typeof require === 'function') {
+            const { gzipSync } = require('zlib');
+            return new Uint8Array(gzipSync(Buffer.from(input)));
+        }
+        return input;
     }
 
     async function decompressString(compressedBytes) {
-        // Create stream from bytes
-        const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-        const decompressed = await streamToArrayBuffer(stream);
+        const hasGzipSupport = typeof DecompressionStream !== 'undefined' || typeof require === 'function';
+        if (hasGzipSupport) {
+            if (!compressedBytes || compressedBytes.length < 2 || compressedBytes[0] !== 0x1f || compressedBytes[1] !== 0x8b) {
+                throw new Error('Invalid gzip header');
+            }
+        }
+        if (typeof DecompressionStream !== 'undefined' && Blob.prototype.stream) {
+            const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+            const decompressed = await streamToArrayBuffer(stream);
+            const decoder = new TextDecoder();
+            return decoder.decode(decompressed);
+        }
+        if (typeof require === 'function') {
+            const { gunzipSync } = require('zlib');
+            const result = gunzipSync(Buffer.from(compressedBytes));
+            const decoder = new TextDecoder();
+            return decoder.decode(result);
+        }
         const decoder = new TextDecoder();
-        return decoder.decode(decompressed);
+        return decoder.decode(compressedBytes);
     }
 
     const testables = {

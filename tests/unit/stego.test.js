@@ -10,7 +10,7 @@
     }
 
     function makeState(overrides = {}) {
-        return {
+        const state = {
             adjustments: JSON.parse(JSON.stringify(DEFAULTS)),
             // Fill nested levels object as stringify/parse doesn't handle prototypes/references but simple object is fine
             // Ensure tuning is present
@@ -25,10 +25,21 @@
             nameB: "",
             ...overrides
         };
-        // Fix colorTuning
-        if (!state.adjustments.colorTuning) state.adjustments.colorTuning = {};
-        // Add minimal tuning structure
-        ['red','orange'].forEach(b => state.adjustments.colorTuning[b] = {hue:0,saturation:0,vibrance:0,luminance:0,shadows:0,highlights:0});
+        const tuningBands = ['reds', 'oranges', 'yellows', 'greens', 'cyans', 'blues', 'purples', 'magentas'];
+        const baseBand = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+
+        if (!state.adjustments.colorTuning || typeof state.adjustments.colorTuning !== 'object') {
+            state.adjustments.colorTuning = {};
+        }
+
+        tuningBands.forEach((band) => {
+            state.adjustments.colorTuning[band] = {
+                ...baseBand,
+                ...(state.adjustments.colorTuning[band] || {})
+            };
+        });
+
+        return state;
     }
 
     // 2. getMaskActions Tests
@@ -80,10 +91,7 @@
 
         // 1.5.4 Color Tuning
         const s3 = makeState();
-        // We need to ensure tuning structure exists in fixture
-        s3.adjustments.colorTuning = {
-            red: { hue: 1, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
-        };
+        s3.adjustments.colorTuning.blues.hue = 1;
         const p3 = getAdjustmentsPacket(s3);
         assert(p3 !== null, 'Detected tuning');
     });

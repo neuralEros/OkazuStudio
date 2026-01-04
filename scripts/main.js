@@ -678,15 +678,15 @@
 
         function getLayerForRender(slot, { useBakedLayers = true, preferPreview = false, allowRebuild = true } = {}) {
             const source = slot === 'A' ? state.imgA : state.imgB;
-            if (!source) return { img: null, scale: 1 };
-            if (!useBakedLayers) return { img: source, scale: 1 };
+            const working = slot === 'A' ? state.workingA : state.workingB;
+            if (!source && !working) return { img: null, scale: 1 };
+            if (!useBakedLayers) return { img: source || working, scale: 1 };
 
             // If adjustments are hidden, bypass working copies and return raw source
             if (!state.adjustmentsVisible) return { img: source, scale: 1 };
 
-            const working = slot === 'A' ? state.workingA : state.workingB;
             const workingVersion = slot === 'A' ? state.workingVersionA : state.workingVersionB;
-            if (allowRebuild && (!working || workingVersion !== state.adjustmentsVersion)) {
+            if (allowRebuild && source && (!working || workingVersion !== state.adjustmentsVersion)) {
                 rebuildWorkingCopyForSlot(slot);
             }
 
@@ -695,7 +695,8 @@
             const previewScale = slot === 'A' ? state.previewScaleA : state.previewScaleB;
 
             if (preferPreview && working && previewVersion !== state.adjustmentsVersion) {
-                rebuildPreviewLayerForSlot(slot, allowRebuild);
+                const previewRebuild = window.OkazuTestables?.main?.rebuildPreviewLayerForSlot || rebuildPreviewLayerForSlot;
+                previewRebuild(slot, allowRebuild);
             }
 
             if (preferPreview && working && previewLayer && (previewVersion === state.adjustmentsVersion || !allowRebuild)) {
@@ -1846,6 +1847,7 @@
                 renderMode = 'composite' // 'composite', 'mask_alpha', 'mask_grayscale'
             } = opts;
 
+            let finalOpacity = 1.0;
             targetCtx.clearRect(0, 0, w, h);
             if (!state.cropRect && !state.isCropping) return;
 
@@ -1892,6 +1894,7 @@
 
             // Special Render Modes (Mask Export)
             if (renderMode.startsWith('mask_')) {
+                const forceComposite = renderMode === 'mask_grayscale';
                 // Background: White
                 targetCtx.fillStyle = '#FFFFFF';
                 targetCtx.fillRect(0, 0, drawW, drawH);
@@ -1931,6 +1934,9 @@
                     if (transformed && renderMode === 'mask_alpha') targetCtx.restore();
                 }
                 targetCtx.restore();
+                if (forceComposite) {
+                    targetCtx.globalCompositeOperation = 'destination-over';
+                }
                 return;
             }
 
@@ -2017,10 +2023,12 @@
                     const singleLayer = !state.imgA || !state.imgB;
                     const effectiveOpacity = (singleLayer || !state.backVisible || forceOpacity) ? 1.0 : state.opacity;
                     targetCtx.globalAlpha = effectiveOpacity;
+                    finalOpacity = effectiveOpacity;
                     targetCtx.drawImage(state.previewFrontLayer, 0, 0);
                 }
             }
             targetCtx.restore();
+            targetCtx.globalAlpha = finalOpacity;
         }
         
         function render(finalOutput = false, skipAdjustments = false) {

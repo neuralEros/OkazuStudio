@@ -423,6 +423,7 @@
                         // Determine Slot (Legacy fallback)
                         let slot = payload.slot || payload.targetSlot;
                         if (type === 'APPLY_CENSOR' && !slot) slot = 'B';
+                        if (type === 'MERGE_LAYERS' && !slot) slot = 'A';
 
                         // Logic
                         if (slot === 'A') {
@@ -504,10 +505,7 @@
                              this.state.nameB = "";
 
                              this.state.fullDims = { w: asset.width, h: asset.height };
-                             // Preserve Crop if valid prop, else default
-                             if (!this.state.cropRect) {
-                                 this.state.cropRect = { x: 0, y: 0, w: asset.width/asset.height, h: 1.0 };
-                             }
+                             this.state.cropRect = { x: 0, y: 0, w: asset.width / asset.height, h: 1.0 };
                         } else if (type === 'APPLY_CENSOR') {
                              this.state.fullDims = { w: asset.width, h: asset.height };
                              if (!this.state.cropRect) {
@@ -754,6 +752,7 @@
 
     function rotateCanvas(canvas, rotation) {
         if (rotation === 0 || !canvas) return canvas;
+        if (typeof canvas.getContext !== 'function') return canvas;
         const w = canvas.width;
         const h = canvas.height;
         const newW = (rotation % 180 === 0) ? w : h;
@@ -762,9 +761,41 @@
         temp.width = newW;
         temp.height = newH;
         const ctx = temp.getContext('2d');
-        ctx.translate(newW / 2, newH / 2);
-        ctx.rotate(rotation * Math.PI / 180);
-        ctx.drawImage(canvas, -w / 2, -h / 2);
+        if (rotation % 90 === 0) {
+            const srcCtx = canvas.getContext('2d');
+            const srcData = srcCtx.getImageData(0, 0, w, h);
+            const destData = ctx.createImageData(newW, newH);
+            const src = srcData.data;
+            const dest = destData.data;
+
+            for (let y = 0; y < h; y += 1) {
+                for (let x = 0; x < w; x += 1) {
+                    const srcIdx = (y * w + x) * 4;
+                    let dx = x;
+                    let dy = y;
+                    if (rotation === 90) {
+                        dx = newW - y - 1;
+                        dy = x;
+                    } else if (rotation === 180) {
+                        dx = newW - x - 1;
+                        dy = newH - y - 1;
+                    } else if (rotation === 270) {
+                        dx = y;
+                        dy = newH - x - 1;
+                    }
+                    const destIdx = (dy * newW + dx) * 4;
+                    dest[destIdx] = src[srcIdx];
+                    dest[destIdx + 1] = src[srcIdx + 1];
+                    dest[destIdx + 2] = src[srcIdx + 2];
+                    dest[destIdx + 3] = src[srcIdx + 3];
+                }
+            }
+            ctx.putImageData(destData, 0, 0);
+        } else {
+            ctx.translate(newW / 2, newH / 2);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.drawImage(canvas, -w / 2, -h / 2);
+        }
         return temp;
     }
 

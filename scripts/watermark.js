@@ -182,9 +182,51 @@
         },
 
         checkAndRemove: function(sourceCanvas) {
-            // Apply the exact same logic. XOR cancels out.
             const ctx = sourceCanvas.getContext('2d');
-            this.apply(ctx, sourceCanvas.width, sourceCanvas.height);
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            const mask = this.buildMask(width, height);
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const data = imgData.data;
+            const maskData = mask.data;
+
+            let masked = [0, 0, 0];
+            let unmasked = [0, 0, 0];
+            let maskedCount = 0;
+            let unmaskedCount = 0;
+
+            for (let i = 0; i < data.length; i += 4) {
+                if (maskData[i + 3] === 255) {
+                    masked[0] += data[i];
+                    masked[1] += data[i + 1];
+                    masked[2] += data[i + 2];
+                    maskedCount++;
+                } else if (maskData[i + 3] === 0) {
+                    unmasked[0] += data[i];
+                    unmasked[1] += data[i + 1];
+                    unmasked[2] += data[i + 2];
+                    unmaskedCount++;
+                }
+            }
+
+            if (maskedCount === 0 || unmaskedCount === 0) {
+                return;
+            }
+
+            const avgMasked = masked.map(val => val / maskedCount);
+            const avgUnmasked = unmasked.map(val => val / unmaskedCount);
+
+            const normalDiff = Math.abs(avgMasked[0] - avgUnmasked[0])
+                + Math.abs(avgMasked[1] - avgUnmasked[1])
+                + Math.abs(avgMasked[2] - avgUnmasked[2]);
+            const invertedDiff = Math.abs(avgMasked[0] - (255 - avgUnmasked[0]))
+                + Math.abs(avgMasked[1] - (255 - avgUnmasked[1]))
+                + Math.abs(avgMasked[2] - (255 - avgUnmasked[2]));
+
+            const looksWatermarked = invertedDiff + 5 < normalDiff;
+            if (looksWatermarked) {
+                this.apply(ctx, width, height);
+            }
         }
     };
 

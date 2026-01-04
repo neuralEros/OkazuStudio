@@ -4,6 +4,10 @@ function createInputSystem({ state, els, maskCtx, maskCanvas, render, saveSnapsh
     const BRUSH_MAX = 0.3;   // 30%
     const BRUSH_SLIDER_STEPS = 1000;
 
+    if (typeof state.isDrawing !== 'boolean') {
+        state.isDrawing = false;
+    }
+
     // Feather Size as Proportion of Height (Fixed Mode)
     // Range: 0.02% to 1.0% (Target 5px at 4320p is ~0.12%)
     const FEATHER_SIZE_MIN = 0.0002;

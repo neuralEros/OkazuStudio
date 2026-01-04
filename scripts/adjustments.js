@@ -16,6 +16,49 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
             interaction: () => {}
         };
 
+    const defaultAdjustments = () => ({
+        gamma: 1.0,
+        levels: { black: 0, mid: 1.0, white: 255 },
+        saturation: 0,
+        vibrance: 0,
+        wb: 0,
+        colorBal: { r: 0, g: 0, b: 0 },
+        shadows: 0,
+        highlights: 0,
+        colorTuning: {
+            red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+            darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+        }
+    });
+
+    if (!state.adjustments) {
+        state.adjustments = defaultAdjustments();
+    } else {
+        const defaults = defaultAdjustments();
+        state.adjustments = {
+            ...defaults,
+            ...state.adjustments,
+            levels: { ...defaults.levels, ...(state.adjustments.levels || {}) },
+            colorBal: { ...defaults.colorBal, ...(state.adjustments.colorBal || {}) },
+            colorTuning: { ...defaults.colorTuning, ...(state.adjustments.colorTuning || {}) }
+        };
+    }
+
+    if (!state.settings) {
+        state.settings = { adjustmentPreviewResolution: 1080 };
+    } else if (state.settings.adjustmentPreviewResolution === undefined) {
+        state.settings.adjustmentPreviewResolution = 1080;
+    }
+
     const BAND_CENTERS = {
         red: 0,
         orange: 30,
@@ -407,6 +450,9 @@ function createAdjustmentSystem({ state, els, ctx, renderToContext, render, sche
         if (!state.imgA && !state.imgB) return;
         if (!state.adjustmentsVisible) return;
         const now = Date.now();
+        if (now < state.previewThrottle) {
+            state.previewThrottle = now - 100;
+        }
         if (now - state.previewThrottle < 100) return;
         state.previewThrottle = now;
 

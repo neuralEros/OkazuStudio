@@ -283,17 +283,33 @@ const kakushi = (() => {
     async function compressString(str) {
         const encoder = new TextEncoder();
         const input = encoder.encode(str);
-        // Create stream from input
-        const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
-        return await streamToArrayBuffer(stream);
+        if (typeof CompressionStream !== 'undefined' && Blob.prototype.stream) {
+            const stream = new Blob([input]).stream().pipeThrough(new CompressionStream('gzip'));
+            return await streamToArrayBuffer(stream);
+        }
+        try {
+            const zlib = require('zlib');
+            return new Uint8Array(zlib.gzipSync(input));
+        } catch (err) {
+            throw new Error('Compression unavailable');
+        }
     }
 
     async function decompressString(compressedBytes) {
-        // Create stream from bytes
-        const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-        const decompressed = await streamToArrayBuffer(stream);
-        const decoder = new TextDecoder();
-        return decoder.decode(decompressed);
+        if (typeof DecompressionStream !== 'undefined' && Blob.prototype.stream) {
+            const stream = new Blob([compressedBytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+            const decompressed = await streamToArrayBuffer(stream);
+            const decoder = new TextDecoder();
+            return decoder.decode(decompressed);
+        }
+        try {
+            const zlib = require('zlib');
+            const decoded = zlib.gunzipSync(compressedBytes);
+            const decoder = new TextDecoder();
+            return decoder.decode(decoded);
+        } catch (err) {
+            throw new Error(`Decompression failed - ${err.message}`);
+        }
     }
 
     const testables = {

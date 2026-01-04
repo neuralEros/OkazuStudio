@@ -5,6 +5,7 @@
     const HARDNESS_MAX = 20;
 
     function getSoftness(size, feather, featherMode) {
+        if (Number.isNaN(size) || Number.isNaN(feather)) return NaN;
         const radius = size / 2;
         if (radius <= 0) return 0;
         if (featherMode) {

@@ -46,6 +46,28 @@
             };
         });
 
+        if (overrides && typeof overrides === 'object') {
+            if (overrides.adjustments) {
+                state.adjustments = {
+                    ...state.adjustments,
+                    ...overrides.adjustments,
+                    levels: {
+                        ...state.adjustments.levels,
+                        ...(overrides.adjustments.levels || {})
+                    },
+                    colorBal: {
+                        ...state.adjustments.colorBal,
+                        ...(overrides.adjustments.colorBal || {})
+                    },
+                    colorTuning: {
+                        ...state.adjustments.colorTuning,
+                        ...(overrides.adjustments.colorTuning || {})
+                    }
+                };
+            }
+            Object.assign(state, { ...overrides, adjustments: state.adjustments });
+        }
+
         return state;
     }
 

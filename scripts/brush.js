@@ -83,6 +83,12 @@
         if (!points || points.length === 0) return;
         const { size, feather, featherMode, isErasing } = settings;
 
+        if (points.length === 1) {
+            const onlyPt = points[0];
+            paintStampAt(ctx, onlyPt.x, onlyPt.y, size, feather, featherMode, isErasing);
+            return;
+        }
+
         let lastStamp = null;
         for (const pt of points) {
             lastStamp = paintStrokeSegment(ctx, lastStamp, pt, size, feather, featherMode, isErasing);
@@ -100,6 +106,14 @@
         paintStrokeSegment,
         drawStroke,
         getSoftness // Exposed for debugging/UI if needed
+    };
+
+    window.OkazuTestables = window.OkazuTestables || {};
+    window.OkazuTestables.brush = {
+        paintStampAt,
+        paintStrokeSegment,
+        drawStroke,
+        getSoftness
     };
 
 })();

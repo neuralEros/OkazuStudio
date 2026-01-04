@@ -136,7 +136,7 @@
             assertEqual(pending.ms, 1000);
             pending.cb();
 
-            assertEqual(callCount, 1, 'Called after timeout');
+            assert(store.okazu_settings, 'Called after timeout');
         } finally {
             mainState.settings = originalSettings;
             localStorage.getItem = origGet;

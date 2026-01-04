@@ -61,6 +61,9 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
 
     // Save settings to localStorage
     function saveSettings() {
+        if (!state.settings) {
+            return;
+        }
         const toSave = { ...state.settings };
         // Encode API Key before saving
         if (toSave.apiKey) {
@@ -212,8 +215,8 @@ function createSettingsSystem({ state, els, render, scheduleHeavyTask }) {
     function debounce(func, wait) {
         let timeout;
         return function(...args) {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(this, args), wait);
+            window.clearTimeout(timeout);
+            timeout = window.setTimeout(() => func.apply(this, args), wait);
         };
     }
 

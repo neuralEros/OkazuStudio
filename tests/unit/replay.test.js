@@ -53,7 +53,16 @@
             return null;
         }
     };
-    window.AssetManager = mockAssetManager;
+
+    function withMockAssetManager(fn) {
+        const original = window.AssetManager;
+        window.AssetManager = mockAssetManager;
+        try {
+            return fn();
+        } finally {
+            window.AssetManager = original;
+        }
+    }
 
     // 3. ActionHistoryLog Tests
     register('Replay: ActionHistoryLog', () => {
@@ -161,17 +170,19 @@
         drawSpy.mockImplementation(() => {});
 
         try {
-            // Load Asset B (900x300) into Slot B
-            engine.applyAction('LOAD_IMAGE', { assetId: 'asset-b', slot: 'B' });
+            withMockAssetManager(() => {
+                // Load Asset B (900x300) into Slot B
+                engine.applyAction('LOAD_IMAGE', { assetId: 'asset-b', slot: 'B' });
 
-            assertEqual(state.assetIdB, 'asset-b');
-            // Union Logic: A(100x100), B(900x300).
-            // Max H = 300.
-            // A scale = 300/100 = 3. A Vis W = 300.
-            // B scale = 1. B Vis W = 900.
-            // Union W = 900. H = 300.
-            assertEqual(state.fullDims.w, 900, 'Union Width');
-            assertEqual(state.fullDims.h, 300, 'Union Height');
+                assertEqual(state.assetIdB, 'asset-b');
+                // Union Logic: A(100x100), B(900x300).
+                // Max H = 300.
+                // A scale = 300/100 = 3. A Vis W = 300.
+                // B scale = 1. B Vis W = 900.
+                // Union W = 900. H = 300.
+                assertEqual(state.fullDims.w, 900, 'Union Width');
+                assertEqual(state.fullDims.h, 300, 'Union Height');
+            });
         } finally {
             drawSpy.restore();
         }

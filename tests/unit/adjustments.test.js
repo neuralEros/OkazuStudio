@@ -1,5 +1,64 @@
 (function() {
-    const { register, assert, assertEqual, assertApprox } = window.TestRunner;
+    const { register, assert, assertEqual, assertApprox, assertDeepEqual, spyOn } = window.TestRunner;
+
+    function createAdjustmentsFixture() {
+        const created = [];
+        const container = document.createElement('div');
+        container.setAttribute('data-test-fixture', 'adjustments');
+        document.body.appendChild(container);
+
+        const ensureElement = (tag, id, options = {}) => {
+            let el = document.getElementById(id);
+            if (!el) {
+                el = document.createElement(tag);
+                el.id = id;
+                if (options.type) el.type = options.type;
+                if (options.step) el.step = options.step;
+                if (options.value !== undefined) el.value = options.value;
+                container.appendChild(el);
+                created.push(el);
+            }
+            return el;
+        };
+
+        const sliderIds = [
+            'adj-gamma', 'adj-shadows', 'adj-highlights',
+            'adj-l-black', 'adj-l-mid', 'adj-l-white',
+            'adj-sat', 'adj-vib', 'adj-wb',
+            'adj-cb-r', 'adj-cb-g', 'adj-cb-b'
+        ];
+
+        sliderIds.forEach(id => {
+            const step = ['adj-gamma', 'adj-l-mid'].includes(id) ? '0.01' : '1';
+            ensureElement('input', id, { type: 'range', step, value: '0' });
+            ensureElement('span', `val-${id.replace('adj-', '')}`);
+        });
+
+        const tuningSliders = ['tune-hue', 'tune-sat', 'tune-vib', 'tune-lum', 'tune-shadows', 'tune-highlights'];
+        tuningSliders.forEach(id => {
+            ensureElement('input', id, { type: 'range', step: '1', value: '0' });
+            ensureElement('span', `val-${id}`);
+        });
+
+        const bandButtons = ['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta', 'lights', 'mids', 'darks'];
+        bandButtons.forEach(band => ensureElement('button', `band-${band}`));
+
+        const resetSatBtn = ensureElement('button', 'resetSatBtn');
+        const resetBandBtn = ensureElement('button', 'resetBandBtn');
+        const resetTuningBtn = ensureElement('button', 'resetTuningBtn');
+
+        return {
+            resetSatBtn,
+            resetBandBtn,
+            resetTuningBtn,
+            cleanup: () => {
+                created.forEach(el => el.remove());
+                if (container.childElementCount === 0) {
+                    container.remove();
+                }
+            }
+        };
+    }
 
     // 1. Test Harness Assumptions
     // 1.1 Minimal Harness/Fixture Shape
@@ -36,6 +95,88 @@
         assert(typeof system.initAdjustments === 'function', 'initAdjustments is a function');
         assert(window.OkazuTestables && window.OkazuTestables.adjustments, 'OkazuTestables.adjustments is exposed');
         assert(typeof window.OkazuTestables.adjustments.getBandWeight === 'function', 'getBandWeight is exposed');
+    });
+
+    register('Adjustments: DOM wiring for sliders, resets, and tabs', () => {
+        const fixture = createAdjustmentsFixture();
+        const state = {
+            adjustments: {
+                gamma: 1.0,
+                levels: { black: 0, mid: 1.0, white: 255 },
+                saturation: 0,
+                vibrance: 0,
+                wb: 0,
+                colorBal: { r: 0, g: 0, b: 0 },
+                shadows: 0,
+                highlights: 0,
+                colorTuning: {
+                    red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                }
+            },
+            settings: { adjustmentPreviewResolution: 1080 }
+        };
+        const els = {
+            resetAdjBtn: document.createElement('button'),
+            resetLevelsBtn: document.createElement('button'),
+            resetColorBtn: document.createElement('button')
+        };
+
+        const gammaEl = document.getElementById('adj-gamma');
+        const tuningHueEl = document.getElementById('tune-hue');
+        const bandRedBtn = document.getElementById('band-red');
+        const resetSatBtn = fixture.resetSatBtn;
+
+        const gammaSpy = spyOn(gammaEl, 'addEventListener');
+        const tuneSpy = spyOn(tuningHueEl, 'addEventListener');
+        const bandSpy = spyOn(bandRedBtn, 'addEventListener');
+        const resetSatSpy = spyOn(resetSatBtn, 'addEventListener');
+        const resetAdjSpy = spyOn(els.resetAdjBtn, 'addEventListener');
+
+        const system = createAdjustmentSystem({
+            state,
+            els,
+            ctx: {},
+            renderToContext: () => {},
+            render: () => {},
+            scheduleHeavyTask: () => {}
+        });
+
+        try {
+            system.initAdjustments();
+
+            const gammaEvents = gammaSpy.calls.map(args => args[0]);
+            assert(gammaEvents.includes('pointerdown'), 'Gamma slider pointerdown wired');
+            assert(gammaEvents.includes('focus'), 'Gamma slider focus wired');
+            assert(gammaEvents.includes('input'), 'Gamma slider input wired');
+            assert(gammaEvents.includes('change'), 'Gamma slider change wired');
+
+            const tuningEvents = tuneSpy.calls.map(args => args[0]);
+            assert(tuningEvents.includes('input'), 'Tuning slider input wired');
+            assert(tuningEvents.includes('change'), 'Tuning slider change wired');
+
+            const bandEvents = bandSpy.calls.map(args => args[0]);
+            assert(bandEvents.includes('click'), 'Band tab click wired');
+
+            assert(resetSatSpy.calls.some(args => args[0] === 'click'), 'Reset saturation wired');
+            assert(resetAdjSpy.calls.some(args => args[0] === 'click'), 'Reset adjustments wired');
+        } finally {
+            gammaSpy.restore();
+            tuneSpy.restore();
+            bandSpy.restore();
+            resetSatSpy.restore();
+            resetAdjSpy.restore();
+            fixture.cleanup();
+        }
     });
 
     // 2. Pure Helper Functions (OkazuTestables.adjustments)
@@ -180,6 +321,22 @@
         assertEqual(imgDataTest.data[3], 255, 'Alpha unchanged');
     });
 
+    register('Adjustments: Master LUT deterministic output', () => {
+        const state = {
+            adjustments: { gamma: 2.0, levels: { black: 10, mid: 0.8, white: 245 } }
+        };
+        const system = createAdjustmentSystem({ state, els: {}, ctx: {}, renderToContext: () => {}, render: () => {}, scheduleHeavyTask: () => {} });
+
+        const original = new Uint8ClampedArray([10, 60, 200, 255, 120, 180, 240, 255]);
+        const imgDataA = { data: new Uint8ClampedArray(original) };
+        const imgDataB = { data: new Uint8ClampedArray(original) };
+
+        system.applyMasterLUT(imgDataA);
+        system.applyMasterLUT(imgDataB);
+
+        assertDeepEqual(Array.from(imgDataA.data), Array.from(imgDataB.data), 'Master LUT deterministic for fixed inputs');
+    });
+
     // 5. Color Operations (applyColorOps)
     register('Adjustments: applyColorOps', () => {
          const state = {
@@ -218,6 +375,52 @@
         assert(balData[2] < 100, 'Blue decreased to compensate lum');
     });
 
+    register('Adjustments: updateAdjustmentPreview throttling', () => {
+        const state = {
+            imgA: {},
+            imgB: null,
+            adjustmentsVisible: true,
+            previewThrottle: -1000,
+            settings: { adjustmentPreviewResolution: 'Full' }
+        };
+
+        const ctx = {
+            getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+            putImageData: () => {}
+        };
+        const els = {
+            mainCanvas: { width: 200, height: 100, style: {} },
+            previewCanvas: { classList: { add: () => {} } }
+        };
+
+        let renderCalls = 0;
+        const system = createAdjustmentSystem({
+            state,
+            els,
+            ctx,
+            renderToContext: () => { renderCalls += 1; },
+            render: () => {},
+            scheduleHeavyTask: () => {}
+        });
+
+        const originalNow = Date.now;
+        let nowCalls = 0;
+        Date.now = () => {
+            const times = [0, 50, 120];
+            return times[nowCalls++] || times[times.length - 1];
+        };
+
+        try {
+            system.updateAdjustmentPreview();
+            system.updateAdjustmentPreview();
+            system.updateAdjustmentPreview();
+        } finally {
+            Date.now = originalNow;
+        }
+
+        assertEqual(renderCalls, 2, 'Throttled to two renders over 120ms');
+    });
+
     // 6. Selective Color Application (applySelectiveColor)
     register('Adjustments: applySelectiveColor', () => {
         // Mock State
@@ -254,6 +457,128 @@
         assertEqual(redPixel[0], 255, 'Red component high');
         assert(redPixel[1] > 0, 'Green component increased (Hue shift)');
         assertEqual(redPixel[2], 0, 'Blue component low');
+    });
+
+    register('Adjustments: selective color tuning on small buffer', () => {
+        const zeroBand = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+        const state = {
+            adjustments: { colorTuning: {
+                red: { ...zeroBand },
+                orange: { ...zeroBand }, yellow: { ...zeroBand }, green: { ...zeroBand },
+                aqua: { ...zeroBand }, blue: { ...zeroBand }, purple: { ...zeroBand }, magenta: { ...zeroBand },
+                lights: { ...zeroBand }, mids: { ...zeroBand }, darks: { ...zeroBand }
+            } }
+        };
+        const system = createAdjustmentSystem({ state, els: {}, ctx: {}, renderToContext: () => {}, render: () => {}, scheduleHeavyTask: () => {} });
+
+        state.adjustments.colorTuning.blue = { hue: -30, saturation: -50, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+        system.recalculateColorTuning();
+
+        const buffer = new Uint8ClampedArray([0, 0, 255, 255, 128, 128, 128, 255]);
+        const imgData = { data: buffer };
+        system.applySelectiveColor(imgData);
+
+        const { hslToRgb } = window.OkazuTestables.adjustments;
+        const [expR, expG, expB] = hslToRgb(210, 0.5, 0.5);
+
+        assertApprox(buffer[0], expR, 1, 'Blue hue shifted towards cyan');
+        assertApprox(buffer[1], expG, 1, 'Blue green channel increased');
+        assertApprox(buffer[2], expB, 1, 'Blue channel reduced with saturation drop');
+        assertEqual(buffer[4], 128, 'Gray pixel unchanged');
+        assertEqual(buffer[5], 128, 'Gray pixel unchanged');
+        assertEqual(buffer[6], 128, 'Gray pixel unchanged');
+    });
+
+    register('Adjustments: color tuning LUT accumulation deterministic', () => {
+        const zeroBand = { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+        const state = {
+            adjustments: { colorTuning: {
+                red: { ...zeroBand },
+                orange: { ...zeroBand }, yellow: { ...zeroBand }, green: { ...zeroBand },
+                aqua: { ...zeroBand }, blue: { ...zeroBand }, purple: { ...zeroBand }, magenta: { ...zeroBand },
+                lights: { ...zeroBand }, mids: { ...zeroBand }, darks: { ...zeroBand }
+            } }
+        };
+        const system = createAdjustmentSystem({ state, els: {}, ctx: {}, renderToContext: () => {}, render: () => {}, scheduleHeavyTask: () => {} });
+
+        state.adjustments.colorTuning.red = { hue: 15, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 };
+        state.adjustments.colorTuning.lights = { hue: 0, saturation: 0, vibrance: 0, luminance: 20, shadows: 0, highlights: 0 };
+        system.recalculateColorTuning();
+
+        const pixel = new Uint8ClampedArray([255, 128, 128, 255]);
+        const imgDataA = { data: new Uint8ClampedArray(pixel) };
+        const imgDataB = { data: new Uint8ClampedArray(pixel) };
+
+        system.applySelectiveColor(imgDataA);
+        system.applySelectiveColor(imgDataB);
+
+        assertDeepEqual(Array.from(imgDataA.data), Array.from(imgDataB.data), 'Color tuning deterministic for fixed inputs');
+
+        const { rgbToHsl } = window.OkazuTestables.adjustments;
+        const [hBefore, , lBefore] = rgbToHsl(255, 128, 128);
+        const [hAfter, , lAfter] = rgbToHsl(imgDataA.data[0], imgDataA.data[1], imgDataA.data[2]);
+
+        assert(hAfter > hBefore, 'Hue shifted by red tuning band');
+        assert(lAfter > lBefore, 'Luminance increased by lights band');
+    });
+
+    register('Adjustments: Logger warnings/errors for tuning UI', () => {
+        const fixture = createAdjustmentsFixture();
+        const missingTuning = document.getElementById('tune-vib');
+        if (missingTuning) missingTuning.remove();
+
+        const state = {
+            adjustments: {
+                colorTuning: {
+                    red: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    orange: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    yellow: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    green: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    aqua: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    blue: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    purple: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    magenta: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    lights: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    mids: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 },
+                    darks: { hue: 0, saturation: 0, vibrance: 0, luminance: 0, shadows: 0, highlights: 0 }
+                }
+            },
+            settings: { adjustmentPreviewResolution: 1080 },
+            activeColorBand: null
+        };
+        const els = {
+            resetAdjBtn: document.createElement('button'),
+            resetLevelsBtn: document.createElement('button'),
+            resetColorBtn: document.createElement('button')
+        };
+
+        const warnSpy = spyOn(Logger, 'warn');
+        const errorSpy = spyOn(Logger, 'error');
+
+        const system = createAdjustmentSystem({
+            state,
+            els,
+            ctx: {},
+            renderToContext: () => {},
+            render: () => {},
+            scheduleHeavyTask: () => {}
+        });
+
+        try {
+            system.initAdjustments();
+
+            assert(warnSpy.calls.some(args => String(args[0]).includes('tune-vib')), 'Warns for missing tuning slider');
+
+            const tuneHue = document.getElementById('tune-hue');
+            tuneHue.value = '10';
+            tuneHue.dispatchEvent(new Event('input'));
+
+            assert(errorSpy.calls.some(args => String(args[0]).includes('Missing activeColorBand')), 'Errors on missing active band');
+        } finally {
+            warnSpy.restore();
+            errorSpy.restore();
+            fixture.cleanup();
+        }
     });
 
 })();
